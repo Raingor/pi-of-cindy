@@ -32,6 +32,7 @@ import { upsertRecentWorkdir } from './recentWorkdirs';
 import { createLogger } from '../../logger';
 import { pickSessionForWorkdir } from '../pluginWorkspaceDedupe';
 import { normalizeWorkingDirForStorage } from '../../../shared/workingDir.js';
+import type { AgentKind } from '../../../renderer/lib/ccAgent.types';
 
 const log = createLogger('plugin-workspace-sessions');
 
@@ -73,7 +74,7 @@ export async function createPluginDraftSession(params: {
    * 由 mapper 兜底)——让插件建的 draft 跟随用户当前的模型/强度选择。
    */
   defaults?: {
-    agentKind?: 'cc' | 'codex';
+    agentKind?: AgentKind;
     model?: string;
     effort?: string;
     fastMode?: boolean;

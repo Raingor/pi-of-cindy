@@ -1365,6 +1365,8 @@ export function ProvidersSection() {
         let added = 0;
         let anyOk = false;
         for (const agent of p.agents) {
+          // pi 自管 provider，不进供应商设置（无 provider config）。
+          if (agent === 'pi') continue;
           const rt = config.runtimes[agent];
           if (!rt?.baseUrl) continue;
           const authMethod =

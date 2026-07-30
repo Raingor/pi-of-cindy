@@ -211,7 +211,8 @@ export function selectVisibleModels(params: {
   const cc = drop(deviceId ? deviceCcModels : deriveModelsFromProviders(providers, 'claude-code'));
   const codex = drop(deviceId ? deviceCodexModels : deriveModelsFromProviders(providers, 'codex', codexDeriveOpts));
   if (agentKind === 'claude-code') return cc;
-  if (agentKind === 'codex') return codex;
+  // pi 使用 OpenAI 兼容协议,复用 codex 模型目录。
+  if (agentKind === 'codex' || agentKind === 'pi') return codex;
   const merged = [...cc];
   const seen = new Set(merged.map((m) => m.id));
   for (const m of codex) {
@@ -235,7 +236,8 @@ export function resolveVisibleModelAgentKind(params: {
   providers: ProviderView[];
 }): AgentKind | null {
   const { modelId, agentKind, ccModels, codexModels, providers } = params;
-  if (agentKind) return agentKind;
+  // pi 复用 codex 模型目录/供应商路由 → 映射到 codex。
+  if (agentKind) return agentKind === 'pi' ? 'codex' : agentKind;
   if (ccModels.some((model) => model.id === modelId)) return 'claude-code';
   if (codexModels.some((model) => model.id === modelId)) return 'codex';
   if (providers.some((provider) => providerOffersModel(provider, modelId, 'claude-code'))) {

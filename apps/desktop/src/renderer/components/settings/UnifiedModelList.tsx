@@ -54,7 +54,7 @@ import {
 import { isAgentSelectableModel } from '@cindy/model-providers';
 import type { AgentKind, CatalogModel, ProviderView } from '@cindy/model-providers';
 
-const AGENT_LABEL: Record<AgentKind, string> = {
+const AGENT_LABEL: Partial<Record<AgentKind, string>> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
 };

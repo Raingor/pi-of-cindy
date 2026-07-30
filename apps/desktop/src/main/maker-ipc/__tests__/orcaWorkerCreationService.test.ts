@@ -34,12 +34,12 @@ describe('providerRouteRequiresExplicitSelection', () => {
 });
 
 function providerRoutingContext(
-  availability: Record<AgentKind, OrcaWorkerProviderSnapshot[]>,
+  availability: Partial<Record<AgentKind, OrcaWorkerProviderSnapshot[]>>,
 ): OrcaWorkerProviderRoutingContext {
   return {
     availability,
     resolveDefaultProviderIdForModel: (agent, model) => (
-      availability[agent].find((provider) => provider.models.includes(model))?.id ?? null
+      (availability[agent] ?? []).find((provider) => provider.models.includes(model))?.id ?? null
     ),
   };
 }
@@ -1038,7 +1038,7 @@ describe('OrcaWorkerCreationService', () => {
         { id: 'custom-codex', name: 'Custom Codex', models: ['gpt-5.5'] },
         { id: 'xd', name: 'XD Gateway', models: ['gpt-5.4'] },
       ],
-    } satisfies Record<AgentKind, OrcaWorkerProviderSnapshot[]>;
+    } satisfies Partial<Record<AgentKind, OrcaWorkerProviderSnapshot[]>>;
     const { deps, service } = createDeps({
       getWorkerDefaults: vi.fn(() => ({ model: 'gpt-5.5', providerId: 'custom-codex' })),
       getProviderRoutingContext: vi.fn(async () => providerRoutingContext(availability)),

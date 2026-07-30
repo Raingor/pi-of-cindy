@@ -44,7 +44,10 @@ function rowToState(row: GoalRow): GoalState {
   };
 }
 
-function stateToInsert(state: GoalState): GoalInsert {
+function stateToInsert(state: GoalState): GoalInsert | null {
+  // goal-host 是 OPT-OUT 特性:pi 不参与目标续跑,不落 goal 行。
+  // 守卫确保只有 claude-code/codex 能落到窄枚举列(与 sessionGoals schema 一致)。
+  if (state.agentKind === 'pi') return null;
   return {
     sessionId: state.sessionId,
     objective: state.objective,
@@ -82,6 +85,8 @@ export class GoalStorage implements GoalStorageLike {
    */
   async upsert(state: GoalState): Promise<void> {
     const row = stateToInsert(state);
+    // pi (OPT-OUT) 不落 goal 行;stateToInsert 返回 null 即跳过整行写入。
+    if (!row) return;
     await this.getDb()
       .insert(sessionGoals)
       .values(row)

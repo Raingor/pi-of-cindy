@@ -138,7 +138,8 @@ export interface NewMakerDraft {
 }
 
 function defaultVendorPrefs(vendor: MakerVendor): VendorPrefs {
-  if (vendor === 'codex') {
+  // pi 使用 OpenAI 兼容协议,默认模型/effort 与 codex 一致。
+  if (vendor === 'codex' || vendor === 'pi') {
     return {
       model: DEFAULT_CODEX_DRAFT_MODEL,
       effort: 'high',
@@ -177,6 +178,7 @@ function makeDefault(): NewMakerDraft {
       cc: defaultVendorPrefs('cc'),
       orca: defaultVendorPrefs('orca'),
       codex: defaultVendorPrefs('codex'),
+      pi: defaultVendorPrefs('pi'),
     },
     modelChosenByVendor: {},
   };
@@ -207,8 +209,9 @@ function sanitize(raw: unknown): NewMakerDraft {
   const r = raw as Partial<NewMakerDraft>;
   // F-COLLAB (2026-05): 'orca' vendor 已被 ChatInput 底部的 toggle 取代,
   // sanitize 时把历史 localStorage 残留的 'orca' 自动迁移到 'cc',避免空白入口。
+  // pi 保留:用户选了 pi 后跨重启不丢失。
   const vendor: MakerVendor =
-    r.vendor === 'codex' ? 'codex' : 'cc';
+    r.vendor === 'codex' ? 'codex' : r.vendor === 'pi' ? 'pi' : 'cc';
   const workingDir = normalizeDraftWorkingDir(r.workingDir);
   const remoteHostId =
     typeof r.remoteHostId === 'string' && r.remoteHostId.trim().length > 0
@@ -305,7 +308,7 @@ function sanitize(raw: unknown): NewMakerDraft {
       ? (r.modelChosenByVendor as Record<string, unknown>)
       : {};
   const modelChosenByVendor: Partial<Record<MakerVendor, boolean>> = {};
-  for (const v of ['cc', 'orca', 'codex'] as const) {
+  for (const v of ['cc', 'orca', 'codex', 'pi'] as const) {
     if (modelChosenRaw[v] === true) modelChosenByVendor[v] = true;
   }
   return {
@@ -323,6 +326,7 @@ function sanitize(raw: unknown): NewMakerDraft {
       cc: sanitizeVendorPrefs(lastByVendorRaw.cc, 'cc'),
       orca: sanitizeVendorPrefs(lastByVendorRaw.orca, 'orca'),
       codex: sanitizeVendorPrefs(lastByVendorRaw.codex, 'codex'),
+      pi: sanitizeVendorPrefs(lastByVendorRaw.pi, 'pi'),
     },
     modelChosenByVendor,
   };

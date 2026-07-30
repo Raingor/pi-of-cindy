@@ -327,7 +327,7 @@ function sessionSummaryFromRow(
     title: row.title,
     workingDir: row.workingDir,
     workspaceKind: row.workspaceKind,
-    agentKind: row.agentKind === 'codex' ? 'codex' : 'cc',
+    agentKind: row.agentKind === 'codex' ? 'codex' : row.agentKind === 'pi' ? 'pi' : 'cc',
     status: row.status,
     source: row.source,
     orcaRole: row.orcaRole,

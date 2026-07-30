@@ -14,6 +14,7 @@ import {
   Maker,
   ClaudeCodeAgent,
   CodexAgent,
+  PiAgent,
   configureDefaultImageResizer,
   type McpProvider,
 } from '@cindy/maker-core';
@@ -58,6 +59,11 @@ import {
   writeCodexHistoryHasProductPrompt,
 } from './session-storage.js';
 import { desktopMakerLogger } from './logger-adapter.js';
+import {
+  resolvePiBinaryPath,
+  createPiAuthAdapter,
+  createPiRuntimeConfig,
+} from './pi-host.js';
 import { resolveSessionCcDebugFile } from '../logger.js';
 import { resetProviderModelAutoRefreshCooldowns } from './provider-model-auto-refresh.js';
 import { createSshDaemonTransport } from './codex-remote-transport.js';
@@ -1079,10 +1085,30 @@ export function getMaker(): Maker {
     registerCustomMcpArrays(claudeMcpProviders, codexMcpProviders);
     _initialCustomMcpRefresh = refreshCustomMcpProviders();
 
+    // pi harness（第 3 个 harness, pi.dev）：复用本地 pi 二进制，找到才注册。
+    // pi 自管 provider / credentials / usage / memory -- 只注入 no-op auth + 空
+    // runtime config，不接 MCP providers / makerMemory（pi 用 ~/.pi 自配，首版不共享 Cindy MCP）。
+    // 找不到本地 pi 时 piAgent=null，下游两处注册点条件展开，picker 据此不显示 pi。
+    const piBinaryPath = resolvePiBinaryPath();
+    const piAgent = piBinaryPath
+      ? new PiAgent({
+          auth: createPiAuthAdapter(desktopMakerLogger),
+          runtimeConfig: createPiRuntimeConfig(),
+          binaryPath: piBinaryPath,
+          logger: desktopMakerLogger,
+        })
+      : null;
+    if (piAgent) {
+      desktopMakerLogger.info('pi harness registered', { binaryPath: piBinaryPath });
+    } else {
+      desktopMakerLogger.info('pi harness not registered (local pi binary not found)');
+    }
+
     // 装配第二步: 把 agents 引用挂回 manager (manager.enable() 时遍历 setMemory(false))。
     attachAgentsToMakerMemory(makerMemoryManager, {
       'claude-code': claudeAgent,
       codex: codexAgent,
+      ...(piAgent ? { pi: piAgent } : {}),
     });
     if (makerMemoryManager.isEnabled()) {
       void makerMemoryManager.enable();
@@ -1164,6 +1190,7 @@ export function getMaker(): Maker {
       agents: {
         'claude-code': claudeAgent,
         codex: codexAgent,
+        ...(piAgent ? { pi: piAgent } : {}),
       },
       storage: desktopSessionStorage,
       logger: desktopMakerLogger,

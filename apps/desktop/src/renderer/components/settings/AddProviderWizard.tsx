@@ -65,7 +65,7 @@ type Selection =
 
 type PresetBaseUrls = Partial<Record<AgentKind, string>>;
 
-const AGENT_LABEL: Record<AgentKind, string> = {
+const AGENT_LABEL: Partial<Record<AgentKind, string>> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
 };
@@ -534,7 +534,10 @@ export function AddProviderWizard({
     const seq = ++fetchSeqRef.current;
     // 并行拉取**每个已配置 runtime** 的列模型端点:双 runtime 预设两端各自发现,
     // 返回结果按「实际返回它的端点」归属合并——某模型两端都返回则归属两端。
-    const agents = Object.keys(preset.runtimes) as AgentKind[];
+    // pi 自管 provider，不进供应商设置；过滤后 agent 收窄为 claude-code | codex。
+    const agents = (Object.keys(preset.runtimes) as AgentKind[]).filter(
+      (a): a is 'claude-code' | 'codex' => a !== 'pi',
+    );
     // 同一个 modelsUrl 被多个 runtime 共用、但预设模型集合不同，说明该端点返回的是
     // 跨协议总目录（OpenCode Go 即如此），响应本身无法判定模型属于 Messages 还是 Chat。
     // 这类端点只能用于确认预设已有模型，不能扩大其 agent 归属或加入无法分类的新模型。

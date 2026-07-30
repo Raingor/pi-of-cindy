@@ -158,7 +158,7 @@ async function readSessionAgentKindFromDb(sessionId: string): Promise<AgentKind 
     .where(eq(sessions.id, sessionId))
     .limit(1);
   if (!row) return null;
-  return row.agentKind === 'codex' ? 'codex' : 'claude-code';
+  return row.agentKind === 'codex' ? 'codex' : row.agentKind === 'pi' ? 'pi' : 'claude-code';
 }
 
 const defaultRegenerateDeps: RegenerateTitleDeps = {

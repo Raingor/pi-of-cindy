@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { resolveHookSessionConfig, type HookDefaultsDeps } from '../defaults';
+import type { ImDefaultSettings } from '../../../shared/imDefaultSettings';
 
 const noopLog = { warn: () => {} };
 
@@ -20,8 +21,9 @@ function deps(over?: Partial<HookDefaultsDeps>): HookDefaultsDeps {
       agents: {
         'claude-code': { providerId: null, model: 'claude-opus-4-8', effort: 'xhigh' },
         codex: { providerId: 'xd', model: 'gpt-5.5', effort: 'high' },
+        pi: { providerId: null, model: '', effort: 'high' },
       },
-    }),
+    }) as unknown as ImDefaultSettings,
     getModels: (agentKind) =>
       agentKind === 'claude-code'
         ? [
@@ -96,8 +98,9 @@ describe('resolveHookSessionConfig', () => {
           agents: {
             'claude-code': { providerId: null, model: 'claude-opus-4-8', effort: 'ultra-draft' },
             codex: { providerId: null, model: 'gpt-5.5', effort: 'high' },
+            pi: { providerId: null, model: '', effort: 'high' },
           },
-        }),
+        }) as unknown as ImDefaultSettings,
       }),
       over({ effort: 'ultra' }),
     );
@@ -117,8 +120,9 @@ describe('resolveHookSessionConfig', () => {
           agents: {
             'claude-code': { providerId: null, model: 'gone-model', effort: 'high' },
             codex: { providerId: null, model: 'gpt-5.5', effort: 'high' },
+            pi: { providerId: null, model: '', effort: 'high' },
           },
-        }),
+        }) as unknown as ImDefaultSettings,
       }),
       over(),
     );
@@ -181,8 +185,9 @@ describe('resolveHookSessionConfig', () => {
           agents: {
             'claude-code': { providerId: null, model: 'claude-opus-4-8', effort: 'xhigh' },
             codex: { providerId: '  ', model: 'gpt-5.5', effort: 'high' },
+            pi: { providerId: null, model: '', effort: 'high' },
           },
-        }),
+        }) as unknown as ImDefaultSettings,
       }),
       over(),
     );

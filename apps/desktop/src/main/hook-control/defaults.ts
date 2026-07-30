@@ -31,16 +31,11 @@
  */
 
 import type { Effort } from '@cindy/maker-core';
+import type { ImDefaultSettings, ImDefaultAgentKind } from '../../shared/imDefaultSettings.js';
 
 /** 依赖注入面: IM 默认值 + 各 agent 当前可用模型清单。 */
 export interface HookDefaultsDeps {
-  readDefaults: () => {
-    agentKind: 'claude-code' | 'codex';
-    agents: Record<
-      'claude-code' | 'codex',
-      { providerId: string | null; model: string; effort: string }
-    >;
-  };
+  readDefaults: () => ImDefaultSettings;
   getModels: (agentKind: 'claude-code' | 'codex') => Array<{
     id: string;
     efforts: readonly string[];
@@ -81,11 +76,15 @@ export function resolveHookSessionConfig(
 ): ResolvedHookSessionConfig {
   const defaults = deps.readDefaults();
 
-  // 1. agent: 显式合法值 > 草稿默认
+  // 1. agent: 显式合法值 > 草稿默认。hook 派发只支持 cc/codex（pi 自管
+  // provider/model/effort，不参与 IM headless 派发）；草稿默认若为 pi 回落 claude-code。
+  const resolvedAgentKind: ImDefaultAgentKind = defaults.agentKind;
   const agentKind: 'claude-code' | 'codex' =
     overrides.agentKind !== null && AGENT_KINDS.has(overrides.agentKind)
       ? (overrides.agentKind as 'claude-code' | 'codex')
-      : defaults.agentKind;
+      : resolvedAgentKind === 'pi'
+        ? 'claude-code'
+        : resolvedAgentKind;
 
   const models = deps.getModels(agentKind);
   const findModel = (id: string) => models.find((m) => m.id === id);

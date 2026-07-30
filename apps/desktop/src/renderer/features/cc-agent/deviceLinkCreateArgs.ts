@@ -14,8 +14,8 @@ import type { WorkspaceKind } from '@/lib/ccAgent.types';
 import type { Effort, PermissionMode } from '@/lib/userPreferences.types';
 
 export interface DeviceLinkCreateParams {
-  /** 草稿 vendor 形态:'cc' | 'codex'(persistedAgentKind)。 */
-  agentKind: 'cc' | 'codex';
+  /** 草稿 vendor 形态:'cc' | 'codex' | 'pi'(persistedAgentKind)。 */
+  agentKind: 'cc' | 'codex' | 'pi';
   /** 被控端上的项目目录(远程草稿必有)。 */
   workingDir: string;
   /**
@@ -44,7 +44,7 @@ export interface DeviceLinkCreateParams {
 }
 
 export interface DeviceLinkCreateArgs {
-  agentKind: 'claude-code' | 'codex';
+  agentKind: 'claude-code' | 'codex' | 'pi';
   /** 仅远程 worktree 流程出现(与 worktree:create 登记的绑定同 id)。 */
   id?: string;
   workingDir: string;
@@ -62,7 +62,7 @@ export interface DeviceLinkCreateArgs {
 
 export function buildDeviceLinkCreateArgs(p: DeviceLinkCreateParams): DeviceLinkCreateArgs {
   return {
-    agentKind: p.agentKind === 'codex' ? 'codex' : 'claude-code',
+    agentKind: p.agentKind === 'cc' ? 'claude-code' : p.agentKind,
     // 预生成 id 仅在远程 worktree 流程出现;不传时不放进 args,被控端自行生成。
     ...(p.id ? { id: p.id } : {}),
     workingDir: p.workingDir,

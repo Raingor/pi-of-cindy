@@ -326,7 +326,14 @@ export function createDesktopMcpProviders(deps: DesktopMcpProvidersDeps): LiziMc
           return { ok: false, errorCode: 'HOST_NOT_READY', message: 'orca collab service not initialized' };
         }
         try {
-          return await svc.sendToSession({ targetSessionId, message, dispatcherSessionId, title, useWorktree, workingDir });
+          const result = await svc.sendToSession({ targetSessionId, message, dispatcherSessionId, title, useWorktree, workingDir });
+          // pi 不参与 Orca:svc.sendToSession 返回 agentKind: AgentKind(全集),
+          // callback 签名要求 ControlWorkerAgent('claude-code' | 'codex')。
+          // pi 不会经 Orca 链路产出,收窄 agentKind 以对齐 SendToSessionCallback。
+          if (result.ok) {
+            return { ...result, agentKind: result.agentKind as 'claude-code' | 'codex' };
+          }
+          return result;
         } catch (err) {
           return { ok: false, errorCode: 'INTERNAL', message: err instanceof Error ? err.message : String(err) };
         }

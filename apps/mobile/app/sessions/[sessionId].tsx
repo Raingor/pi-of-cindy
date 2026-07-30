@@ -1494,8 +1494,10 @@ export default function SessionScreen() {
   ]);
   const sessionMirrorAccessors = useMemo(
     () => makeSessionMirrorAccessors(sessionId, (agent, providerId, model, patch) => {
-      void maker.setSessionModelPref({ sessionId, agent, providerId, model, ...patch }).catch(() => undefined);
-      void maker.applyNewMakerDraftPref({ agent, providerId, modelId: model, active: false, ...patch }).catch(() => undefined);
+      // pi is desktop-only; mobile never receives it, but AgentKind includes it.
+      const mobileAgent = agent === 'pi' ? 'claude-code' : agent;
+      void maker.setSessionModelPref({ sessionId, agent: mobileAgent, providerId, model, ...patch }).catch(() => undefined);
+      void maker.applyNewMakerDraftPref({ agent: mobileAgent, providerId, modelId: model, active: false, ...patch }).catch(() => undefined);
     }),
     [maker, sessionId],
   );

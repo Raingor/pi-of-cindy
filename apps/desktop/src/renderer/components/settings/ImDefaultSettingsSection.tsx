@@ -109,6 +109,8 @@ export function ImDefaultSettingsSection({
       codex: fromProviders.codex.length
         ? fromProviders.codex
         : (codex.capabilities?.availableModels ?? []),
+      // pi 自管 model（~/.pi），IM 默认设置不替 pi 选模型 -> 空清单。
+      pi: [],
     };
   }, [providers, cc.capabilities, codex.capabilities]);
 

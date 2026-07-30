@@ -114,7 +114,7 @@ import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { loadAllCommands, dispatchCommand, type UnifiedCommand } from '@/lib/slashCommands';
 import * as sessionService from '@/lib/sessionService';
 import { emitRefresh } from '@/lib/sessionsBus';
-import type { Session } from '@/lib/ccAgent.types';
+import type { AgentKind, Session } from '@/lib/ccAgent.types';
 import { toast } from '@/lib/toast';
 import {
   decodeRemoteErrorMessage,
@@ -686,7 +686,7 @@ export function CCAgentSessionView({
     if (!remoteDeviceId || !remoteModelMemoryScopeKey) return;
     const deviceId = remoteDeviceId;
     const scopeKey = remoteModelMemoryScopeKey;
-    const agent = session?.agentKind === 'codex' ? 'codex' : 'claude-code';
+    const agent = session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code';
     const vendorSlot = agent === 'codex' ? 'codex' : 'claudeCode';
     let cancelled = false;
 
@@ -1080,7 +1080,7 @@ export function CCAgentSessionView({
   const isRemoteSession = !!session?.remoteHostId;
   useEffect(() => {
     let cancelled = false;
-    const agentKind = session?.agentKind === 'codex' ? 'codex' : 'claude-code';
+    const agentKind = session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code';
     // remote 传 null:loadAllCommands 退化为 desktop + agent-builtin,不扫本机项目 skills。
     const wd = isRemoteSession ? null : (session?.workingDir ?? null);
     // 先同步清空:切换会话(尤其 local→remote)时 loadAllCommands 是异步的,清空可避免
@@ -1216,8 +1216,10 @@ export function CCAgentSessionView({
     chatDisplaySnapshot,
   } = useCCAgentChat(sessionId, handleTitleUpdate, { chatRealtime });
   // 展示引擎可乐观跟随 intent；真实 event reducer 仍只读 store.agentKind。
+  // pi 使用 OpenAI 兼容协议,复用 codex 的模型目录/capabilities/供应商路由;
+  // 在展示层把 pi 映射到 codex,使所有模型查询自动走 codex 路径。
   const displayAgentKind =
-    agentSwitchIntent?.target ?? (session?.agentKind === 'codex' ? 'codex' : 'claude-code');
+    agentSwitchIntent?.target ?? (session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code');
   const isCodex = displayAgentKind === 'codex';
   // live 供应商目录(含内置 + 自定义,按 agent 挂模型)—— vendor↔model 一致性校验的真源,
   // 与模型选择器同源(见下方 M35 vendor fallback effect)。本地 IPC 极快返回,有模块级缓存。
@@ -1558,7 +1560,7 @@ export function CCAgentSessionView({
   const getHelpCommandsSnapshot = useCallback(async (): Promise<UnifiedCommand[]> => {
     const cached = allCommandsRef.current;
     if (cached.length > 0) return cached;
-    const agentKind = session?.agentKind === 'codex' ? 'codex' : 'claude-code';
+    const agentKind = session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code';
     try {
       // device-link 远程会话同源:传 remoteDeviceId,fallback 快照也从被控端读(见上方 cache effect 说明)。
       return await loadAllCommands(
@@ -1837,7 +1839,7 @@ export function CCAgentSessionView({
       .then((workers) => {
         if (cancelled || workers.length === 0) return;
         const activeWorker = workers[0]; // MVP: 假设最多 1 个 active Worker
-        const kind: 'cc' | 'codex' = activeWorker.session?.agentKind === 'codex' ? 'codex' : 'cc';
+        const kind: 'cc' | 'codex' = activeWorker.session?.agentKind === 'codex' || activeWorker.session?.agentKind === 'pi' ? 'codex' : 'cc';
         setCollabWorker(kind);
       })
       .catch(() => undefined);
@@ -2069,7 +2071,7 @@ export function CCAgentSessionView({
         capabilities: sessionCaps,
         providerId: session?.providerId ?? null,
         modelId: newModelId,
-        agentKind: session?.agentKind === 'codex' ? 'codex' : 'claude-code',
+        agentKind: session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code',
       });
       if (!supportsFast) {
         const currentFastMode = sessionId ? makerChatStore.getSnapshot(sessionId).fastMode : false;
@@ -3271,7 +3273,7 @@ export function CCAgentSessionView({
                   // 让 ChatInput 暂不显示 Agent 身份，不能跟随 displayAgentKind 的 cc 回退。
                   runtimeAgentKind={
                     session
-                      ? session.agentKind === 'codex'
+                      ? session.agentKind === 'codex' || session.agentKind === 'pi'
                         ? 'codex'
                         : 'claude-code'
                       : null
@@ -3960,13 +3962,16 @@ function formatTokenCount(n: number): string {
 /**
  * 从 maker capabilities cache 查模型 contextWindow。
  * 拿不到时返回 undefined，由 display resolver 兜底到 200K。
+ * pi 使用 OpenAI 兼容协议,复用 codex 模型目录 → 按 codex 查 contextWindow。
  */
 function getModelContextWindow(
   model: string,
-  vendorKey: 'cc' | 'codex',
+  vendorKey: AgentKind,
   deviceId?: string,
 ): number | undefined {
-  const found = getModelsForVendor(vendorKey, deviceId).find((m) => m.id === model);
+  // pi 复用 codex 模型目录 → 按 codex 查 contextWindow。
+  const effectiveVendor = vendorKey === 'pi' ? 'codex' : vendorKey;
+  const found = getModelsForVendor(effectiveVendor, deviceId).find((m) => m.id === model);
   return found?.contextWindow;
 }
 

@@ -17,7 +17,7 @@ import type { Effort, PermissionMode } from '@/lib/userPreferences.types';
 
 const log = createLogger('useAgentCapabilities');
 
-export type AgentKind = 'claude-code' | 'codex';
+export type AgentKind = 'claude-code' | 'codex' | 'pi';
 
 // renderer 视角: id 全部是不透明 string, 渲染只读 displayName。
 // effort 的合法 id 集合 = capabilities.effortLevels 上每个项的 id。
@@ -160,6 +160,9 @@ async function fetchCapabilities(
   agentKind: AgentKind,
   deviceId?: string,
 ): Promise<AgentCapabilities> {
+  // pi 使用 OpenAI 兼容协议,复用 codex 的 capabilities —— IPC 查 codex,但缓存按 pi 隔离
+  // (这样 getCachedCapabilities('pi') / useAgentCapabilities('pi') 也能直接拿到 codex 能力)。
+  const fetchKind: AgentKind = agentKind === 'pi' ? 'codex' : agentKind;
   const key = cacheKey(agentKind, deviceId);
   const cached = cache.get(key);
   if (cached) return cached;
@@ -176,12 +179,12 @@ async function fetchCapabilities(
     // 远程:隧道到被控端的 maker:get-capabilities(已在 allowlist)。
     const dl = getDeviceLink();
     if (!dl) throw new Error('device-link IPC not available');
-    raw = dl.invoke(deviceId, 'maker:get-capabilities', [agentKind]) as Promise<AgentCapabilities>;
+    raw = dl.invoke(deviceId, 'maker:get-capabilities', [fetchKind]) as Promise<AgentCapabilities>;
   } else {
     // 本机:原路径,行为不变。
     const api = getMakerApi();
     if (!api) throw new Error('maker IPC not available');
-    raw = api.getCapabilities(agentKind);
+    raw = api.getCapabilities(fetchKind);
   }
   const p = raw
     .then((caps) => {
@@ -324,6 +327,7 @@ export function getCachedCapabilities(
  * 模型下拉 / fast / effort 不为空、modelDefinitions 同步层已热。失败 swallow(轮询/打开会话会再取)。
  */
 export async function prefetchDeviceCapabilities(deviceId: string): Promise<void> {
+  // pi 复用 codex capabilities(fetchCapabilities 内部映射),预取 codex 即可覆盖 pi。
   await Promise.allSettled([
     fetchCapabilities('claude-code', deviceId),
     fetchCapabilities('codex', deviceId),
@@ -339,7 +343,8 @@ export function evictDeviceCapabilities(deviceId: string): void {
   deviceGen.set(deviceId, (deviceGen.get(deviceId) ?? 0) + 1);
   // 已挂载 hook 必须同步知道旧快照已失效；否则 provider 新快照先到时会拿旧 capabilities
   // 计算 fallback，并永久覆盖用户原本保存的模型偏好。
-  for (const agentKind of ['claude-code', 'codex'] as const) {
+  // pi 复用 codex capabilities,也通知 pi 的订阅者。
+  for (const agentKind of ['claude-code', 'codex', 'pi'] as const) {
     notifyRemoteCapabilities(deviceId, agentKind, { status: 'loading' });
   }
 }
@@ -349,7 +354,8 @@ export type LocalCapabilitiesSnapshot = ReadonlyArray<readonly [AgentKind, Agent
 /** 开始一轮本地 capabilities 刷新，并作废所有更早的本地请求。 */
 export function beginLocalCapabilitiesRefresh(): number {
   localGen += 1;
-  for (const agent of ['claude-code', 'codex'] as const) {
+  // pi 复用 codex capabilities,inflight 也按 pi 清一份(防止旧请求回写)。
+  for (const agent of ['claude-code', 'codex', 'pi'] as const) {
     inflight.delete(cacheKey(agent));
   }
   return localGen;
@@ -403,6 +409,7 @@ export async function refreshLocalCapabilities(): Promise<void> {
  * 让 modelDefinitions.ts 这种 sync 兼容层立刻有数据。
  */
 export async function preloadAllCapabilities(): Promise<void> {
+  // pi 复用 codex capabilities(fetchCapabilities 内部映射),预取 codex 即覆盖 pi。
   const load = () => Promise.all([fetchCapabilities('claude-code'), fetchCapabilities('codex')]);
 
   // 防御性重试：EnvCheckGuard 已保证 handler 已注册，这里兜底瞬时 IPC 故障

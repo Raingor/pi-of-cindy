@@ -14,11 +14,12 @@
  */
 
 import { cn } from '@/lib/utils';
+import type { AgentKind } from '@/lib/ccAgent.types';
 import { ClaudeMark } from '@/components/icons/ClaudeMark';
 import { CodexMark } from '@/components/icons/CodexMark';
 
 interface VendorIconProps {
-  vendor: 'cc' | 'codex';
+  vendor: AgentKind;
   size?: number;
   /** true → 切 Thinking Orange + 呼吸动画,复用 .session-status-breathing */
   running?: boolean;
@@ -46,7 +47,8 @@ export function VendorIcon({
 
   return (
     <span className={wrapperClassName}>
-      {vendor === 'codex' ? <CodexMark size={size} /> : <ClaudeMark size={size} />}
+      {/* pi 使用 OpenAI 兼容协议(同 codex),显示 CodexMark */}
+      {vendor === 'codex' || vendor === 'pi' ? <CodexMark size={size} /> : <ClaudeMark size={size} />}
     </span>
   );
 }

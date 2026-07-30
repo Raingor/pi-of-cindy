@@ -229,7 +229,8 @@ export function useVendorAuthGate(): UseVendorAuthGateReturn {
       // 全部失败放行交给被控端 create-session / send 做权威校验(host = 单一真相源)。
       const deviceId = options?.deviceId;
       if (deviceId) {
-        const providerAgent: ProviderAgentKind = vendor === 'codex' ? 'codex' : 'claude-code';
+        // pi 使用 codex 供应商路由 → 按 codex 查被控端就绪态。
+        const providerAgent: ProviderAgentKind = vendor === 'codex' || vendor === 'pi' ? 'codex' : 'claude-code';
         const [statusRes, providersRes] = await Promise.allSettled([
           window.electronAPI.deviceLink.invoke(deviceId, 'maker:agent:status', [providerAgent]),
           window.electronAPI.deviceLink.invoke(deviceId, 'maker:provider:list', []),
@@ -260,7 +261,7 @@ export function useVendorAuthGate(): UseVendorAuthGateReturn {
         if (remoteReadiness === 'binary-missing') {
           title = t('logic.confirm.remoteCodexBinaryMissingTitle');
           description = t('logic.confirm.remoteAuthDescription', { device });
-        } else if (vendor === 'codex') {
+        } else if (vendor === 'codex' || vendor === 'pi') {
           title = t('logic.confirm.remoteCodexNoSourceTitle');
           description = t('logic.confirm.remoteCodexNoSourceDescription', { device });
         } else {
@@ -278,7 +279,8 @@ export function useVendorAuthGate(): UseVendorAuthGateReturn {
       }
 
       // 触发一次最新检查——避免 stale state 误放行。
-      const target = vendor === 'codex' ? codex : cc;
+      // pi 复用 codex 供应商/就绪态 → 按 codex 查。
+      const target = vendor === 'codex' || vendor === 'pi' ? codex : cc;
       // 已建会话的发送门禁计入 suspended 来源(见 useVendorReadiness 注释);草稿不传。
       const readiness = await target.revalidate({
         includeSuspended: options?.existingSessionRoute === true,

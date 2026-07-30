@@ -4693,6 +4693,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
       onClaudeSubscriptionChanged: fanOutMakerUsageClaudeSubscription,
     },
 
+    // ── Pi 设置（~/.pi/agent/ 配置读写 + 扩展管理 + 更新检测 + 导入导出）──
+    // pi 自管配置, Cindy 只提供 UI 入口; 所有操作走 main 端 pi-settings-reader。
+    pi: {
+      getConfig: (): Promise<unknown> =>
+        ipcRenderer.invoke('maker:pi:get-config'),
+      saveSettings: (settings: unknown): Promise<boolean> =>
+        ipcRenderer.invoke('maker:pi:save-settings', settings),
+      listPackages: (): Promise<unknown[]> =>
+        ipcRenderer.invoke('maker:pi:list-packages'),
+      addPackage: (name: string): Promise<boolean> =>
+        ipcRenderer.invoke('maker:pi:add-package', name),
+      removePackage: (name: string): Promise<boolean> =>
+        ipcRenderer.invoke('maker:pi:remove-package', name),
+      checkUpdates: (): Promise<unknown> =>
+        ipcRenderer.invoke('maker:pi:check-updates'),
+      applyUpdates: (names: string[]): Promise<unknown[]> =>
+        ipcRenderer.invoke('maker:pi:apply-updates', names),
+      exportConfig: (): Promise<unknown> =>
+        ipcRenderer.invoke('maker:pi:export-config'),
+      importConfig: (payload: unknown): Promise<boolean> =>
+        ipcRenderer.invoke('maker:pi:import-config', payload),
+    },
+
     // ── Scheduler (Phase 4) ────────────────────────────────────────────────
     // 写入路径全部走 scheduler 实例（main/scheduler-host:64）；renderer 不直接操作
     // schedules 表。`Schedule` / `ScheduleRun` / `CreateScheduleInput` 等 wire 形态
@@ -4754,7 +4777,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         scheduleName?: string;
         workingDir?: string;
         providerId?: string;
-        agentKind?: 'claude-code' | 'codex';
+        agentKind?: 'claude-code' | 'codex' | 'pi';
         model?: string;
         /** 绑定会话任务:workingDir 空时 main 按会话 meta.workDir 解析落盘/自测目录。 */
         targetSessionId?: string;

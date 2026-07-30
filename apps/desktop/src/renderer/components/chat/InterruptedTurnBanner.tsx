@@ -34,6 +34,7 @@ import { useState } from 'react';
 import { CirclePause, Play, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import type { AgentKind } from '@/lib/ccAgent.types';
 import { ErrorBanner } from './ErrorBanner';
 
 export function InterruptedTurnBanner({
@@ -129,7 +130,7 @@ export function ErrorTailErrorBanner({
   errorText: string;
   onContinue: () => Promise<void> | void;
   onDismiss: () => void;
-  agentKind?: 'cc' | 'codex';
+  agentKind?: AgentKind;
   remoteHostId?: string;
   deviceLinkDeviceId?: string | null;
   modelId?: string;

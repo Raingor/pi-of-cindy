@@ -50,7 +50,7 @@ function normalizePositiveInt(value: unknown): number {
 
 const messageRowid = sql<number>`rowid`;
 
-type DbAgentKind = 'cc' | 'codex';
+type DbAgentKind = 'cc' | 'codex' | 'pi';
 
 interface MessagePosition {
   createdAt: number;
@@ -168,7 +168,7 @@ async function resolveForkNativeSource(
     if (!source.sdkSessionId) {
       throw forkError('SOURCE_NEVER_RAN', '原会话尚未运行，无法 fork');
     }
-    const agentKind: DbAgentKind = source.agentKind === 'codex' ? 'codex' : 'cc';
+    const agentKind: DbAgentKind = source.agentKind === 'codex' ? 'codex' : source.agentKind === 'pi' ? 'pi' : 'cc';
     return {
       agentKind,
       sdkSessionId: source.sdkSessionId,

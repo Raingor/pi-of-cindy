@@ -62,7 +62,7 @@ function mapWorkerRecord(raw: Record<string, unknown>): WorkerInfo {
     workerId: raw.id as string,
     sessionId: raw.sessionId as string,
     role: (raw.role as string) ?? 'developer',
-    agent: session?.agentKind === 'codex' ? 'codex' : 'claude-code',
+    agent: session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code',
     model: (session?.model as string) ?? 'claude-sonnet-4-6',
     effort: (session?.effort as string | null) ?? null,
     label: (raw.label as string | null) ?? null,

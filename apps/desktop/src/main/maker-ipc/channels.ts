@@ -611,6 +611,26 @@ export const MAKER_INVOKE = {
   GOAL_PAUSE: 'maker:goal:pause',
   GOAL_RESUME: 'maker:goal:resume',
   GOAL_UPDATE: 'maker:goal:update',
+  /**
+   * Pi 设置（~/.pi/agent/）—— pi 自管配置, Cindy 只提供 UI 查看与编辑入口。
+   *  - PI_GET_CONFIG: 读 settings + auth(key-presence only) + models 快照
+   *  - PI_SAVE_SETTINGS: 写 settings.json
+   *  - PI_LIST_PACKAGES: 列出 ~/.pi/agent/npm/ 已安装扩展
+   *  - PI_ADD_PACKAGE / PI_REMOVE_PACKAGE: npm install/uninstall 扩展
+   *  - PI_CHECK_UPDATES: 查 npm registry 对比 pi core + 扩展版本
+   *  - PI_APPLY_UPDATES: npm install <name>@latest 批量更新扩展
+   *  - PI_EXPORT_CONFIG: 导出 settings + auth + models 为 JSON
+   *  - PI_IMPORT_CONFIG: 导入 JSON 覆写 settings + auth + models
+   */
+  PI_GET_CONFIG: 'maker:pi:get-config',
+  PI_SAVE_SETTINGS: 'maker:pi:save-settings',
+  PI_LIST_PACKAGES: 'maker:pi:list-packages',
+  PI_ADD_PACKAGE: 'maker:pi:add-package',
+  PI_REMOVE_PACKAGE: 'maker:pi:remove-package',
+  PI_CHECK_UPDATES: 'maker:pi:check-updates',
+  PI_APPLY_UPDATES: 'maker:pi:apply-updates',
+  PI_EXPORT_CONFIG: 'maker:pi:export-config',
+  PI_IMPORT_CONFIG: 'maker:pi:import-config',
 } as const;
 
 /**
