@@ -19,6 +19,8 @@ import {
   exportPiConfig,
   importPiConfig,
 } from '../maker-host/pi-settings-reader.js';
+import { readPiAvailableModels } from '../maker-host/pi-models.js';
+import { resolvePiBinaryPath } from '../maker-host/pi-host.js';
 
 const log = createLogger('maker-ipc:pi-settings');
 
@@ -27,6 +29,10 @@ export function registerPiSettingsIpc(): void {
 
   registerPiSettingsHandlers(createElectronIpcHandlerRegistry(), {
     readPiConfigSnapshot,
+    readPiAvailableModels: async () => {
+      const binaryPath = resolvePiBinaryPath();
+      return binaryPath ? await readPiAvailableModels(binaryPath) : [];
+    },
     writePiSettings,
     listPiPackages,
     addPiPackage,

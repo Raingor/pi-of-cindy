@@ -64,6 +64,7 @@ import {
   createPiAuthAdapter,
   createPiRuntimeConfig,
 } from './pi-host.js';
+import { readPiAvailableModels } from './pi-models.js';
 import { resolveSessionCcDebugFile } from '../logger.js';
 import { resetProviderModelAutoRefreshCooldowns } from './provider-model-auto-refresh.js';
 import { createSshDaemonTransport } from './codex-remote-transport.js';
@@ -75,7 +76,7 @@ import {
 import { openCcManagerSession } from './cc-manager-client.js';
 import { getRemoteClaudeBinaryPath } from '../remote-ssh/cc-manager-install.js';
 import { createReadImageHook } from './claude-hooks/read-image-hook.js';
-import { deriveAvailableModels, refreshCatalogDerivedModels } from './catalog-to-descriptors.js';
+import { deriveAvailableModels, derivePiAvailableModels, refreshCatalogDerivedModels } from './catalog-to-descriptors.js';
 import { clearChatgptBridgeCredentialCache } from './anthropic-responses-bridge-host.js';
 import {
   getDesktopSelectableCatalog,
@@ -1100,6 +1101,19 @@ export function getMaker(): Maker {
       : null;
     if (piAgent) {
       desktopMakerLogger.info('pi harness registered', { binaryPath: piBinaryPath });
+      // getMaker 是同步构造点，pi 模型目录需 spawn `pi --mode rpc` 异步查询：起始为空，
+      // 查回后原地 splice 进 piAgent.capabilities.availableModels（Maker.getCapabilities('pi')
+      // 返回的是同一数组引用，已建 Session 与后续 provider:list 广播据此可见）。失败兜底空。
+      void readPiAvailableModels(piBinaryPath!)
+        .then((models) => {
+          const derived = derivePiAvailableModels(models);
+          const target = piAgent.capabilities.availableModels;
+          target.splice(0, target.length, ...derived);
+          desktopMakerLogger.info('pi models injected', { models: derived.length });
+        })
+        .catch((err: unknown) => {
+          desktopMakerLogger.warn('pi models inject failed', { error: String(err) });
+        });
     } else {
       desktopMakerLogger.info('pi harness not registered (local pi binary not found)');
     }

@@ -614,6 +614,7 @@ export const MAKER_INVOKE = {
   /**
    * Pi 设置（~/.pi/agent/）—— pi 自管配置, Cindy 只提供 UI 查看与编辑入口。
    *  - PI_GET_CONFIG: 读 settings + auth(key-presence only) + models 快照
+   *  - PI_GET_MODELS: 向本地 pi 查询完整可用模型清单(get_available_models)
    *  - PI_SAVE_SETTINGS: 写 settings.json
    *  - PI_LIST_PACKAGES: 列出 ~/.pi/agent/npm/ 已安装扩展
    *  - PI_ADD_PACKAGE / PI_REMOVE_PACKAGE: npm install/uninstall 扩展
@@ -623,6 +624,7 @@ export const MAKER_INVOKE = {
    *  - PI_IMPORT_CONFIG: 导入 JSON 覆写 settings + auth + models
    */
   PI_GET_CONFIG: 'maker:pi:get-config',
+  PI_GET_MODELS: 'maker:pi:get-models',
   PI_SAVE_SETTINGS: 'maker:pi:save-settings',
   PI_LIST_PACKAGES: 'maker:pi:list-packages',
   PI_ADD_PACKAGE: 'maker:pi:add-package',

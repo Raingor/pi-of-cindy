@@ -56,9 +56,9 @@ import {
  */
 const PI_CAPABILITIES: Capabilities = {
   switchModel: {
-    supported: false,
-    reason: 'not-implemented',
-    message: 'pi 自管 provider/model，首版不在 Cindy 侧切换',
+    // pi RPC set_model 支持运行时切模型；availableModels 由 host 从 pi
+    // get_available_models 派生后经 capabilityAdditions 注入（起始为空）。
+    supported: true,
   },
   availableModels: [],
   hasFastMode: false,
@@ -136,6 +136,9 @@ export class PiAgent extends BaseAgent {
     const eventQueue = createAsyncQueue<AgentEvent>();
     const rt = newPiRuntimeState();
     let interactionResolver: InteractionResolver | null = null;
+    // 运行时当前模型（Cindy 侧口径，`<provider>/<modelId>` 格式）。启动时
+    // 经 --model 传入首值，后续 setModel 就地去重。
+    let mutableModel = opts.model ?? '';
 
     const transport: PiTransport = createPiStdioTransport({
       binaryPath: this.deps.binaryPath,
@@ -143,7 +146,10 @@ export class PiAgent extends BaseAgent {
       // pi 自管 provider/credentials：不注入任何凭证 env，pi 用 ~/.pi 自配。
       env: { ...process.env },
       // 首版 ephemeral：--no-session 不持久化 jsonl；resume 后续接 --session-dir。
-      extraArgs: ['--no-session'],
+      // opts.model 存在时用 --model 传 pi 原生 `provider/id` 格式（启动即生效）。
+      extraArgs: mutableModel
+        ? ['--no-session', '--model', mutableModel]
+        : ['--no-session'],
     });
 
     const ctx: PiTranslateContext = {
@@ -211,6 +217,18 @@ export class PiAgent extends BaseAgent {
       async abort(): Promise<void> {
         await writeCommand({ type: 'abort' });
       },
+      async setModel(model: string): Promise<void> {
+        // renderer 单次切换会全量重调 set*；值未变不重推（与 codex 一致）。
+        if (!model || model === mutableModel) return;
+        mutableModel = model;
+        const { provider, modelId } = parsePiModelId(model);
+        if (!modelId) return;
+        await writeCommand({
+          type: 'set_model',
+          ...(provider ? { provider } : {}),
+          modelId,
+        });
+      },
       async close(): Promise<void> {
         await transport.close('session close');
       },
@@ -230,6 +248,17 @@ export class PiAgent extends BaseAgent {
 
     return handle;
   }
+}
+
+/**
+ * Cindy 侧 pi model id 统一用 pi 原生 `<provider>/<modelId>` 格式。
+ * 按首个 `/` 拆回 provider + modelId（modelId 本身可能含 `/`，只拆首个）。
+ * 无 `/` 时当作无 provider、整串作 modelId（交给 pi 自己解析）。
+ */
+function parsePiModelId(model: string): { provider: string; modelId: string } {
+  const idx = model.indexOf('/');
+  if (idx === -1) return { provider: '', modelId: model };
+  return { provider: model.slice(0, idx), modelId: model.slice(idx + 1) };
 }
 
 /**

@@ -4698,6 +4698,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pi: {
       getConfig: (): Promise<unknown> =>
         ipcRenderer.invoke('maker:pi:get-config'),
+      getModels: (): Promise<unknown[]> =>
+        ipcRenderer.invoke('maker:pi:get-models'),
       saveSettings: (settings: unknown): Promise<boolean> =>
         ipcRenderer.invoke('maker:pi:save-settings', settings),
       listPackages: (): Promise<unknown[]> =>

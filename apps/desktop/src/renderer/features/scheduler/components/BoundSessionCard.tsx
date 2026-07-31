@@ -42,7 +42,7 @@ export function BoundSessionCard({ sessionId, onUnbind, onOpen, reference }: Bou
         'border border-[var(--cmd-palette-border)] bg-[var(--chat-input-chip-bg)]',
       )}
     >
-      <VendorIcon vendor={reference?.agentKind === 'codex' || reference?.agentKind === 'pi' ? 'codex' : 'cc'} size={13} />
+      <VendorIcon vendor={reference?.agentKind === 'pi' ? 'pi' : reference?.agentKind === 'codex' ? 'codex' : 'cc'} size={13} />
       <span className="min-w-0 flex-1 truncate text-13 font-medium text-[var(--msg-assistant-text)]" title={title}>
         {title}
       </span>

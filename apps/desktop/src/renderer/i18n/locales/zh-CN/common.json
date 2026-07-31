@@ -1432,7 +1432,13 @@
         "hintInstalled": "检测到本机已安装 {{cli}}"
       },
       "pi": {
-        "groupLabel": "Pi 已配置"
+        "groupLabel": "Pi 已配置",
+        "detail": {
+          "badge": "由 Pi 自管",
+          "managedNote": "由 Pi 自管 — 请在 Pi 中配置",
+          "empty": "Pi 中该供应商暂无可用模型",
+          "contextWindow": "{{tokens}}K 上下文"
+        }
       },
       "wizard": {
         "title": "添加供应商",
@@ -4225,6 +4231,7 @@
         "agent": {
           "claudeCode": "Claude Code",
           "codex": "Codex",
+          "pi": "Pi",
           "pending": "下条：{{agent}}"
         }
       },

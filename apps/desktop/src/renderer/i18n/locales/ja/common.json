@@ -1432,7 +1432,13 @@
 "hintInstalled": "このデバイスに {{cli}} がインストールされています"
 },
 "pi": {
-"groupLabel": "Pi で設定済み"
+"groupLabel": "Pi で設定済み",
+"detail": {
+"badge": "Pi が管理",
+"managedNote": "Pi が管理 — 設定は Pi で行います",
+"empty": "Pi にこのプロバイダーの利用可能なモデルはありません",
+"contextWindow": "コンテキスト {{tokens}}K"
+}
 },
       "wizard": {
         "title": "プロバイダーを追加",
@@ -4225,6 +4231,7 @@
         "agent": {
           "claudeCode": "Claude Code",
           "codex": "Codex",
+          "pi": "Pi",
           "pending": "次回：{{agent}}"
         }
       },

@@ -160,9 +160,9 @@ async function fetchCapabilities(
   agentKind: AgentKind,
   deviceId?: string,
 ): Promise<AgentCapabilities> {
-  // pi 使用 OpenAI 兼容协议,复用 codex 的 capabilities —— IPC 查 codex,但缓存按 pi 隔离
-  // (这样 getCachedCapabilities('pi') / useAgentCapabilities('pi') 也能直接拿到 codex 能力)。
-  const fetchKind: AgentKind = agentKind === 'pi' ? 'codex' : agentKind;
+  // pi 是独立 harness,自管一套模型目录/能力(host 向本地 pi 查 get_available_models 后
+  // 注入 pi capabilities,且 switchModel 走原生 set_model),直接查 pi 自己的 capabilities,不再折叠到 codex。
+  const fetchKind: AgentKind = agentKind;
   const key = cacheKey(agentKind, deviceId);
   const cached = cache.get(key);
   if (cached) return cached;

@@ -4491,6 +4491,18 @@ interface ElectronAPI {
         auth: Record<string, { type: 'api_key' | 'oauth'; hasKey: boolean; env?: Record<string, string> }> | null;
         modelsJson: { providers: Record<string, unknown> } | null;
       }>;
+      getModels: () => Promise<Array<{
+        id: string;
+        name: string;
+        api?: string;
+        provider: string;
+        baseUrl?: string;
+        reasoning?: boolean;
+        input?: string[];
+        contextWindow?: number;
+        maxTokens?: number;
+        cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+      }>>;
       saveSettings: (settings: unknown) => Promise<boolean>;
       listPackages: () => Promise<Array<{ name: string; version: string }>>;
       addPackage: (name: string) => Promise<boolean>;

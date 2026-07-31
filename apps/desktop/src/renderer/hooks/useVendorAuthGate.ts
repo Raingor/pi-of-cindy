@@ -222,6 +222,11 @@ export function useVendorAuthGate(): UseVendorAuthGateReturn {
         return { proceed: false };
       }
 
+      // pi 是独立 harness,自管认证(~/.pi/agent/auth.json),不走 Cindy 的 cc/codex
+      // vendor 就绪门禁 —— 无论本地还是 device-link 都恒放行(实际认证由 pi 自己校验)。
+      // (用 string 比较避免 TS 在此处收窄 vendor 类型,影响下游 device-link 分支的 pi 判定。)
+      if ((vendor as string) === 'pi') return { proceed: true };
+
       // device-link:远程草稿 / 远程会话 → 就绪态以**被控端**为准(控制端本机配置无关)。
       // 两条隧道查询并行:provider:list 提供与本地 / 手机同源的来源判定(唯一真相),
       // agent:status 提供 codex binary 轴 + 老被控端的 authReady 回退口径。

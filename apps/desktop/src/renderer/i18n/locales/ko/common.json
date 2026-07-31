@@ -1432,7 +1432,13 @@
 "hintInstalled": "이 기기에 {{cli}}이(가) 설치되어 있습니다"
 },
 "pi": {
-"groupLabel": "Pi에서 구성됨"
+"groupLabel": "Pi에서 구성됨",
+"detail": {
+"badge": "Pi가 관리",
+"managedNote": "Pi가 관리 — Pi에서 구성하세요",
+"empty": "Pi에 이 제공자의 사용 가능한 모델이 없습니다",
+"contextWindow": "컨텍스트 {{tokens}}K"
+}
 },
       "wizard": {
         "title": "제공자 추가",
@@ -4225,6 +4231,7 @@
         "agent": {
           "claudeCode": "Claude Code",
           "codex": "Codex",
+          "pi": "Pi",
           "pending": "다음: {{agent}}"
         }
       },

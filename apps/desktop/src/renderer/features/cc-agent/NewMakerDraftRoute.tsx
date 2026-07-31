@@ -156,7 +156,7 @@ import {
   deriveModelsFromProviders,
   filterChatBridgedCodexProviders,
 } from '@/lib/providerModels';
-import { effectiveSourceIdForModel, getModel, isAgentSelectableModel, providerOffersModel, sessionModelSupportsFastMode, connectedProvidersForAgent, type ProviderView } from '@cindy/model-providers';
+import { effectiveSourceIdForModel, getModel, isAgentSelectableModel, providerOffersModel, sessionModelSupportsFastMode, connectedProvidersForAgent, type ProviderView, type AgentKind } from '@cindy/model-providers';
 import { isSubscriptionDirectModel } from '../../../shared/subscriptionModels';
 import {
   resolveDeviceLinkDraftDefaults,
@@ -403,11 +403,12 @@ export function NewMakerDraftRoute() {
   // 当前 vendor 对应的 prefs(切 vendor 后这里自动重算 → 透传到 ChatInput initial*)
   const currentPrefs = draft.lastByVendor[draft.vendor];
   const chatPrefs = currentPrefs;
-  // pi 使用 OpenAI 兼容协议,复用 codex 模型目录/capabilities/供应商路由;
-  // 持久化 agentKind 保留 'pi' (用于 spawn),capabilities/auth 走 codex 路径。
+  // pi 是独立 harness,自管一套模型目录/能力/认证(auth.json)。持久化 agentKind 保留 'pi'
+  // (用于 spawn),capabilities 查 pi 自己(host 注入 availableModels),auth 由 pi 自管
+  // (vendorAuthGate 对 pi 恒放行,见 useVendorAuthGate)。
   const persistedAgentKind = draft.vendor === 'codex' ? 'codex' : draft.vendor === 'pi' ? 'pi' : 'cc';
-  const authVendor: 'cc' | 'codex' = persistedAgentKind === 'pi' ? 'codex' : persistedAgentKind;
-  const capabilityAgentKind = persistedAgentKind === 'codex' || persistedAgentKind === 'pi' ? 'codex' : 'claude-code';
+  const authVendor = persistedAgentKind;
+  const capabilityAgentKind: AgentKind = persistedAgentKind === 'codex' ? 'codex' : persistedAgentKind === 'pi' ? 'pi' : 'claude-code';
 
   // 品牌区跟随当前主题；icon / logo 的固定布局统一由 ThemeBrandLockup 负责。
   const [activeColorTheme, setActiveColorTheme] = useState<ColorTheme | null>(() =>
@@ -2477,7 +2478,7 @@ export function NewMakerDraftRoute() {
                     onEffortDidChange={handleEffortDidChange}
                     onPermissionModeDidChange={handlePermissionModeDidChange}
                     onProviderDidChange={handleProviderDidChange}
-                    vendorKey={draft.vendor === 'codex' || draft.vendor === 'pi' ? 'codex' : 'cc'}
+                    vendorKey={draft.vendor === 'codex' ? 'codex' : draft.vendor === 'pi' ? 'pi' : 'cc'}
                     folderPickerOpen={folderPickerOpen}
                     onFolderPickerOpenChange={handleFolderPickerOpenChange}
                     showFolderPicker={false}

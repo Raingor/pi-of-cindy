@@ -17,12 +17,12 @@ export interface ModelDefinition {
   description: string;
   efforts: readonly Effort[];
   defaultEffort: Effort | null;
-  vendorKey: 'cc' | 'codex';
+  vendorKey: 'cc' | 'codex' | 'pi';
   contextWindow?: number;
   supportsFastMode?: boolean;
 }
 
-function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex'): ModelDefinition {
+function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex' | 'pi'): ModelDefinition {
   return {
     id: m.id,
     label: m.displayName,
@@ -41,9 +41,13 @@ function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex'): ModelDefinitio
 function allCachedModels(deviceId?: string): ModelDefinition[] {
   const cc = getCachedCapabilities('claude-code', deviceId);
   const codex = getCachedCapabilities('codex', deviceId);
+  // pi 是独立 harness,自管一套模型目录(host 注入 pi capabilities.availableModels),
+  // 列入后 getModelsForVendor('pi') / getModelContextWindow 才能查到 pi 模型。
+  const pi = getCachedCapabilities('pi', deviceId);
   return [
     ...((cc?.availableModels ?? []).map((m) => toLegacy(m, 'cc'))),
     ...((codex?.availableModels ?? []).map((m) => toLegacy(m, 'codex'))),
+    ...((pi?.availableModels ?? []).map((m) => toLegacy(m, 'pi'))),
   ];
 }
 
@@ -94,9 +98,8 @@ export function getModelsForVendor(
   vendorKey: 'cc' | 'codex' | 'pi',
   deviceId?: string,
 ): readonly ModelDefinition[] {
-  // pi 复用 codex 模型目录
-  const vk = vendorKey === 'pi' ? 'codex' : vendorKey;
-  return allCachedModels(deviceId).filter((m) => m.vendorKey === vk);
+  // pi 自管模型目录(不再复用 codex),按 pi 自己的 vendorKey 筛选。
+  return allCachedModels(deviceId).filter((m) => m.vendorKey === vendorKey);
 }
 
 export function getDefaultModelForVendor(vendorKey: 'cc' | 'codex' | 'pi', deviceId?: string): ModelDefinition {

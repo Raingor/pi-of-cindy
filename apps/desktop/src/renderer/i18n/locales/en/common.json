@@ -1433,7 +1433,13 @@
 "hintInstalled": "{{cli}} is installed on this device"
 },
 "pi": {
-"groupLabel": "Configured in Pi"
+"groupLabel": "Configured in Pi",
+"detail": {
+"badge": "Managed by Pi",
+"managedNote": "Managed by Pi — configure in Pi",
+"empty": "No models available for this provider in Pi",
+"contextWindow": "{{tokens}}K context"
+}
 },
       "wizard": {
         "title": "Add provider",
@@ -4226,6 +4232,7 @@
         "agent": {
           "claudeCode": "Claude Code",
           "codex": "Codex",
+          "pi": "Pi",
           "pending": "Next: {{agent}}"
         }
       },

@@ -283,13 +283,13 @@ export function resolveModelSelectorAgentIdentity(
 ): ModelSelectorAgentIdentity | undefined {
   if (pendingTarget) {
     return {
-      vendorKey: pendingTarget === 'codex' ? 'codex' : 'cc',
+      vendorKey: pendingTarget === 'codex' ? 'codex' : pendingTarget === 'pi' ? 'pi' : 'cc',
       state: 'pending',
     };
   }
   if (!runtimeAgentKind) return undefined;
   return {
-    vendorKey: runtimeAgentKind === 'codex' ? 'codex' : 'cc',
+    vendorKey: runtimeAgentKind === 'codex' ? 'codex' : runtimeAgentKind === 'pi' ? 'pi' : 'cc',
     state: 'current',
   };
 }
@@ -482,7 +482,8 @@ interface ModelSelectorContentProps {
 
 function vendorKeyToAgentKind(v?: 'cc' | 'codex' | 'pi'): AgentKind | null {
   if (v === 'cc') return 'claude-code';
-  if (v === 'codex' || v === 'pi') return 'codex';
+  if (v === 'codex') return 'codex';
+  if (v === 'pi') return 'pi';
   return null;
 }
 
@@ -554,6 +555,8 @@ function ModelSelectorContentView({
   // 同时拉两个 agent —— vendorKey 不传时把两边模型一起展示。hooks 必须按固定顺序调用。
   const cc = useAgentCapabilities('claude-code', deviceId);
   const codex = useAgentCapabilities('codex', deviceId);
+  // pi 自管一套模型目录/能力(host 注入 availableModels);pi 未安装时该 hook 返回空能力(不崩)。
+  const pi = useAgentCapabilities('pi', deviceId);
   // 本机折扣 GPT 仍按本机 API key gate；device-link 必须只看被控端 provider 状态。
   // 旧被控端不支持 provider:list 时按远端 capabilities 退化，不得误用控制端 key。
   const { hasSavedKey } = useApiKey();
@@ -660,6 +663,7 @@ function ModelSelectorContentView({
         providers,
         deviceCcModels: cc.capabilities?.availableModels ?? [],
         deviceCodexModels: codex.capabilities?.availableModels ?? [],
+        piModels: pi.capabilities?.availableModels ?? [],
         excludeSubscriptionDirect,
         excludeChatBridgedCodex,
       }),
@@ -669,6 +673,7 @@ function ModelSelectorContentView({
       providers,
       cc.capabilities,
       codex.capabilities,
+      pi.capabilities,
       excludeSubscriptionDirect,
       excludeChatBridgedCodex,
     ],
@@ -1699,6 +1704,7 @@ export function ModelSelector({
   const agentKind = vendorKeyToAgentKind(vendorKey);
   const cc = useAgentCapabilities('claude-code', deviceId);
   const codex = useAgentCapabilities('codex', deviceId);
+  const pi = useAgentCapabilities('pi', deviceId);
   const pricing = useModelPricing();
   // trigger 的来源 icon / 当前模型也按来源取:device-link 用被控端供应商目录(否则控制端本地
   // 查不到被控端独有模型 → currentModel undefined → label 退成 "Select model")。
@@ -1713,6 +1719,7 @@ export function ModelSelector({
         providers,
         deviceCcModels: cc.capabilities?.availableModels ?? [],
         deviceCodexModels: codex.capabilities?.availableModels ?? [],
+        piModels: pi.capabilities?.availableModels ?? [],
         excludeSubscriptionDirect,
         excludeChatBridgedCodex,
       }),
@@ -1722,6 +1729,7 @@ export function ModelSelector({
       providers,
       cc.capabilities,
       codex.capabilities,
+      pi.capabilities,
       excludeSubscriptionDirect,
       excludeChatBridgedCodex,
     ],
@@ -1743,7 +1751,9 @@ export function ModelSelector({
     agentIdentity && !fallbackOption?.active
       ? agentIdentity.vendorKey === 'cc'
         ? t('newChat.modelSelector.trigger.agent.claudeCode')
-        : t('newChat.modelSelector.trigger.agent.codex')
+        : agentIdentity.vendorKey === 'pi'
+          ? t('newChat.modelSelector.trigger.agent.pi')
+          : t('newChat.modelSelector.trigger.agent.codex')
       : null;
   const agentIdentityLabel =
     agentName && agentIdentity?.state === 'pending'
@@ -1799,6 +1809,8 @@ export function ModelSelector({
     !!onNavigateToProviders &&
     !deviceId &&
     !!currentAgentKind &&
+    // pi 自管连接(不走 Cindy provider 来源),恒「已连接」,不显示「连接来源」CTA。
+    currentAgentKind !== 'pi' &&
     !providersLoading &&
     !hasConnectedSource;
   // trigger 上仍展示当前模型的 effort(模型支持时)。

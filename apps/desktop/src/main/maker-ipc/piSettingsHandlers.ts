@@ -15,9 +15,11 @@ import type {
   PiPackageEntry,
   PiExportPayload,
 } from '../maker-host/pi-settings-reader.js';
+import type { PiModel } from '../maker-host/pi-models.js';
 
 export interface PiSettingsHandlerDeps {
   readPiConfigSnapshot(): PiConfigSnapshot;
+  readPiAvailableModels(): Promise<PiModel[]>;
   writePiSettings(settings: PiSettings): boolean;
   listPiPackages(): PiPackageEntry[];
   addPiPackage(name: string): boolean;
@@ -34,6 +36,10 @@ export function registerPiSettingsHandlers(
 ): void {
   registry.handle(MAKER_INVOKE.PI_GET_CONFIG, async () => {
     return deps.readPiConfigSnapshot();
+  });
+
+  registry.handle(MAKER_INVOKE.PI_GET_MODELS, async () => {
+    return await deps.readPiAvailableModels();
   });
 
   registry.handle(MAKER_INVOKE.PI_SAVE_SETTINGS, async (_e, settings: unknown) => {

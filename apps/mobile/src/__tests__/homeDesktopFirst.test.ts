@@ -122,7 +122,13 @@ describe('mobile home desktop-first surface', () => {
     // ——箭头统一后依赖图标区分 agent 类型的场景(创建自动化 chips / 侧栏混排)全部失效。
     expect(desktopVendorIconSource).toContain('ClaudeMark');
     expect(desktopVendorIconSource).toContain('CodexMark');
-    expect(desktopVendorIconSource).toContain("vendor === 'codex' || vendor === 'pi' ? <CodexMark size={size} /> : <ClaudeMark size={size} />");
+    // pi 是独立 harness,自管一套身份,用独立 PiMark(π 字形);codex 用 CodexMark,其余 ClaudeMark。
+    expect(desktopVendorIconSource).toContain('PiMark');
+    expect(desktopVendorIconSource).toContain("vendor === 'pi' ? (");
+    expect(desktopVendorIconSource).toContain("vendor === 'codex' ? (");
+    expect(desktopVendorIconSource).toContain('<PiMark size={size} />');
+    expect(desktopVendorIconSource).toContain('<CodexMark size={size} />');
+    expect(desktopVendorIconSource).toContain('<ClaudeMark size={size} />');
     expect(desktopVendorIconSource).toContain("vendor: AgentKind");
     expect(desktopVendorIconSource).toContain('session-status-breathing');
     expect(vendorIconSource).not.toContain('XD_SYMBOL_PATHS');

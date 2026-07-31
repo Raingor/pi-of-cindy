@@ -337,7 +337,7 @@ export function AutomationSessionGroupItem({
                 'cc'。isRunning 只看最新那条,与其子行一致。 */}
             <span className="flex w-[15px] shrink-0 items-center justify-center">
               <VendorIcon
-                vendor={latestSession?.agentKind === 'codex' || latestSession?.agentKind === 'pi' ? 'codex' : 'cc'}
+                vendor={latestSession?.agentKind === 'pi' ? 'pi' : latestSession?.agentKind === 'codex' ? 'codex' : 'cc'}
                 size={latestSession?.agentKind === 'codex' || latestSession?.agentKind === 'pi' ? 12 : 13}
                 running={isRunning}
                 colorClassName={hasActiveHidden ? 'text-[var(--sidebar-item-active-foreground)]' : undefined}
