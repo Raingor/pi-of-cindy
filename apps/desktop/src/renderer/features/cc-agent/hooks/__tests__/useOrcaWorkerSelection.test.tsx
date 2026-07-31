@@ -354,7 +354,7 @@ describe('useOrcaWorkerSelection', () => {
     await act(async () => {
       await result.current.handleCreateWorker({
         role: 'tester',
-        agent: 'codex',
+        agent: 'pi',
         model: 'gpt-5.4',
         providerId: null,
         initialTask: '',
@@ -380,7 +380,7 @@ describe('useOrcaWorkerSelection', () => {
     await act(async () => {
       await result.current.handleCreateWorker({
         role: 'tester',
-        agent: 'codex',
+        agent: 'pi',
         model: 'gpt-5.4',
         providerId: null,
         initialTask: 'run once',

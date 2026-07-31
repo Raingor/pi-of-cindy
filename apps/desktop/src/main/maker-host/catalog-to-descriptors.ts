@@ -18,6 +18,8 @@
 import type { Catalog, CatalogModel, AgentKind } from '@cindy/model-providers';
 import type { ModelDescriptor } from '@cindy/maker-core';
 
+import type { PiModel } from './pi-models.js';
+
 /** Maker 能力读取面的最小形状；保留数组引用以让已创建 Session 同步看到新目录。 */
 interface ModelCapabilitiesTarget {
   getCapabilities(agent: AgentKind): { availableModels: ModelDescriptor[] };
@@ -51,6 +53,34 @@ export function deriveAvailableModels(catalog: Catalog, agent: AgentKind): Model
       seen.add(m.id);
       out.push(toDescriptor(m));
     }
+  }
+  return out;
+}
+
+/**
+ * pi 模型目录 → ModelDescriptor[]。pi 不走 providers.json（catalog），它自管一套完整目录，
+ * host 短暂 spawn `pi --mode rpc` 查 get_available_models 拿回 PiModel[] 后经本函数派生，
+ * 通过 capabilityAdditions.availableModels 注入 PiAgent（与 codex 同型）。
+ *
+ * 约定：Cindy 侧 pi 的 model id 用 pi 原生 `<provider>/<modelId>` 格式（setModel 时按首个 `/`
+ * 拆回发给 pi）。efforts 本次留空（pi thinking level 走原生 set_thinking_level，首版不映射）。
+ * contextWindow 缺值时回退 0（与 ModelDescriptor 契约一致，SDK 缺值时才用它兜底）。
+ */
+export function derivePiAvailableModels(piModels: PiModel[]): ModelDescriptor[] {
+  const seen = new Set<string>();
+  const out: ModelDescriptor[] = [];
+  for (const m of piModels) {
+    const id = `${m.provider}/${m.id}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      displayName: m.name || m.id,
+      contextWindow: m.contextWindow ?? 0,
+      efforts: [],
+      defaultEffort: null,
+      group: m.provider,
+    });
   }
   return out;
 }

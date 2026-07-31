@@ -21,7 +21,9 @@ export type SettingsTab =
   | 'computer-use'
   | 'im-bot'
   | 'help'
-  | 'about';
+  | 'about'
+  | 'usage'
+  | 'pi-settings';
 
 export const TAB_IDS: ReadonlyArray<SettingsTab> = [
   'general',
@@ -43,6 +45,8 @@ export const TAB_IDS: ReadonlyArray<SettingsTab> = [
   'remote-control',
   'builtin-tools',
   'computer-use',
+  'usage',
+  'pi-settings',
   'help',
   'about',
 ];
@@ -62,6 +66,8 @@ export const TAB_LABEL_KEY: Record<SettingsTab, string> = {
   tina: 'settings.tabs.tina',
   'builtin-tools': 'settings.tabs.builtinTools',
   'computer-use': 'settings.tabs.computerUse',
+  'usage': 'settings.tabs.usage',
+  'pi-settings': 'settings.tabs.piSettings',
   'im-bot': 'settings.tabs.imBot',
   help: 'settings.tabs.help',
   about: 'settings.tabs.about',

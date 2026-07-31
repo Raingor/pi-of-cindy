@@ -10,12 +10,12 @@ import { MessageSquare } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ClaudeMark } from '@/components/icons/ClaudeMark';
 import { CodexMark } from '@/components/icons/CodexMark';
 import { ModelSelector } from '@/components/new-chat/ModelSelector';
 import { PermissionSelector } from '@/components/new-chat/PermissionSelector';
 import { type ModelDescriptor, useAgentCapabilities } from '@/hooks/useAgentCapabilities';
 import { useProviders } from '@/hooks/useProviders';
+import type { AgentKind } from '@/lib/ccAgent.types';
 import { deriveModelsFromProviders } from '@/lib/providerModels';
 import { toast } from '@/lib/toast';
 import type { Effort } from '@/lib/userPreferences.types';
@@ -37,14 +37,15 @@ import { buildAgentSettingsPatch, mergeSettingsPatch } from './imDefaultSettings
 
 const AGENT_OPTIONS: Array<{
   kind: ImDefaultAgentKind;
-  Mark: typeof ClaudeMark;
+  Mark: typeof CodexMark;
 }> = [
-  { kind: 'claude-code', Mark: ClaudeMark },
-  { kind: 'codex', Mark: CodexMark },
+  { kind: 'pi', Mark: CodexMark },
 ];
 
-function vendorKeyFor(agentKind: ImDefaultAgentKind): 'cc' | 'codex' {
-  return agentKind === 'codex' ? 'codex' : 'cc';
+function vendorKeyFor(agentKind: ImDefaultAgentKind): AgentKind {
+  if (agentKind === 'pi') return 'pi';
+  if (agentKind === 'codex') return 'codex';
+  return 'cc';
 }
 
 export interface ImDefaultSettingsSummary {
@@ -109,6 +110,8 @@ export function ImDefaultSettingsSection({
       codex: fromProviders.codex.length
         ? fromProviders.codex
         : (codex.capabilities?.availableModels ?? []),
+      // pi 自管 model（~/.pi），IM 默认设置不替 pi 选模型 -> 空清单。
+      pi: [],
     };
   }, [providers, cc.capabilities, codex.capabilities]);
 

@@ -1,4 +1,4 @@
-export type ImDefaultAgentKind = 'claude-code' | 'codex';
+export type ImDefaultAgentKind = 'claude-code' | 'codex' | 'pi';
 export type ImDefaultPermissionMode =
   'ask' | 'default' | 'acceptEdits' | 'plan' | 'auto' | 'bypassPermissions';
 export type ImDefaultEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
@@ -43,6 +43,13 @@ export const IM_DEFAULT_SETTINGS: ImDefaultSettings = {
       model: 'codex/gpt-5.5',
       effort: 'high',
     },
+    // pi 自管理供应商/模型/凭证,默认会话不走 IM 侧选模型;model 留空,由解析链
+    // 回退到 pi 目录首个可用模型(无则走 channel config 兜底)。
+    pi: {
+      providerId: null,
+      model: '',
+      effort: 'high',
+    },
   },
 };
 
@@ -58,7 +65,7 @@ export const IM_DEFAULT_EFFORT_OVERRIDES: Readonly<Partial<Record<string, ImDefa
   'codex/gpt-5.5': 'high',
 };
 
-const AGENT_KINDS = new Set<ImDefaultAgentKind>(['claude-code', 'codex']);
+const AGENT_KINDS = new Set<ImDefaultAgentKind>(['claude-code', 'codex', 'pi']);
 const EFFORTS = new Set<ImDefaultEffort>([
   'minimal',
   'low',

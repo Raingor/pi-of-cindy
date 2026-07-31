@@ -152,6 +152,7 @@ describe('im default settings store', () => {
         model: 'gpt-5.5',
         effort: 'high',
       },
+      pi: IM_DEFAULT_SETTINGS.agents['pi'],
     });
   });
 

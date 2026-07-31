@@ -188,6 +188,12 @@ export function selectVisibleModels(params: {
   deviceCcModels: ModelDescriptor[];
   deviceCodexModels: ModelDescriptor[];
   /**
+   * pi 模型目录 —— pi 不走 provider catalog(providers.json),自管一套完整目录,
+   * host 向本地 pi 查 get_available_models 后经 capabilityAdditions 注入 pi capabilities。
+   * 故 pi 源不分本机/device(都是 pi capabilities.availableModels),与 cc/codex 不同。
+   */
+  piModels?: ModelDescriptor[];
+  /**
    * 过滤订阅直连模型(chatgpt/ / xai/,经本地 compat-proxy 的 responses-bridge 翻译)。
    * SSH 远程会话(remoteHostId)必须传 true:远程模式走 remoteEndpoint、不经本地 loopback
    * proxy,bridge 前缀模型送出去不会被翻译,选了必失败。device-link 远程不受影响
@@ -202,12 +208,14 @@ export function selectVisibleModels(params: {
    */
   excludeChatBridgedCodex?: boolean;
 }): ModelDescriptor[] {
-  const { agentKind, deviceId, providers, deviceCcModels, deviceCodexModels, excludeSubscriptionDirect, excludeChatBridgedCodex } = params;
+  const { agentKind, deviceId, providers, deviceCcModels, deviceCodexModels, piModels, excludeSubscriptionDirect, excludeChatBridgedCodex } = params;
   const drop = (list: ModelDescriptor[]): ModelDescriptor[] =>
     excludeSubscriptionDirect ? list.filter((m) => !isSubscriptionDirectModel(m.id)) : list;
   const codexDeriveOpts = excludeChatBridgedCodex
     ? { excludeProvider: isChatBridgedCodexProvider }
     : undefined;
+  // pi 自管模型目录(不走 provider catalog),直接用注入的 pi capabilities 清单,不回落 codex。
+  if (agentKind === 'pi') return drop(piModels ?? []);
   const cc = drop(deviceId ? deviceCcModels : deriveModelsFromProviders(providers, 'claude-code'));
   const codex = drop(deviceId ? deviceCodexModels : deriveModelsFromProviders(providers, 'codex', codexDeriveOpts));
   if (agentKind === 'claude-code') return cc;
@@ -235,6 +243,7 @@ export function resolveVisibleModelAgentKind(params: {
   providers: ProviderView[];
 }): AgentKind | null {
   const { modelId, agentKind, ccModels, codexModels, providers } = params;
+  // agentKind 锁定时直接取单边(pi 自成一路,不再映射 codex)。
   if (agentKind) return agentKind;
   if (ccModels.some((model) => model.id === modelId)) return 'claude-code';
   if (codexModels.some((model) => model.id === modelId)) return 'codex';

@@ -156,7 +156,7 @@ import {
   deriveModelsFromProviders,
   filterChatBridgedCodexProviders,
 } from '@/lib/providerModels';
-import { effectiveSourceIdForModel, getModel, isAgentSelectableModel, providerOffersModel, sessionModelSupportsFastMode, connectedProvidersForAgent, type ProviderView } from '@cindy/model-providers';
+import { effectiveSourceIdForModel, getModel, isAgentSelectableModel, providerOffersModel, sessionModelSupportsFastMode, connectedProvidersForAgent, type ProviderView, type AgentKind } from '@cindy/model-providers';
 import { isSubscriptionDirectModel } from '../../../shared/subscriptionModels';
 import {
   resolveDeviceLinkDraftDefaults,
@@ -403,9 +403,12 @@ export function NewMakerDraftRoute() {
   // 当前 vendor 对应的 prefs(切 vendor 后这里自动重算 → 透传到 ChatInput initial*)
   const currentPrefs = draft.lastByVendor[draft.vendor];
   const chatPrefs = currentPrefs;
-  const persistedAgentKind: 'cc' | 'codex' = draft.vendor === 'codex' ? 'codex' : 'cc';
-  const authVendor: 'cc' | 'codex' = persistedAgentKind;
-  const capabilityAgentKind = persistedAgentKind === 'codex' ? 'codex' : 'claude-code';
+  // pi 是独立 harness,自管一套模型目录/能力/认证(auth.json)。持久化 agentKind 保留 'pi'
+  // (用于 spawn),capabilities 查 pi 自己(host 注入 availableModels),auth 由 pi 自管
+  // (vendorAuthGate 对 pi 恒放行,见 useVendorAuthGate)。
+  const persistedAgentKind = draft.vendor === 'codex' ? 'codex' : draft.vendor === 'pi' ? 'pi' : 'cc';
+  const authVendor = persistedAgentKind;
+  const capabilityAgentKind: AgentKind = persistedAgentKind === 'codex' ? 'codex' : persistedAgentKind === 'pi' ? 'pi' : 'claude-code';
 
   // 品牌区跟随当前主题；icon / logo 的固定布局统一由 ThemeBrandLockup 负责。
   const [activeColorTheme, setActiveColorTheme] = useState<ColorTheme | null>(() =>
@@ -993,7 +996,7 @@ export function NewMakerDraftRoute() {
   const handleRemoteProjectAdded = useCallback(
     async (target: RemoteProjectTarget) => {
       // vendor 由外层 VendorSegmentedSwitcher (draft.vendor) 单一决策 —— dialog 不再让用户选。
-      const draftVendor: 'cc' | 'codex' = draft.vendor === 'codex' ? 'codex' : 'cc';
+      const draftVendor = draft.vendor === 'codex' ? 'codex' : draft.vendor === 'pi' ? 'pi' : 'cc';
 
       if (target.kind === 'device-link') {
         // device-link:**不**像 SSH 立即建会话(会在被控端留空会话)。改为把当前草稿指向该被控
@@ -1120,7 +1123,7 @@ export function NewMakerDraftRoute() {
         }
         if (effectivePlanMode) patchCurrentVendorPrefs({ planMode: false });
         makerChatStore.setSessionRuntime(newSession.id, {
-          agentKind: draftVendor === 'codex' ? 'codex' : 'claude-code',
+            agentKind: draftVendor === 'cc' ? 'claude-code' : draftVendor,
           fastMode: sshFastMode,
           planModeEnabled: effectivePlanMode,
         });
@@ -1601,7 +1604,7 @@ export function NewMakerDraftRoute() {
             if (wd && !isRemoteProjectDraft) {
               const r = await crossAgentConvertService.detect(
                 wd,
-                persistedAgentKind === 'codex' ? 'codex' : 'claude-code',
+                persistedAgentKind === 'codex' || persistedAgentKind === 'pi' ? 'codex' : 'claude-code',
               );
               if (r.items.length > 0) {
                 // 阻塞等弹窗关闭（用户点不要 / 完成转换 / 失败）—— 都视为流程结束
@@ -1671,7 +1674,7 @@ export function NewMakerDraftRoute() {
               log.warn('[draft worktree send] touchUserSend failed', err);
             });
             makerChatStore.setSessionRuntime(newSession.id, {
-              agentKind: persistedAgentKind === 'codex' ? 'codex' : 'claude-code',
+              agentKind: persistedAgentKind === 'cc' ? 'claude-code' : persistedAgentKind,
               fastMode: effectiveFastMode,
               planModeEnabled: effectivePlanMode,
             });
@@ -1855,7 +1858,7 @@ export function NewMakerDraftRoute() {
           // seed store,否则勾了计划模式的首条消息可能以 planMode:false 发出
           // (worktree 路径同款 seed;bot review P2)。
           makerChatStore.setSessionRuntime(newSession.id, {
-            agentKind: persistedAgentKind === 'codex' ? 'codex' : 'claude-code',
+            agentKind: persistedAgentKind === 'cc' ? 'claude-code' : persistedAgentKind,
             fastMode: effectiveFastMode,
             planModeEnabled: effectivePlanMode,
           });
@@ -2062,7 +2065,7 @@ export function NewMakerDraftRoute() {
         // autoNameSession 对位:先立即用目标文案截断占位(Codex 式,侧边栏不停留在
         // 'New Maker'),再经隧道生成智能标题窄口径覆盖。fire-and-forget;
         // 覆盖前 re-read,仅在标题仍是占位/默认时落盘(用户手动改名 wins)。
-        const titleAgentKind = persistedAgentKind === 'codex' ? 'codex' : 'claude-code';
+        const titleAgentKind = persistedAgentKind === 'codex' || persistedAgentKind === 'pi' ? 'codex' : 'claude-code';
         // 先折叠空白并 trim 再截断,避免前导空白吃满 40 字符得到空占位(PR #296 review)。
         const placeholderTitle = objective.replace(/\s+/g, ' ').trim().slice(0, 40).trimEnd();
         void (async () => {
@@ -2475,7 +2478,7 @@ export function NewMakerDraftRoute() {
                     onEffortDidChange={handleEffortDidChange}
                     onPermissionModeDidChange={handlePermissionModeDidChange}
                     onProviderDidChange={handleProviderDidChange}
-                    vendorKey={draft.vendor === 'codex' ? 'codex' : 'cc'}
+                    vendorKey={draft.vendor === 'codex' ? 'codex' : draft.vendor === 'pi' ? 'pi' : 'cc'}
                     folderPickerOpen={folderPickerOpen}
                     onFolderPickerOpenChange={handleFolderPickerOpenChange}
                     showFolderPicker={false}
@@ -2675,7 +2678,7 @@ export function NewMakerDraftRoute() {
           onCreate={(form: CreateWorkerForm) => {
             patchCollab({
               enabled: true,
-              worker: form.agent === 'codex' ? 'codex' : 'cc',
+              worker: 'codex',
               workerConfig: {
                 role: form.role,
                 model: form.model,

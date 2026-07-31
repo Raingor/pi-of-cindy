@@ -61,7 +61,7 @@ const AGENTS: AgentKind[] = ['claude-code', 'codex'];
 
 const VISIBLE_AGENTS: AgentKind[] = AGENTS;
 
-const TAB_META: Record<AgentKind, { Mark: typeof ClaudeMark; labelKey: string; helpKey: string }> =
+const TAB_META: Partial<Record<AgentKind, { Mark: typeof ClaudeMark; labelKey: string; helpKey: string }>> =
   {
     'claude-code': {
       Mark: ClaudeMark,
@@ -120,8 +120,8 @@ function emptyRuntime(agent: AgentKind): RuntimeFields {
   };
 }
 
-function initRuntimes(initial?: CustomProviderConfig): Record<AgentKind, RuntimeFields> {
-  const out: Record<AgentKind, RuntimeFields> = {
+function initRuntimes(initial?: CustomProviderConfig): Partial<Record<AgentKind, RuntimeFields>> {
+  const out: Partial<Record<AgentKind, RuntimeFields>> = {
     'claude-code': emptyRuntime('claude-code'),
     codex: emptyRuntime('codex'),
   };
@@ -293,12 +293,12 @@ export function CustomProviderDialog({
   const initialOAuth = initial?.auth?.method === 'oauth' ? initial.auth.oauth : undefined;
 
   const [name, setName] = useState(initial?.name ?? '');
-  const [rt, setRt] = useState<Record<AgentKind, RuntimeFields>>(() => initRuntimes(initial));
+  const [rt, setRt] = useState<Partial<Record<AgentKind, RuntimeFields>>>(() => initRuntimes(initial));
   const [activeTab, setActiveTab] = useState<AgentKind>(
     () => (initial && VISIBLE_AGENTS.find((a) => initial.runtimes[a])) || 'claude-code',
   );
   const [showKey, setShowKey] = useState(false);
-  const [hasKey, setHasKey] = useState<Record<AgentKind, boolean>>({
+  const [hasKey, setHasKey] = useState<Partial<Record<AgentKind, boolean>>>({
     'claude-code': false,
     codex: false,
   });
@@ -334,12 +334,12 @@ export function CustomProviderDialog({
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [appliedPreset, setAppliedPreset] = useState<string | null>(null);
   // per-runtime 测试连接状态。
-  const [test, setTest] = useState<Record<AgentKind, TestState>>({
+  const [test, setTest] = useState<Partial<Record<AgentKind, TestState>>>({
     'claude-code': IDLE_TEST,
     codex: IDLE_TEST,
   });
   // per-runtime「获取模型列表」进行中标记（按钮瞬态 spinner）。
-  const [fetchingModels, setFetchingModels] = useState<Record<AgentKind, boolean>>({
+  const [fetchingModels, setFetchingModels] = useState<Partial<Record<AgentKind, boolean>>>({
     'claude-code': false,
     codex: false,
   });
@@ -357,7 +357,7 @@ export function CustomProviderDialog({
   const rtRef = useRef(rt);
   /** 唯一的 rt 写入口：状态更新的同时同步镜像进 rtRef（updater 幂等，StrictMode 双调无害）。 */
   const setRtSynced = useCallback(
-    (fn: (prev: Record<AgentKind, RuntimeFields>) => Record<AgentKind, RuntimeFields>) => {
+    (fn: (prev: Partial<Record<AgentKind, RuntimeFields>>) => Partial<Record<AgentKind, RuntimeFields>>) => {
       setRt((prev) => {
         const next = fn(prev);
         rtRef.current = next;
@@ -403,7 +403,7 @@ export function CustomProviderDialog({
           next[a] = {
             baseUrl: rc.baseUrl,
             requestPath: rc.requestPath ?? '',
-            apiKey: prev[a].apiKey, // 已填的 key 保留
+            apiKey: prev[a]!.apiKey, // 已填的 key 保留
             wireProtocol:
               rc.wireProtocol ?? (a === 'claude-code' ? 'anthropic-messages' : 'openai-responses'),
             models: rc.models.length ? rc.models.map((m) => ({ ...m })) : [{ id: '', name: '' }],
@@ -429,7 +429,7 @@ export function CustomProviderDialog({
     if (!editing || !initial) return;
     let cancelled = false;
     void (async () => {
-      const nextHas: Record<AgentKind, boolean> = { 'claude-code': false, codex: false };
+      const nextHas: Partial<Record<AgentKind, boolean>> = { 'claude-code': false, codex: false };
       const fetched: Partial<Record<AgentKind, string>> = {};
       for (const a of AGENTS) {
         if (!initial.runtimes[a]) continue;
@@ -444,7 +444,7 @@ export function CustomProviderDialog({
       setRtSynced((prev) => {
         const next = { ...prev };
         for (const a of AGENTS) {
-          if (fetched[a] != null) next[a] = { ...next[a], apiKey: fetched[a] as string };
+          if (fetched[a] != null) next[a] = { ...next[a]!, apiKey: fetched[a] as string };
         }
         return next;
       });
@@ -456,7 +456,7 @@ export function CustomProviderDialog({
 
   const patch = useCallback(
     (agent: AgentKind, fn: (f: RuntimeFields) => RuntimeFields) => {
-      setRtSynced((prev) => ({ ...prev, [agent]: fn(prev[agent]) }));
+      setRtSynced((prev) => ({ ...prev, [agent]: fn(prev[agent]!) }));
       setTest((prev) => ({ ...prev, [agent]: IDLE_TEST }));
     },
     [setRtSynced],
@@ -467,19 +467,21 @@ export function CustomProviderDialog({
     (wireProtocol: 'openai-responses' | 'openai-chat') => {
       setRtSynced((prev) => ({
         ...prev,
-        codex: { ...prev.codex, wireProtocol },
+        codex: { ...prev.codex!, wireProtocol },
       }));
       setTest((prev) => ({ ...prev, codex: IDLE_TEST }));
     },
     [setRtSynced],
   );
 
-  const f = rt[activeTab];
+  const f = rt[activeTab]!;
 
   /** 测试当前 Tab 的表单值（未保存也能测；key 仅内存透传给 main，不落盘）。 */
   const handleTest = useCallback(async () => {
     const agent = activeTab;
-    const rf = rt[agent];
+    // pi 自管 provider，不进供应商设置（无 provider config）。
+    if (agent === 'pi') return;
+    const rf = rt[agent]!;
     const baseUrl = rf.baseUrl.trim();
     const firstModel = rf.models.map((m) => m.id.trim()).find((id) => id.length > 0);
     if (!baseUrl || !firstModel) {
@@ -513,7 +515,7 @@ export function CustomProviderDialog({
         },
       });
       if (
-        providerConnectionTestRequestSignature(rtRef.current[agent], authModeRef.current) !==
+        providerConnectionTestRequestSignature(rtRef.current[agent]!, authModeRef.current) !==
         requestSig
       )
         return;
@@ -525,7 +527,7 @@ export function CustomProviderDialog({
       }));
     } catch (e) {
       if (
-        providerConnectionTestRequestSignature(rtRef.current[agent], authModeRef.current) !==
+        providerConnectionTestRequestSignature(rtRef.current[agent]!, authModeRef.current) !==
         requestSig
       )
         return;
@@ -542,7 +544,9 @@ export function CustomProviderDialog({
   /** 获取模型列表：用当前 Tab 表单值 GET 列模型端点（key 仅内存透传），成功后开勾选弹层。 */
   const handleFetchModels = useCallback(async () => {
     const agent = activeTab;
-    const rf = rt[agent];
+    // pi 自管 provider，不进供应商设置（无 provider config）。
+    if (agent === 'pi') return;
+    const rf = rt[agent]!;
     if (fetchingModels['claude-code'] || fetchingModels.codex) return; // 单飞（按钮已禁用，兜底）
     const baseUrl = rf.baseUrl.trim();
     if (!baseUrl) {
@@ -573,12 +577,12 @@ export function CustomProviderDialog({
         ...(Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : {}),
       });
       if (
-        providerModelFetchRequestSignature(rtRef.current[agent], authModeRef.current) !== requestSig
+        providerModelFetchRequestSignature(rtRef.current[agent]!, authModeRef.current) !== requestSig
       )
         return; // 过期响应，静默丢弃
       if (result.ok && result.models && result.models.length > 0) {
         // 用**响应到达时**的最新表单行构建弹层（rtRef），不是请求发出时的 rf 快照。
-        const current = rtRef.current[agent].models
+        const current = rtRef.current[agent]!.models
           .map((m) => ({
             id: m.id.trim(),
             name: m.name.trim(),
@@ -612,7 +616,7 @@ export function CustomProviderDialog({
       }
     } catch (e) {
       if (
-        providerModelFetchRequestSignature(rtRef.current[agent], authModeRef.current) !== requestSig
+        providerModelFetchRequestSignature(rtRef.current[agent]!, authModeRef.current) !== requestSig
       )
         return; // 过期失败同样静默
       const ipc = extractIpcError(e);
@@ -677,7 +681,7 @@ export function CustomProviderDialog({
     const runtimes: CustomProviderConfig['runtimes'] = {};
     const keys: RuntimeKeys = {};
     for (const a of VISIBLE_AGENTS) {
-      const rf = rt[a];
+      const rf = rt[a]!;
       if (!rf.baseUrl.trim()) continue; // 该 runtime 未配置
       try {
         const u = new URL(rf.baseUrl.trim());
@@ -1011,10 +1015,10 @@ export function CustomProviderDialog({
               role="tablist"
             >
               {VISIBLE_AGENTS.map((a) => {
-                const meta = TAB_META[a];
+                const meta = TAB_META[a]!;
                 const Mark = meta.Mark;
                 const active = activeTab === a;
-                const configured = rt[a].baseUrl.trim().length > 0;
+                const configured = rt[a]!.baseUrl.trim().length > 0;
                 return (
                   <button
                     key={a}
@@ -1049,7 +1053,7 @@ export function CustomProviderDialog({
               })}
             </div>
             <span className="text-12 leading-snug text-[var(--text-tertiary)]">
-              {t(TAB_META[activeTab].helpKey)}
+              {t(TAB_META[activeTab]!.helpKey)}
             </span>
           </div>
 
@@ -1320,19 +1324,19 @@ export function CustomProviderDialog({
                 <button
                   type="button"
                   onClick={() => void handleTest()}
-                  disabled={test[activeTab].status === 'testing'}
+                  disabled={test[activeTab]?.status === 'testing'}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-12 font-medium transition-colors active:scale-[0.98]',
                     'border-[var(--settings-input-border)] text-[var(--settings-section-title)] hover:bg-[var(--surface-hover)]',
-                    test[activeTab].status === 'testing' && 'cursor-not-allowed opacity-60',
+                    test[activeTab]?.status === 'testing' && 'cursor-not-allowed opacity-60',
                   )}
                 >
-                  {test[activeTab].status === 'testing' ? (
+                  {test[activeTab]?.status === 'testing' ? (
                     <Spinner size={13} />
                   ) : (
                     <Plug size={13} />
                   )}
-                  {test[activeTab].status === 'testing'
+                  {test[activeTab]?.status === 'testing'
                     ? t('settings.providers.custom.test.testing')
                     : t('settings.providers.custom.test.button')}
                 </button>
@@ -1353,18 +1357,18 @@ export function CustomProviderDialog({
                     ? t('settings.providers.custom.fetch.fetching')
                     : t('settings.providers.custom.fetch.button')}
                 </button>
-                {test[activeTab].status === 'ok' && (
+                {test[activeTab]?.status === 'ok' && (
                   <span
                     className="flex items-center gap-1 text-12"
                     style={{ color: 'var(--remote-status-ready)' }}
                   >
                     <Check size={13} strokeWidth={2.5} />
-                    {t('settings.providers.custom.test.ok', { ms: test[activeTab].latencyMs ?? 0 })}
+                    {t('settings.providers.custom.test.ok', { ms: test[activeTab]?.latencyMs ?? 0 })}
                   </span>
                 )}
-                {test[activeTab].status === 'fail' && (
+                {test[activeTab]?.status === 'fail' && (
                   <span className="text-12 text-[var(--error-fg)]">
-                    {t(`providerError.${test[activeTab].code ?? 'UNKNOWN'}`)}
+                    {t(`providerError.${test[activeTab]?.code ?? 'UNKNOWN'}`)}
                   </span>
                 )}
               </div>
@@ -1466,7 +1470,7 @@ function ModelPickerOverlay({
           <div className="flex min-w-0 flex-col gap-0.5">
             <h3 className="text-15 font-semibold text-[var(--settings-section-title)]">
               {t('settings.providers.custom.fetch.pickerTitle', {
-                runtime: t(TAB_META[picker.agent].labelKey),
+                runtime: t(TAB_META[picker.agent]!.labelKey),
               })}
             </h3>
             <span className="text-12 text-[var(--text-tertiary)]">

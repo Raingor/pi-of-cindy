@@ -216,7 +216,7 @@ export function messageToCamel(row: MessageRow): Message {
     content,
     toolUseId: row.toolUseId,
     agentMeta,
-    agentKind: (row.agentKind as 'cc' | 'codex' | null) ?? null,
+    agentKind: (row.agentKind as 'cc' | 'codex' | 'pi' | null) ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }
@@ -371,7 +371,7 @@ export function messageCreateToRow(
     content: unknown;
     toolUseId?: string;
     agentMeta?: AgentMeta | null;
-    agentKind?: 'cc' | 'codex' | null;
+    agentKind?: 'cc' | 'codex' | 'pi' | null;
     createdAt?: number;
   },
   now: number,
@@ -582,7 +582,7 @@ export function scheduleCreateToRow(s: Schedule): ScheduleInsert {
     recurring: s.recurring,
     manual: s.manual,
     intervalMs: s.intervalMs ?? null,
-    agentKind: s.agentKind,
+    agentKind: s.agentKind as ScheduleInsert['agentKind'],
     model: s.model ?? null,
     providerId: s.providerId ?? null,
     effort: (s.effort as ScheduleInsert['effort']) ?? null,

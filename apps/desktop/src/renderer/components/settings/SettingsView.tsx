@@ -35,6 +35,8 @@ import { HelpSection } from './HelpSection';
 import { HelpAssistantPanel } from './HelpAssistantPanel';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
+import { UsageStatsSection } from './UsageStatsSection';
+import { PiSettingsSection } from './PiSettingsSection';
 import { ContactsSection } from './contacts/ContactsSection';
 import { ComputerUseSection } from './ComputerUseSection';
 import { useAuth } from '@/contexts/AuthContext';
@@ -516,6 +518,22 @@ export function SettingsView() {
               <div role="tabpanel" id="settings-panel-about" aria-labelledby="settings-tab-about">
                 <section aria-label={t('settings.sections.about')}>
                   <AboutSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'usage' && (
+              <div role="tabpanel" id="settings-panel-usage" aria-labelledby="settings-tab-usage">
+                <section aria-label={t('settings.tabs.usage')}>
+                  <UsageStatsSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-settings' && (
+              <div role="tabpanel" id="settings-panel-pi-settings" aria-labelledby="settings-tab-pi-settings">
+                <section aria-label={t('settings.tabs.piSettings')}>
+                  <PiSettingsSection />
                 </section>
               </div>
             )}

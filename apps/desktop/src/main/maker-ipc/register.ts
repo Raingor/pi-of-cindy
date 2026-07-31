@@ -1848,7 +1848,7 @@ export async function registerPendingCredentialSwitchForSession(
   const prevModel = live?.model ?? prevRow?.model ?? null;
   service.register(sessionId, {
     ...target,
-    ...(dbAgentKind ? { agentKind: dbAgentKind === 'cc' ? 'claude-code' as const : 'codex' as const } : {}),
+    ...(dbAgentKind ? { agentKind: dbAgentKind === 'cc' ? 'claude-code' as const : dbAgentKind === 'pi' ? 'pi' as const : 'codex' as const } : {}),
     ...(prevModel
       ? {
           previousRoute: {
@@ -2483,7 +2483,7 @@ export function wireSessionToIpc(session: ReturnType<Maker['getSession']>): void
 
   // session-agent-switch:登记本会话当前引擎,broadcaster / user 行落库据此逐行
   // stamp messages.agent_kind(切换后历史行的 agent_meta 必须按写入时引擎解析)。
-  noteSessionAgentKind(session.id, session.agentKind === 'codex' ? 'codex' : 'cc');
+  noteSessionAgentKind(session.id, session.agentKind === 'codex' ? 'codex' : session.agentKind === 'pi' ? 'pi' : 'cc');
 
   // 订阅槽①旁听 tap(独立监听,叠加在主转发之外互不干扰):AgentEvent →
   // did-turn-*。资格(用户主会话)与自动化轮次过滤都在 tap 内部,这里零逻辑。
@@ -3512,7 +3512,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // (model/effort/fast/permission/source)。控制端经隧道调用 → seed 远程项目草稿。
   // 缓存未就绪 / 该 vendor 无草稿 model → 返回 {},控制端按 capabilities 默认兜底。
   ipcMain.handle(MAKER_INVOKE.GET_NEW_MAKER_DEFAULTS, (_e, agentKind: unknown) => {
-    return getRemoteNewMakerDefaults(requireAgentKind(agentKind));
+    const kind = requireAgentKind(agentKind);
+    // pi 自管供应商,不参与 device-link New Maker 草稿镜像
+    if (kind === 'pi') return {};
+    return getRemoteNewMakerDefaults(kind);
   });
 
   // device-link 草稿「模型 effort/fast」写穿:控制端经隧道调用 → 跑在**被控端**。被控端不直接改
@@ -4317,7 +4320,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     const extraDirs = await readSessionExtraDirsFromDb(target.sessionId);
     const opts = buildCreateOptsWithStderr({
       id: row.id,
-      agentKind: row.agentKind === 'codex' ? 'codex' : 'claude-code',
+      agentKind: row.agentKind === 'codex' ? 'codex' : row.agentKind === 'pi' ? 'pi' : 'claude-code',
       workingDir: row.workingDir ?? '',
       model: row.model,
       effort: row.effort as CreateOpts['effort'],
@@ -4622,7 +4625,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         .where(eq(sessions.id, sessionId))
         .limit(1);
       if (!row) return;
-      const dbMakerKind = row.agentKind === 'codex' ? 'codex' : 'claude-code';
+      const dbMakerKind = row.agentKind === 'codex' ? 'codex' : row.agentKind === 'pi' ? 'pi' : 'claude-code';
       if (co.agentKind !== dbMakerKind) {
         log.warn('lazy-create: createOpts agentKind drifted from DB (agent switch); reconciling', {
           sessionId,
@@ -4700,7 +4703,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       }
       const co = buildCreateOptsWithStderr({
         id: sessionId,
-        agentKind: row.agentKind === 'codex' ? 'codex' : 'claude-code',
+        agentKind: row.agentKind === 'codex' ? 'codex' : row.agentKind === 'pi' ? 'pi' : 'claude-code',
         workingDir: row.workingDir,
         model: row.model ?? undefined,
         providerId: row.providerId ?? undefined,
@@ -5720,8 +5723,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         });
       }
     }
+    const agentKind = createOpts.agentKind;
     return {
-      agentKind: createOpts.agentKind,
+      agentKind,
       workingDir: createOpts.workingDir,
       model: createOpts.model,
       effort: createOpts.effort,
@@ -5826,7 +5830,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       fast?: unknown;
       providerId?: unknown;
     };
-    const workerAgent: AgentKind = body.workerAgent === 'codex' ? 'codex' : 'claude-code';
+    const workerAgent: AgentKind = body.workerAgent === 'codex' ? 'codex' : body.workerAgent === 'pi' ? 'pi' : 'claude-code';
     const delegateTask = typeof body.delegateTask === 'string' ? body.delegateTask : undefined;
     return enableOrcaInternal(leadSessionId, {
       workerAgent,
@@ -5970,7 +5974,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (typeof b.label !== 'string') throwIpcError('INVALID_PARAMS', 'label required');
     const label = normalizeOrcaWorkerLabel(b.label);
     if (!label.ok) throwIpcError('INVALID_PARAMS', label.message);
-    const agent = b.agent === 'codex' ? 'codex' as const : 'claude-code' as const;
+    const agent = b.agent === 'codex' ? 'codex' as const : b.agent === 'pi' ? 'pi' as const : 'claude-code' as const;
     const model = typeof b.model === 'string' && b.model.length > 0 ? b.model : undefined;
     await assertLeadCollabProjectEnabled(b.leadSessionId);
     const result = await orcaLifecycleService.createWorker({
@@ -6179,7 +6183,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       if (!leadRow) return null;
       return {
         id: leadRow.id,
-        agentKind: leadRow.agentKind === 'codex' ? 'codex' : 'claude-code',
+        agentKind: leadRow.agentKind === 'codex' ? 'codex' : leadRow.agentKind === 'pi' ? 'pi' : 'claude-code',
         workingDir: leadRow.workingDir,
         model: leadRow.model,
         effort: leadRow.effort,
@@ -6882,7 +6886,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       }
     },
     hasPendingInteraction: hasPendingInteractionForSession,
-    getAgentKind: (sessionId) => maker.getSession(sessionId)?.agentKind ?? null,
+    getAgentKind: (sessionId) => {
+      const kind = maker.getSession(sessionId)?.agentKind ?? null;
+      return kind;
+    },
     getSdkSessionId: async (sessionId) => {
       const meta = await maker.getSessionMeta(sessionId).catch(() => null);
       return meta?.sdkSessionId;
@@ -7265,7 +7272,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (!msg.createOpts || typeof msg.createOpts !== 'object') {
       throwIpcError('INVALID_PARAMS', 'queued.createOpts required');
     }
-    if (msg.createOpts.agentKind !== 'claude-code' && msg.createOpts.agentKind !== 'codex') {
+    if (msg.createOpts.agentKind !== 'claude-code' && msg.createOpts.agentKind !== 'codex' && msg.createOpts.agentKind !== 'pi') {
       throwIpcError('INVALID_PARAMS', 'queued.createOpts.agentKind invalid');
     }
     const normalized: AgentInputQueuedMessage = { ...msg };
@@ -7731,7 +7738,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         const dbAgentKind = getSessionDbAgentKind(sessionId);
         if (dbAgentKind) {
           const reroute = await assertModelRouteUsable(
-            dbAgentKind === 'cc' ? 'claude-code' : 'codex',
+            dbAgentKind === 'cc' ? 'claude-code' : dbAgentKind === 'pi' ? 'pi' : 'codex',
             model,
             typeof providerId === 'string' ? providerId : null,
           );
@@ -7919,6 +7926,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     // 写盘失败不阻塞 — 当前 session 已经 setMemory 成功, 只是下次重启会回默认。
     let settingsState = readMemorySettingsState();
     try {
+      // pi 自管 memory(~/.pi),不经此路径(7922 行已 throw)。
+      // MemorySettings 的 key 是 'claudeCode' | 'codex',pi 无对应 key,保持原映射。
       settingsState = writeMemorySetting(agentKind === 'codex' ? 'codex' : 'claudeCode', enabled);
     } catch (err) {
       log.warn('memory:set persistence failed (in-session change still applied)', {
@@ -8426,7 +8435,7 @@ async function checkWorkDirExists(
   // 或者 agent 真跑起来时由远端 codex 自己报 ENOENT)。这里直接放行。
   if (remoteHostId) return true;
   if (!workingDir?.trim()) return true;
-  const source: AgentKind = agentKind === 'codex' ? 'codex' : 'claude-code';
+  const source: AgentKind = agentKind === 'codex' ? 'codex' : agentKind === 'pi' ? 'pi' : 'claude-code';
   // suppressMissingBroadcast: 调用方(SEND 事务)手里还有 DB 权威值可兜底时,
   // 首检失败只记日志不广播错误横幅——兜底成功的话用户不该看到假错误。
   const suppress = opts?.suppressMissingBroadcast === true;

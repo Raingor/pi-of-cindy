@@ -114,7 +114,7 @@ import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { loadAllCommands, dispatchCommand, type UnifiedCommand } from '@/lib/slashCommands';
 import * as sessionService from '@/lib/sessionService';
 import { emitRefresh } from '@/lib/sessionsBus';
-import type { Session } from '@/lib/ccAgent.types';
+import type { AgentKind, Session } from '@/lib/ccAgent.types';
 import { toast } from '@/lib/toast';
 import {
   decodeRemoteErrorMessage,
@@ -686,7 +686,7 @@ export function CCAgentSessionView({
     if (!remoteDeviceId || !remoteModelMemoryScopeKey) return;
     const deviceId = remoteDeviceId;
     const scopeKey = remoteModelMemoryScopeKey;
-    const agent = session?.agentKind === 'codex' ? 'codex' : 'claude-code';
+    const agent = session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code';
     const vendorSlot = agent === 'codex' ? 'codex' : 'claudeCode';
     let cancelled = false;
 
@@ -1080,7 +1080,7 @@ export function CCAgentSessionView({
   const isRemoteSession = !!session?.remoteHostId;
   useEffect(() => {
     let cancelled = false;
-    const agentKind = session?.agentKind === 'codex' ? 'codex' : 'claude-code';
+    const agentKind = session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code';
     // remote 传 null:loadAllCommands 退化为 desktop + agent-builtin,不扫本机项目 skills。
     const wd = isRemoteSession ? null : (session?.workingDir ?? null);
     // 先同步清空:切换会话(尤其 local→remote)时 loadAllCommands 是异步的,清空可避免
@@ -1216,8 +1216,10 @@ export function CCAgentSessionView({
     chatDisplaySnapshot,
   } = useCCAgentChat(sessionId, handleTitleUpdate, { chatRealtime });
   // 展示引擎可乐观跟随 intent；真实 event reducer 仍只读 store.agentKind。
+  // pi 是独立 harness,自管一套模型目录/capabilities/认证 —— 展示层保留 'pi',
+  // 使 useAgentCapabilities / 模型选择器 / contextWindow 走 pi 自己的目录。
   const displayAgentKind =
-    agentSwitchIntent?.target ?? (session?.agentKind === 'codex' ? 'codex' : 'claude-code');
+    agentSwitchIntent?.target ?? (session?.agentKind === 'codex' ? 'codex' : session?.agentKind === 'pi' ? 'pi' : 'claude-code');
   const isCodex = displayAgentKind === 'codex';
   // live 供应商目录(含内置 + 自定义,按 agent 挂模型)—— vendor↔model 一致性校验的真源,
   // 与模型选择器同源(见下方 M35 vendor fallback effect)。本地 IPC 极快返回,有模块级缓存。
@@ -1558,7 +1560,7 @@ export function CCAgentSessionView({
   const getHelpCommandsSnapshot = useCallback(async (): Promise<UnifiedCommand[]> => {
     const cached = allCommandsRef.current;
     if (cached.length > 0) return cached;
-    const agentKind = session?.agentKind === 'codex' ? 'codex' : 'claude-code';
+    const agentKind = session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code';
     try {
       // device-link 远程会话同源:传 remoteDeviceId,fallback 快照也从被控端读(见上方 cache effect 说明)。
       return await loadAllCommands(
@@ -1837,7 +1839,7 @@ export function CCAgentSessionView({
       .then((workers) => {
         if (cancelled || workers.length === 0) return;
         const activeWorker = workers[0]; // MVP: 假设最多 1 个 active Worker
-        const kind: 'cc' | 'codex' = activeWorker.session?.agentKind === 'codex' ? 'codex' : 'cc';
+        const kind: 'cc' | 'codex' = activeWorker.session?.agentKind === 'codex' || activeWorker.session?.agentKind === 'pi' ? 'codex' : 'cc';
         setCollabWorker(kind);
       })
       .catch(() => undefined);
@@ -1928,11 +1930,12 @@ export function CCAgentSessionView({
         : Promise.resolve();
       try {
         const workerAgent = form.agent;
-        const worker: 'cc' | 'codex' = workerAgent === 'codex' ? 'codex' : 'cc';
+        // pi 复用 codex 的 Orca worker 路由
+        const worker: 'cc' | 'codex' = 'codex';
         setCollabWorker(worker);
         setCreateWorkerOpen(false);
         await makerApiFor(collabSessionId).enableOrca(collabSessionId, {
-          workerAgent,
+          workerAgent: 'codex',
           role: form.role,
           label: createWorkerLabel(form.role, []),
           model: form.model,
@@ -2069,7 +2072,7 @@ export function CCAgentSessionView({
         capabilities: sessionCaps,
         providerId: session?.providerId ?? null,
         modelId: newModelId,
-        agentKind: session?.agentKind === 'codex' ? 'codex' : 'claude-code',
+        agentKind: session?.agentKind === 'codex' || session?.agentKind === 'pi' ? 'codex' : 'claude-code',
       });
       if (!supportsFast) {
         const currentFastMode = sessionId ? makerChatStore.getSnapshot(sessionId).fastMode : false;
@@ -2304,7 +2307,9 @@ export function CCAgentSessionView({
       // confirm dialog and settings navigation path as voice input.
       // device-link:远程会话就绪态以被控端为准(传 remoteDeviceId 走隧道查被控端
       // maker:agent:status);本地会话 remoteDeviceId 为 undefined → 走本机检查(行为不变)。
-      const { proceed } = await vendorAuthGate.checkAndConfirm(isCodex ? 'codex' : 'cc', {
+      const { proceed } = await vendorAuthGate.checkAndConfirm(
+        isCodex ? 'codex' : displayAgentKind === 'pi' ? 'pi' : 'cc',
+        {
         deviceId: remoteDeviceId,
         // 已建会话:suspended 来源计入(停用不打断运行中会话,门禁只看凭证连接态,
         // PR #744 review 第十七轮)。
@@ -2555,6 +2560,9 @@ export function CCAgentSessionView({
   const sessionModel = session?.model;
   useEffect(() => {
     if (!sessionAgentKind || !sessionModel || !sessionId) return;
+    // pi 是独立 harness,模型自管(不在 Cindy provider 目录里),vendor↔model 一致性由 pi 保证;
+    // 控制端不能按 cc/codex 目录"纠正"pi 模型(会误判非法 → reset 成 cc 默认),直接跳过。
+    if (sessionAgentKind === 'pi') return;
     // device-link 远程会话:vendor↔model 一致性由被控端权威保证。控制端不能替它"纠正"——
     // 远程模型可能只存在于被控端(本地目录查不到 → 误判跨 vendor),且本地 DB 没有该会话行,
     // sessionService.update 会写错 / refreshServerSession 对远程是 no-op。直接跳过(规则:host 为准)。
@@ -3273,7 +3281,9 @@ export function CCAgentSessionView({
                     session
                       ? session.agentKind === 'codex'
                         ? 'codex'
-                        : 'claude-code'
+                        : session.agentKind === 'pi'
+                          ? 'pi'
+                          : 'claude-code'
                       : null
                   }
                   initialWorkingDir={session?.workingDir}
@@ -3316,7 +3326,7 @@ export function CCAgentSessionView({
                   attachmentState={attachmentState}
                   externalDragOver={isDragOver}
                   onComposerDropHandled={resetFullAreaDragState}
-                  vendorKey={isCodex ? 'codex' : 'cc'}
+                  vendorKey={displayAgentKind === 'codex' ? 'codex' : displayAgentKind === 'pi' ? 'pi' : 'cc'}
                   extraDirs={session?.extraDirs ?? []}
                   onExtraDirsChange={handleExtraDirsChange}
                   compactToolbar={compactToolbar}
@@ -3502,7 +3512,7 @@ export function CCAgentSessionView({
                   <ContextCapacityRing
                     contextTokens={agentStatus.contextTokens}
                     model={agentSwitchIntent?.model ?? session?.model ?? ''}
-                    vendorKey={displayAgentKind === 'codex' ? 'codex' : 'cc'}
+                    vendorKey={displayAgentKind === 'codex' ? 'codex' : displayAgentKind === 'pi' ? 'pi' : 'cc'}
                     sdkContextWindow={agentStatus.contextWindow}
                     deviceId={remoteDeviceId}
                     onCompact={
@@ -3960,10 +3970,11 @@ function formatTokenCount(n: number): string {
 /**
  * 从 maker capabilities cache 查模型 contextWindow。
  * 拿不到时返回 undefined，由 display resolver 兜底到 200K。
+ * pi 自管模型目录 → 按 pi 自己的目录查 contextWindow(不再折叠到 codex)。
  */
 function getModelContextWindow(
   model: string,
-  vendorKey: 'cc' | 'codex',
+  vendorKey: AgentKind,
   deviceId?: string,
 ): number | undefined {
   const found = getModelsForVendor(vendorKey, deviceId).find((m) => m.id === model);
@@ -3980,7 +3991,7 @@ function ContextCapacityRing({
 }: {
   contextTokens: number;
   model: string;
-  vendorKey: 'cc' | 'codex';
+  vendorKey: 'cc' | 'codex' | 'pi';
   /** SDK-reported context window; 0 = not yet known → use hardcoded fallback. */
   sdkContextWindow: number;
   /** device-link 远程会话所属被控端 id;按被控端能力查 contextWindow(本机会话 undefined,行为不变)。 */

@@ -40,6 +40,7 @@ function normalizeStaticStatus(status: string): string {
  * through this helper.
  */
 export function localizeAgentStatus(status: string, t: TFunction): string {
+  if (!status || typeof status !== 'string') return '';
   const staticKey = STATUS_KEYS.get(normalizeStaticStatus(status));
   if (staticKey) return t(staticKey);
 

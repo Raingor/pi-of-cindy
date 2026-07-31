@@ -62,6 +62,53 @@ import type { LocalCliDetection } from '../../../shared/localCliDetect';
 import { isBuiltinRefreshableProviderId } from '../../../shared/providerModelRefresh';
 import type { CustomProviderConfig, ProviderView } from '@cindy/model-providers';
 
+// ── Pi 供应商类型 ─────────────────────────────────────
+interface PiAuthEntry {
+  type: 'api_key' | 'oauth';
+  hasKey: boolean;
+  env?: Record<string, string>;
+}
+type PiAuth = Record<string, PiAuthEntry>;
+interface PiConfigSnapshot {
+  settings: { defaultProvider?: string; defaultModel?: string } | null;
+  auth: PiAuth | null;
+  modelsJson: { providers: Record<string, unknown> } | null;
+}
+
+/** Pi RPC get_available_models 返回的单条模型(与 vite-env.d.ts maker.pi.getModels 对齐)。 */
+interface PiModelRow {
+  id: string;
+  name: string;
+  api?: string;
+  provider: string;
+  baseUrl?: string;
+  reasoning?: boolean;
+  input?: string[];
+  contextWindow?: number;
+  maxTokens?: number;
+  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+}
+
+/** Pi auth.json 里的 provider id → 展示名映射 (常见供应商)。 */
+const PI_PROVIDER_LABELS: Record<string, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Google',
+  xai: 'xAI',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
+  groq: 'Groq',
+  together: 'Together AI',
+  fireworks: 'Fireworks AI',
+  openrouter: 'OpenRouter',
+  ollama: 'Ollama',
+  lmstudio: 'LM Studio',
+  copilot: 'GitHub Copilot',
+  azure: 'Azure OpenAI',
+  bedrock: 'AWS Bedrock',
+  vertex: 'Google Vertex',
+};
+
 // ---------------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------------
@@ -1177,6 +1224,96 @@ function SuggestionRow({
 }
 
 // ---------------------------------------------------------------------------
+// Pi 供应商详情(只读)
+// ---------------------------------------------------------------------------
+
+/**
+ * Pi 供应商右栏详情:展示该 provider 在 pi 里可用的模型(只读)。
+ * pi 自管凭证/连接/模型目录 —— 这里不提供编辑/停用,只同步展示。
+ */
+function PiProviderDetail({
+  provider,
+  models,
+}: {
+  provider: { id: string; label: string };
+  models: PiModelRow[];
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-col gap-3 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            style={{
+              backgroundColor: 'var(--settings-integration-avatar-bg)',
+              border: '1px solid var(--settings-integration-avatar-border)',
+              color: 'var(--settings-integration-avatar-icon)',
+            }}
+          >
+            <span className="text-14 font-semibold leading-none">
+              {provider.label.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span
+                className="min-w-0 truncate text-14 font-medium leading-tight"
+                style={{ color: 'var(--settings-section-title)' }}
+              >
+                {provider.label}
+              </span>
+              <CustomTag label={t('settings.providers.pi.detail.badge')} />
+            </div>
+            <span
+              className="truncate text-13 leading-tight"
+              style={{ color: 'var(--settings-integration-subtitle)' }}
+            >
+              {t('settings.providers.pi.detail.managedNote')}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        className="border-t"
+        style={{ borderColor: 'var(--settings-theme-card-border)' }}
+      />
+      {models.length === 0 ? (
+        <div
+          className="flex flex-1 items-center justify-center px-8 text-center text-13"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          {t('settings.providers.pi.detail.empty')}
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
+          {models.map((m) => (
+            <div
+              key={`${m.provider}/${m.id}`}
+              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
+            >
+              <span
+                className="min-w-0 flex-1 truncate text-13"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {m.name || m.id}
+              </span>
+              {typeof m.contextWindow === 'number' && m.contextWindow > 0 && (
+                <span className="shrink-0 text-11" style={{ color: 'var(--text-tertiary)' }}>
+                  {t('settings.providers.pi.detail.contextWindow', {
+                    tokens: Math.round(m.contextWindow / 1000),
+                  })}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section
 // ---------------------------------------------------------------------------
 
@@ -1191,6 +1328,9 @@ export function ProvidersSection() {
   const openaiReconnectRequired = codexAuth.state.kind === 'reconnect-required';
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 选中的 pi 供应商 id(与 selectedId 互斥:选 pi 时清空 selectedId,反之亦然)。
+  // pi 供应商是独立分区,右栏渲染 pi 自管的只读模型列表。
+  const [selectedPiId, setSelectedPiId] = useState<string | null>(null);
   // 向导:null = 关;{ entry } = 打开(entry 指定直达的供应商,来自检测建议)。
   const [wizard, setWizard] = useState<null | { entry?: WizardEntry }>(null);
   // 自定义供应商完整表单(编辑,或从向导「自定义端点」进入新建)。
@@ -1222,6 +1362,51 @@ export function ProvidersSection() {
       .requestProviderModelsAutoRefresh('providers-open')
       .catch(() => undefined);
   }, []);
+
+  // Pi 已配置的供应商:从 ~/.pi/agent/auth.json 读取 (key-presence only, 不回传明文)。
+  // pi 自管凭证,这里只做展示同步——让用户在设置页看到 pi 里已经配了哪些供应商。
+  const [piProviders, setPiProviders] = useState<Array<{ id: string; label: string; hasKey: boolean }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (window.electronAPI.maker.pi?.getConfig?.() as Promise<PiConfigSnapshot> | undefined)
+      ?.then((snapshot) => {
+        if (cancelled || !snapshot?.auth) return;
+        const entries = Object.entries(snapshot.auth)
+          .filter(([, entry]) => entry.hasKey)
+          .map(([id, entry]) => ({
+            id,
+            label: PI_PROVIDER_LABELS[id] ?? id,
+            hasKey: entry.hasKey,
+          }));
+        if (!cancelled) setPiProviders(entries);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [refetch]);
+
+  // Pi 自管的完整模型目录(内置默认 + models.json 自定义 + auth.json 已配)。
+  // 向本地 pi 查 get_available_models(进程内缓存);按 provider 分组后供右栏只读展示。
+  const [piModels, setPiModels] = useState<PiModelRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (window.electronAPI.maker.pi?.getModels?.() as Promise<PiModelRow[]> | undefined)
+      ?.then((models) => {
+        if (!cancelled && Array.isArray(models)) setPiModels(models);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  // pi 模型按 provider 分组(供右栏按选中供应商取子集)。
+  const piModelsByProvider = useMemo(() => {
+    const map = new Map<string, PiModelRow[]>();
+    for (const m of piModels) {
+      const list = map.get(m.provider);
+      if (list) list.push(m);
+      else map.set(m.provider, [m]);
+    }
+    return map;
+  }, [piModels]);
 
   // 本机 CLI 扫描:挂载时一次(失败静默空数组;检测建议是增强,不是依赖)。
   useEffect(() => {
@@ -1333,6 +1518,14 @@ export function ProvidersSection() {
     return listProviders[0] ?? null;
   }, [selectedId, listProviders]);
 
+  // pi 供应商选中态:选中时 pi 详情栏优先于 cindy 登录引导 / 普通供应商详情,
+  // 并抑制左栏其它行的选中高亮(effectiveSelected 默认回退首行)。
+  const selectedPiProvider = useMemo(
+    () => (selectedPiId ? piProviders.find((p) => p.id === selectedPiId) ?? null : null),
+    [selectedPiId, piProviders],
+  );
+  const piActive = selectedPiProvider != null;
+
   const handleDelete = useCallback(
     async (p: ProviderView) => {
       const ok = await confirm({
@@ -1365,6 +1558,8 @@ export function ProvidersSection() {
         let added = 0;
         let anyOk = false;
         for (const agent of p.agents) {
+          // pi 自管 provider，不进供应商设置（无 provider config）。
+          if (agent === 'pi') continue;
           const rt = config.runtimes[agent];
           if (!rt?.baseUrl) continue;
           const authMethod =
@@ -1503,16 +1698,22 @@ export function ProvidersSection() {
             <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
               {showCindySignin && (
                 <CindySigninRow
-                  selected={cindySigninActive}
-                  onSelect={() => setSelectedId(CINDY_SIGNIN_ID)}
+                  selected={cindySigninActive && !piActive}
+                  onSelect={() => {
+                    setSelectedId(CINDY_SIGNIN_ID);
+                    setSelectedPiId(null);
+                  }}
                 />
               )}
               {listProviders.map((p) => (
                 <ListRow
                   key={p.id}
                   provider={p}
-                  selected={!cindySigninActive && effectiveSelected?.id === p.id}
-                  onSelect={() => setSelectedId(p.id)}
+                  selected={!cindySigninActive && !piActive && effectiveSelected?.id === p.id}
+                  onSelect={() => {
+                    setSelectedId(p.id);
+                    setSelectedPiId(null);
+                  }}
                 />
               ))}
               {suggestions.length > 0 && (
@@ -1532,6 +1733,61 @@ export function ProvidersSection() {
                         setWizard({ entry: { kind: 'builtin', providerId: s.provider.id } })
                       }
                     />
+                  ))}
+                </>
+              )}
+              {piProviders.length > 0 && (
+                <>
+                  <span
+                    className="px-2.5 pb-1 pt-3 text-11 font-semibold uppercase"
+                    style={{ color: 'var(--text-tertiary)', letterSpacing: '0.4px' }}
+                  >
+                    {t('settings.providers.pi.groupLabel')}
+                  </span>
+                  {piProviders.map((p) => (
+                    <button
+                      key={`pi-${p.id}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPiId(p.id);
+                        setSelectedId(null);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
+                      style={
+                        selectedPiId === p.id
+                          ? { backgroundColor: 'var(--surface-chip)' }
+                          : undefined
+                      }
+                    >
+                      <div
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                        style={{
+                          backgroundColor: 'var(--settings-integration-avatar-bg)',
+                          border: '1px solid var(--settings-integration-avatar-border)',
+                          color: 'var(--settings-integration-avatar-icon)',
+                        }}
+                      >
+                        <span className="text-12 font-semibold leading-none">
+                          {p.label.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span
+                        className="min-w-0 flex-1 truncate text-13"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {p.label}
+                      </span>
+                      <span
+                        className="shrink-0 text-11"
+                        style={{ color: 'var(--text-tertiary)' }}
+                      >
+                        Pi
+                      </span>
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--remote-status-ready)' }}
+                      />
+                    </button>
                   ))}
                 </>
               )}
@@ -1557,7 +1813,12 @@ export function ProvidersSection() {
 
           {/* 右栏详情 */}
           <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-            {cindySigninActive ? (
+            {piActive && selectedPiProvider ? (
+              <PiProviderDetail
+                provider={selectedPiProvider}
+                models={piModelsByProvider.get(selectedPiProvider.id) ?? []}
+              />
+            ) : cindySigninActive ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
                 <div
                   className="flex h-12 w-12 items-center justify-center rounded-xl"

@@ -25,14 +25,18 @@ import { normalizeRemoteHostId } from '../localDb/mapper.js';
 import { DESKTOP_VISIBLE_SESSION_SOURCES } from '../../shared/sessionSource.js';
 import { normalizeWorkingDirForStorage } from '../../shared/workingDir.js';
 
-type DbAgentKind = 'cc' | 'codex';
+type DbAgentKind = 'cc' | 'codex' | 'pi';
 
 function toDbKind(k: AgentKind): DbAgentKind {
-  return k === 'claude-code' ? 'cc' : 'codex';
+  if (k === 'codex') return 'codex';
+  if (k === 'pi') return 'pi';
+  return 'cc';
 }
 
 function fromDbKind(k: string): AgentKind {
-  return k === 'codex' ? 'codex' : 'claude-code';
+  if (k === 'codex') return 'codex';
+  if (k === 'pi') return 'pi';
+  return 'claude-code';
 }
 
 function normalizeWorkspaceKind(value: unknown): WorkspaceKind {

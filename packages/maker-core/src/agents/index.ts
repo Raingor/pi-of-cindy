@@ -3,6 +3,9 @@ export * from './base-agent.js';
 // (claude-haiku-4-5 → claude-haiku-4-5-20251001),复用 SSoT 映射,避免在 host 硬编码 dated id。
 export { ClaudeCodeAgent, toSdkModelString, setClaudeSupportedModelsListener } from './claude-code/index.js';
 export { CodexAgent } from './codex/index.js';
+// pi (pi.dev) - 第 3 个 harness。pi 自管 provider/model/usage，Cindy 只 spawn
+// `pi --mode rpc` + 翻译事件流。详见 ./pi/index.ts 头注释。
+export { PiAgent } from './pi/index.js';
 export {
   canReuseCodexHostForCredentialMode,
   canReuseHostForCredentialMode,

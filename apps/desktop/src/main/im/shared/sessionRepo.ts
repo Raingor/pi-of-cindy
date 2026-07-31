@@ -36,7 +36,9 @@ export function toCoreAgentKind(kind: string): AgentKind {
 
 /** core AgentKind → sessions.agentKind 列的 legacy 存储值。 */
 function toDbAgentKind(kind: AgentKind): string {
-  return kind === 'codex' ? 'codex' : 'cc';
+  if (kind === 'codex') return 'codex';
+  if (kind === 'pi') return 'pi';
+  return 'cc';
 }
 
 export interface ImSessionRow {

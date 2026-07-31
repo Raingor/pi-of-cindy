@@ -14,6 +14,7 @@ import {
   Maker,
   ClaudeCodeAgent,
   CodexAgent,
+  PiAgent,
   configureDefaultImageResizer,
   type McpProvider,
 } from '@cindy/maker-core';
@@ -58,6 +59,12 @@ import {
   writeCodexHistoryHasProductPrompt,
 } from './session-storage.js';
 import { desktopMakerLogger } from './logger-adapter.js';
+import {
+  resolvePiBinaryPath,
+  createPiAuthAdapter,
+  createPiRuntimeConfig,
+} from './pi-host.js';
+import { readPiAvailableModels } from './pi-models.js';
 import { resolveSessionCcDebugFile } from '../logger.js';
 import { resetProviderModelAutoRefreshCooldowns } from './provider-model-auto-refresh.js';
 import { createSshDaemonTransport } from './codex-remote-transport.js';
@@ -69,7 +76,7 @@ import {
 import { openCcManagerSession } from './cc-manager-client.js';
 import { getRemoteClaudeBinaryPath } from '../remote-ssh/cc-manager-install.js';
 import { createReadImageHook } from './claude-hooks/read-image-hook.js';
-import { deriveAvailableModels, refreshCatalogDerivedModels } from './catalog-to-descriptors.js';
+import { deriveAvailableModels, derivePiAvailableModels, refreshCatalogDerivedModels } from './catalog-to-descriptors.js';
 import { clearChatgptBridgeCredentialCache } from './anthropic-responses-bridge-host.js';
 import {
   getDesktopSelectableCatalog,
@@ -1079,10 +1086,43 @@ export function getMaker(): Maker {
     registerCustomMcpArrays(claudeMcpProviders, codexMcpProviders);
     _initialCustomMcpRefresh = refreshCustomMcpProviders();
 
+    // pi harness（第 3 个 harness, pi.dev）：复用本地 pi 二进制，找到才注册。
+    // pi 自管 provider / credentials / usage / memory -- 只注入 no-op auth + 空
+    // runtime config，不接 MCP providers / makerMemory（pi 用 ~/.pi 自配，首版不共享 Cindy MCP）。
+    // 找不到本地 pi 时 piAgent=null，下游两处注册点条件展开，picker 据此不显示 pi。
+    const piBinaryPath = resolvePiBinaryPath();
+    const piAgent = piBinaryPath
+      ? new PiAgent({
+          auth: createPiAuthAdapter(desktopMakerLogger),
+          runtimeConfig: createPiRuntimeConfig(),
+          binaryPath: piBinaryPath,
+          logger: desktopMakerLogger,
+        })
+      : null;
+    if (piAgent) {
+      desktopMakerLogger.info('pi harness registered', { binaryPath: piBinaryPath });
+      // getMaker 是同步构造点，pi 模型目录需 spawn `pi --mode rpc` 异步查询：起始为空，
+      // 查回后原地 splice 进 piAgent.capabilities.availableModels（Maker.getCapabilities('pi')
+      // 返回的是同一数组引用，已建 Session 与后续 provider:list 广播据此可见）。失败兜底空。
+      void readPiAvailableModels(piBinaryPath!)
+        .then((models) => {
+          const derived = derivePiAvailableModels(models);
+          const target = piAgent.capabilities.availableModels;
+          target.splice(0, target.length, ...derived);
+          desktopMakerLogger.info('pi models injected', { models: derived.length });
+        })
+        .catch((err: unknown) => {
+          desktopMakerLogger.warn('pi models inject failed', { error: String(err) });
+        });
+    } else {
+      desktopMakerLogger.info('pi harness not registered (local pi binary not found)');
+    }
+
     // 装配第二步: 把 agents 引用挂回 manager (manager.enable() 时遍历 setMemory(false))。
     attachAgentsToMakerMemory(makerMemoryManager, {
       'claude-code': claudeAgent,
       codex: codexAgent,
+      ...(piAgent ? { pi: piAgent } : {}),
     });
     if (makerMemoryManager.isEnabled()) {
       void makerMemoryManager.enable();
@@ -1164,6 +1204,7 @@ export function getMaker(): Maker {
       agents: {
         'claude-code': claudeAgent,
         codex: codexAgent,
+        ...(piAgent ? { pi: piAgent } : {}),
       },
       storage: desktopSessionStorage,
       logger: desktopMakerLogger,

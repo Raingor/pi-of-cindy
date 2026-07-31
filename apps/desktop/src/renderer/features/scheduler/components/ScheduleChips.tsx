@@ -44,7 +44,7 @@ import { PENDING_SESSION_ID } from '../lib/scheduleFormLogic';
 import type { SessionReference } from '../../../../shared/sessionReference';
 
 export type Destination = 'local' | 'worktree' | 'thread';
-export type AgentKind = 'claude-code' | 'codex';
+export type AgentKind = 'claude-code' | 'codex' | 'pi';
 
 interface ChipButtonProps {
   icon?: React.ReactNode;
@@ -159,7 +159,9 @@ export function ProjectChip({
   );
 }
 
-const AGENT_META: Record<AgentKind, { label: string; vendor: 'cc' | 'codex' }> = {
+// pi opts-out scheduler tab（pi 自管 provider/model/effort，定时派发的 model/effort
+// 选择对 pi 无意义）；AGENT_META 用 Partial 让 pi 缺席，AgentTabs 只列 cc/codex。
+const AGENT_META: Partial<Record<AgentKind, { label: string; vendor: 'cc' | 'codex' }>> = {
   'claude-code': { label: 'Claude Code', vendor: 'cc' },
   codex: { label: 'Codex', vendor: 'codex' },
 };
@@ -176,6 +178,7 @@ export function AgentTabs({ value, onChange, disabled }: { value: AgentKind; onC
       {(Object.keys(AGENT_META) as AgentKind[]).map((kind) => {
         const active = kind === value;
         const meta = AGENT_META[kind];
+        if (!meta) return null;
         return (
           <button
             key={kind}

@@ -17,12 +17,12 @@ export interface ModelDefinition {
   description: string;
   efforts: readonly Effort[];
   defaultEffort: Effort | null;
-  vendorKey: 'cc' | 'codex';
+  vendorKey: 'cc' | 'codex' | 'pi';
   contextWindow?: number;
   supportsFastMode?: boolean;
 }
 
-function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex'): ModelDefinition {
+function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex' | 'pi'): ModelDefinition {
   return {
     id: m.id,
     label: m.displayName,
@@ -41,9 +41,13 @@ function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex'): ModelDefinitio
 function allCachedModels(deviceId?: string): ModelDefinition[] {
   const cc = getCachedCapabilities('claude-code', deviceId);
   const codex = getCachedCapabilities('codex', deviceId);
+  // pi 是独立 harness,自管一套模型目录(host 注入 pi capabilities.availableModels),
+  // 列入后 getModelsForVendor('pi') / getModelContextWindow 才能查到 pi 模型。
+  const pi = getCachedCapabilities('pi', deviceId);
   return [
     ...((cc?.availableModels ?? []).map((m) => toLegacy(m, 'cc'))),
     ...((codex?.availableModels ?? []).map((m) => toLegacy(m, 'codex'))),
+    ...((pi?.availableModels ?? []).map((m) => toLegacy(m, 'pi'))),
   ];
 }
 
@@ -91,30 +95,33 @@ export function getModelById(modelId: string, deviceId?: string): ModelDefinitio
 }
 
 export function getModelsForVendor(
-  vendorKey: 'cc' | 'codex',
+  vendorKey: 'cc' | 'codex' | 'pi',
   deviceId?: string,
 ): readonly ModelDefinition[] {
+  // pi 自管模型目录(不再复用 codex),按 pi 自己的 vendorKey 筛选。
   return allCachedModels(deviceId).filter((m) => m.vendorKey === vendorKey);
 }
 
-export function getDefaultModelForVendor(vendorKey: 'cc' | 'codex', deviceId?: string): ModelDefinition {
-  const list = getModelsForVendor(vendorKey, deviceId);
+export function getDefaultModelForVendor(vendorKey: 'cc' | 'codex' | 'pi', deviceId?: string): ModelDefinition {
+  // pi 复用 codex 模型目录
+  const vk = vendorKey === 'pi' ? 'codex' : vendorKey;
+  const list = getModelsForVendor(vk, deviceId);
   // capabilities 还没拉到时退化到一个静态 placeholder, 让调用方拿到非 undefined。
   // 调用方真正需要值时通常已经在 useEffect 后, capabilities 已就绪。
   if (list.length === 0) {
     return {
-      id: vendorKey === 'codex' ? 'gpt-5.5' : 'claude-opus-4-8',
-      label: vendorKey === 'codex' ? 'GPT-5.5' : 'Opus 4.8',
+      id: vk === 'codex' ? 'gpt-5.5' : 'claude-opus-4-8',
+      label: vk === 'codex' ? 'GPT-5.5' : 'Opus 4.8',
       description: '',
       efforts: [],
       defaultEffort: null,
-      vendorKey,
+      vendorKey: vk,
     };
   }
   // cc 默认走 opus-4-8, codex 默认走 gpt-5.5 —— 这是**对话**场景的默认。
   // 自动化任务（scheduler）的默认**故意不同**:无人值守场景成本保守,
   // 走 useScheduleForm.ts getScheduleDefaultModel 三级回退（冷启动 Sonnet）,
   // 不要把这里的 Opus 默认接到 scheduler 上。
-  const preferredId = vendorKey === 'codex' ? 'gpt-5.5' : 'claude-opus-4-8';
+  const preferredId = vk === 'codex' ? 'gpt-5.5' : 'claude-opus-4-8';
   return list.find((m) => m.id === preferredId) ?? list[0];
 }

@@ -102,7 +102,9 @@
       "help": "帮助",
       "about": "关于",
       "imBot": "IM 机器人",
-      "ghosts": "插件"
+      "ghosts": "插件",
+      "usage": "使用统计",
+      "piSettings": "Pi 配置"
     },
     "sections": {
       "user": "用户",
@@ -1428,6 +1430,15 @@
         "action": "去授权",
         "hintLoggedIn": "检测到 {{cli}} 已登录，可直接授权接入",
         "hintInstalled": "检测到本机已安装 {{cli}}"
+      },
+      "pi": {
+        "groupLabel": "Pi 已配置",
+        "detail": {
+          "badge": "由 Pi 自管",
+          "managedNote": "由 Pi 自管 — 请在 Pi 中配置",
+          "empty": "Pi 中该供应商暂无可用模型",
+          "contextWindow": "{{tokens}}K 上下文"
+        }
       },
       "wizard": {
         "title": "添加供应商",
@@ -3017,6 +3028,64 @@
         "cta": "让 AI 整理通讯录",
         "prompt": "帮我整理一下我的智能通讯录：先看看现在有什么，然后把值得记录的人补进去(可以从系统通讯录或 vCard 导入，也可以问我)，有重复的帮我确认后合并。"
       }
+    },
+    "pi": {
+      "title": "Pi 配置",
+      "subtitle": "管理 Pi harness 的更新、扩展和配置导入导出",
+      "updatesTitle": "更新检测",
+      "updatesDesc": "检查 Pi 核心和扩展是否有新版本",
+      "checkUpdates": "检查更新",
+      "updating": "更新中…",
+      "updateAll": "全部更新",
+      "updatesFailed": "检查更新失败",
+      "updateSuccess": "已成功更新 {{count}} 个包",
+      "updateFailedNames": "{{count}} 个包更新失败：{{names}}",
+      "updatesSummary": "{{count}} 个包有可用更新",
+      "updatesAllLatest": "所有包均为最新版本",
+      "updatesLookupFailed": "查询失败",
+      "updateAvailable": "有更新",
+      "updatesUpToDate": "已最新",
+      "packages": "扩展与包",
+      "noPackages": "暂无已安装的扩展",
+      "loading": "加载中…",
+      "packagePlaceholder": "输入包名，如 @anthropic/sdk",
+      "add": "添加",
+      "packageAdded": "包添加成功",
+      "packageAddFailed": "包添加失败",
+      "packageRemoved": "包已移除",
+      "packageRemoveFailed": "包移除失败",
+      "importExport": "导入与导出",
+      "export": "导出配置",
+      "import": "导入配置",
+      "importExportHint": "导出当前 Pi 配置（设置、认证、模型），或从备份文件恢复",
+      "exportSuccess": "配置已导出",
+      "exportFailed": "导出失败",
+      "importSuccess": "配置已导入",
+      "importFailed": "导入失败"
+    },
+    "usageStats": {
+      "title": "使用统计",
+      "subtitle": "查看三个 harness 的 token 用量和花费",
+      "refresh": "刷新",
+      "exportCsv": "导出 CSV",
+      "todayTokens": "今日 Token",
+      "last30Days": "近 30 天",
+      "todayCost": "今日花费",
+      "totalRequests": "连续天数",
+      "streakDays": "连续使用",
+      "cacheHitRate": "缓存命中率",
+      "tokenBreakdown": "Token 分布",
+      "input": "输入",
+      "output": "输出",
+      "cacheCreate": "缓存写入",
+      "cacheHit": "缓存命中",
+      "dailyTotals": "每日总量",
+      "modelBreakdown": "模型明细",
+      "model": "模型",
+      "agent": "Harness",
+      "tokens": "Token",
+      "cost": "花费",
+      "noData": "暂无数据"
     }
   },
   "remoteDevice": {
@@ -4162,6 +4231,7 @@
         "agent": {
           "claudeCode": "Claude Code",
           "codex": "Codex",
+          "pi": "Pi",
           "pending": "下条：{{agent}}"
         }
       },

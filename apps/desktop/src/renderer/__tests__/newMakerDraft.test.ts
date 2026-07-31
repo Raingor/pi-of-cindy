@@ -2,7 +2,7 @@
  * newMakerDraft.test.ts
  * ---------------------------------------------------------------------------
  * 回归 state/newMakerDraft.ts 的核心约定:
- *   1. 默认 vendor='cc',workingDir=null,lastByVendor 各 vendor 的硬默认填齐
+ *   1. 默认 vendor='pi',workingDir=null,lastByVendor 各 vendor 的硬默认填齐
  *   2. localStorage 持久化:patch 后 reload(模拟 app 重启)→ 状态恢复
  *   3. switchVendor:把当前 vendor 的 prefs 落进 lastByVendor[oldVendor]
  *   4. patchCurrentVendorPrefs:仅修当前 vendor 的 prefs,不影响另一个 vendor
@@ -45,14 +45,14 @@ async function loadModule() {
 }
 
 describe('newMakerDraft store', () => {
-  it('默认状态:vendor=cc,workingDir=null,lastByVendor 各 vendor 的硬默认填齐', async () => {
+  it('默认状态:vendor=pi,workingDir=null,lastByVendor 各 vendor 的硬默认填齐', async () => {
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('cc');
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
-    expect(d.lastByVendor.cc.permissionMode).toBe('auto');
-    expect(d.lastByVendor.cc.effort).toBe('medium');
-    expect(d.lastByVendor.cc.model.length).toBeGreaterThan(0);
+    expect(d.lastByVendor.pi.permissionMode).toBe('auto');
+    expect(d.lastByVendor.pi.effort).toBe('high');
+    expect(d.lastByVendor.pi.model).toBe('gpt-5.4');
     expect(d.lastByVendor.codex.permissionMode).toBe('auto');
     expect(d.lastByVendor.codex.effort).toBe('high');
     expect(d.lastByVendor.codex.model).toBe('gpt-5.4');
@@ -217,37 +217,37 @@ describe('newMakerDraft store', () => {
 
   it('switchVendor:落地当前 vendor 的最新 prefs 后再切到目标 vendor', async () => {
     const { getDraft, switchVendor } = await loadModule();
-    // 当前 vendor='cc',传入"模拟用户改过的 cc prefs"
+    // 当前 vendor='pi',传入"模拟用户改过的 pi prefs"
     switchVendor('codex', {
-      ...getDraft().lastByVendor.cc,
-      model: 'claude-opus-4-7',
+      ...getDraft().lastByVendor.pi,
+      model: 'gpt-5.5',
       effort: 'high',
       permissionMode: 'plan',
     });
     const d = getDraft();
     expect(d.vendor).toBe('codex');
-    // 旧 vendor(cc)的 prefs 被落地为传入的值
-    expect(d.lastByVendor.cc.model).toBe('claude-opus-4-7');
-    expect(d.lastByVendor.cc.effort).toBe('high');
-    expect(d.lastByVendor.cc.permissionMode).toBe('plan');
+    // 旧 vendor(pi)的 prefs 被落地为传入的值
+    expect(d.lastByVendor.pi.model).toBe('gpt-5.5');
+    expect(d.lastByVendor.pi.effort).toBe('high');
+    expect(d.lastByVendor.pi.permissionMode).toBe('plan');
     // 新 vendor(codex)的 prefs 不变(等待用户在 codex 下继续操作)
     expect(d.lastByVendor.codex.permissionMode).toBe('auto');
   });
 
   it('switchVendor:相同 vendor 不变(no-op,避免误覆盖)', async () => {
     const { getDraft, switchVendor } = await loadModule();
-    const before = getDraft().lastByVendor.cc;
-    switchVendor('cc', { ...before, model: 'XX', effort: 'low', permissionMode: 'auto' });
-    expect(getDraft().lastByVendor.cc).toEqual(before);
+    const before = getDraft().lastByVendor.pi;
+    switchVendor('pi', { ...before, model: 'XX', effort: 'low', permissionMode: 'auto' });
+    expect(getDraft().lastByVendor.pi).toEqual(before);
   });
 
   it('patchCurrentVendorPrefs:只改当前 vendor,不影响另一个', async () => {
     const { getDraft, patchCurrentVendorPrefs } = await loadModule();
     const codexBefore = getDraft().lastByVendor.codex;
-    patchCurrentVendorPrefs({ effort: 'xhigh', model: 'claude-opus-4-7' });
+    patchCurrentVendorPrefs({ effort: 'xhigh', model: 'gpt-5.5' });
     const d = getDraft();
-    expect(d.lastByVendor.cc.effort).toBe('xhigh');
-    expect(d.lastByVendor.cc.model).toBe('claude-opus-4-7');
+    expect(d.lastByVendor.pi.effort).toBe('xhigh');
+    expect(d.lastByVendor.pi.model).toBe('gpt-5.5');
     expect(d.lastByVendor.codex).toEqual(codexBefore);
   });
 
@@ -257,23 +257,23 @@ describe('newMakerDraft store', () => {
     //（即使 patchDraft 已把含种子默认 model 的快照落盘)
     m1.patchDraft({ workingDir: '/foo' });
     expect(m1.getDraft().modelChosenByVendor).toEqual({});
-    expect(m1.getPersistedVendorModel('cc')).toBe('');
+    expect(m1.getPersistedVendorModel('pi')).toBe('');
 
     // 只改 effort → 仍不算选过 model
     m1.patchCurrentVendorPrefs({ effort: 'xhigh' });
-    expect(m1.getPersistedVendorModel('cc')).toBe('');
+    expect(m1.getPersistedVendorModel('pi')).toBe('');
 
     // 显式选 model → 打标记,getPersistedVendorModel 返回该值
-    m1.patchCurrentVendorPrefs({ model: 'claude-opus-4-8' });
-    expect(m1.getDraft().modelChosenByVendor).toEqual({ cc: true });
-    expect(m1.getPersistedVendorModel('cc')).toBe('claude-opus-4-8');
+    m1.patchCurrentVendorPrefs({ model: 'gpt-5.5' });
+    expect(m1.getDraft().modelChosenByVendor).toEqual({ pi: true });
+    expect(m1.getPersistedVendorModel('pi')).toBe('gpt-5.5');
     expect(m1.getPersistedVendorModel('codex')).toBe('');
 
     // 模拟 app 重启 → 标记与值都恢复
     vi.resetModules();
     const m2 = await loadModule();
-    expect(m2.getDraft().modelChosenByVendor).toEqual({ cc: true });
-    expect(m2.getPersistedVendorModel('cc')).toBe('claude-opus-4-8');
+    expect(m2.getDraft().modelChosenByVendor).toEqual({ pi: true });
+    expect(m2.getPersistedVendorModel('pi')).toBe('gpt-5.5');
   });
 
   it('patchVendorPrefsPreservingModelChoice:会话同步草稿默认不打显式选择标记', async () => {
@@ -331,7 +331,7 @@ describe('newMakerDraft store', () => {
     expect(getDraft().workingDir).toBe('/foo');
     clearDraft();
     expect(getDraft().workingDir).toBeNull();
-    expect(getDraft().vendor).toBe('cc');
+    expect(getDraft().vendor).toBe('pi');
   });
 
   it('Fast Mode:按模型记忆,缺省 false', async () => {
@@ -362,7 +362,7 @@ describe('newMakerDraft store', () => {
     vi.resetModules();
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('cc');
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
   });
 

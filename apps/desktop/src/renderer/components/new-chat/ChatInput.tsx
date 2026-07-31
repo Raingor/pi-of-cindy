@@ -478,7 +478,7 @@ interface ChatInputProps {
    * M35: Vendor lock — when provided, ModelSelector only shows models
    * belonging to this vendor ('cc' for Claude, 'codex' for OpenAI Codex).
    */
-  vendorKey?: 'cc' | 'codex';
+  vendorKey?: 'cc' | 'codex' | 'pi';
   /**
    * Optional override for the composerDraftStore key used to persist editor
    * content (and via attachmentState, attachments) across mount/unmount.
@@ -578,9 +578,10 @@ interface ChatInputProps {
   };
 }
 
-function vendorKeyToAgentKind(v?: 'cc' | 'codex'): AgentKind | null {
+function vendorKeyToAgentKind(v?: 'cc' | 'codex' | 'pi'): AgentKind | null {
   if (v === 'cc') return 'claude-code';
   if (v === 'codex') return 'codex';
+  if (v === 'pi') return 'pi';
   return null;
 }
 
@@ -1137,7 +1138,7 @@ export function ChatInput({
   // initialModel/initialEffort 缺失的瞬态(会话快照未加载)兜底:读本地草稿 lastByVendor
   // (localStorage,按 agent 分槽、sanitize 恒有种子值)。默认模型/档位偏好已全量本地化,
   // 不再依赖服务端 UserPreferences(登录态失效/离线时模型与档位选择必须照常工作)。
-  const localVendorDefaults = getDraft().lastByVendor[vendorKey === 'codex' ? 'codex' : 'cc'];
+  const localVendorDefaults = getDraft().lastByVendor[vendorKey === 'codex' ? 'codex' : vendorKey === 'pi' ? 'pi' : 'cc'];
   // session-agent-switch 意图制:意图期内 chip / 选择器显示用户选择的目标
   // (model/effort/provider/fast),props(镜像 DB)仍是旧引擎值——真切换在下一条
   // 消息发送时刻 apply,patched 回流后意图清除、显示交回 props。意图存放在
@@ -1199,6 +1200,8 @@ export function ChatInput({
   // device-link 远程会话:能力(模型 / fast / effort)从被控端读;本地会话 deviceLinkDeviceId undefined → 本地。
   const ccCaps = useAgentCapabilities('claude-code', deviceLinkDeviceId);
   const codexCaps = useAgentCapabilities('codex', deviceLinkDeviceId);
+  // pi 自管一套能力(host 注入 availableModels;switchModel 走原生 set_model)。pi 未安装时空能力。
+  const piCaps = useAgentCapabilities('pi', deviceLinkDeviceId);
 
   // cycle-permission-mode 快捷键 (默认 Shift+Tab) 的轮切候选 —— 与
   // PermissionSelector 用同一份 capabilities.permissionModes 列表, 键盘轮切
@@ -1206,10 +1209,12 @@ export function ChatInput({
   // 默认取 cc。editorProps.handleKeyDown 是稳定闭包, 走 ref 取值。
   const permissionCycleOptions = useMemo(
     () =>
-      ((agentKind ?? 'claude-code') === 'codex'
-        ? codexCaps.capabilities?.permissionModes
-        : ccCaps.capabilities?.permissionModes) ?? [],
-    [agentKind, ccCaps.capabilities, codexCaps.capabilities],
+      ((agentKind ?? 'claude-code') === 'pi'
+        ? piCaps.capabilities?.permissionModes
+        : (agentKind ?? 'claude-code') === 'codex'
+          ? codexCaps.capabilities?.permissionModes
+          : ccCaps.capabilities?.permissionModes) ?? [],
+    [agentKind, ccCaps.capabilities, codexCaps.capabilities, piCaps.capabilities],
   );
   const permissionCycleOptionsRef = useRef(permissionCycleOptions);
   permissionCycleOptionsRef.current = permissionCycleOptions;
@@ -1222,7 +1227,8 @@ export function ChatInput({
 
   // 计划模式入口门控:agent capability(device-link 老被控端无此字段 → 隐藏)+ 父组件接线。
   const planModeSupported =
-    (vendorKey === 'codex' ? codexCaps : ccCaps).capabilities?.planMode?.supported === true;
+    (vendorKey === 'pi' ? piCaps : vendorKey === 'codex' ? codexCaps : ccCaps).capabilities?.planMode
+      ?.supported === true;
   const planModeEntry =
     planModeSupported && onPlanModeChange
       ? { enabled: planModeEnabled, onToggle: (next: boolean) => void onPlanModeChange(next) }
@@ -1238,8 +1244,11 @@ export function ChatInput({
     if ((codexCaps.capabilities?.availableModels ?? []).some((m) => m.id === activeModel)) {
       return 'codex';
     }
+    if ((piCaps.capabilities?.availableModels ?? []).some((m) => m.id === activeModel)) {
+      return 'pi';
+    }
     return null;
-  }, [activeModel, agentKind, ccCaps.capabilities, codexCaps.capabilities]);
+  }, [activeModel, agentKind, ccCaps.capabilities, codexCaps.capabilities, piCaps.capabilities]);
   // 供应商连接态。effectiveSourceId / sendProviderId / dispatchSend 预检用它。device-link 远程会话 /
   // 草稿用**被控端**供应商目录(隧道),否则用本机(两 hook 都无条件调用,按 deviceLinkDeviceId 取)。
   const localProviders = useProviders();
@@ -1269,7 +1278,12 @@ export function ChatInput({
         includeDisabled: !!sessionId,
       }).length > 0
     : false;
-  const noConnectedSource = !!currentModelAgentKind && !providersLoading && !hasConnectedSendSource;
+  const noConnectedSource =
+    !!currentModelAgentKind &&
+    // pi 自管连接/认证(不走 Cindy provider 来源),恒「已连接」,不拦发送。
+    currentModelAgentKind !== 'pi' &&
+    !providersLoading &&
+    !hasConnectedSendSource;
 
   // 会话显式选中的来源已断开(如外部删除订阅 OAuth 凭证):trigger 显示「已断开」错误态 +
   // Send 禁用,不再静默回退默认来源图标(否则界面显示 XD、main 懒创建却按 DB 里的来源报
@@ -3377,7 +3391,7 @@ export function ChatInput({
       // 供应商无需改这里。判定数据来自本地 IPC(useProviders),无网络往返、~ms 级。
       // 只有「确实零已连接来源」才拦截;≥1 个直接放行(无弹窗)。currentModelAgentKind
       // 解析不出(罕见:capabilities 未就绪)时不拦,交给下游处理,不误伤。
-      if (currentModelAgentKind) {
+      if (currentModelAgentKind && currentModelAgentKind !== 'pi') {
         // 已建会话按实际路由口径判(includeDisabled,与上方 hasConnectedSendSource
         // 同则):运行中会话不因停用打断,最终 preflight 若按准入 rail 判会在全停时
         // 弹「去连接来源」把继续发送挡死(PR #744 review 第十八轮)。草稿保持准入口径。
@@ -5327,18 +5341,8 @@ export function ChatInput({
                           )
                         : undefined
                     }
-                    // session-agent-switch:本机已建会话提供显式两步引擎切换(列表顶部
-                    // Claude/Codex 分段,先选 Agent 再选模型)。草稿(无 sessionId)与
-                    // device-link / SSH 远程会话不传(v1 不支持切换)。
-                    agentSwitch={
-                      sessionId && vendorKey && !deviceLinkDeviceId && !remoteHostId
-                        ? {
-                            currentVendor: vendorKey,
-                            confirmBrowseSwitch: confirmAgentBrowseSwitch,
-                            onSwitch: performAgentSwitch,
-                          }
-                        : undefined
-                    }
+                    // session-agent-switch 已禁用:Pi-only 构建下只有一个引擎,无需切换。
+                    agentSwitch={undefined}
                     deviceId={deviceLinkDeviceId}
                     // SSH 远程会话隐藏订阅直连模型(chatgpt/ / xai/):bridge 只挂在本地 compat-proxy,
                     // 远程模式走 remoteEndpoint 不经翻译,选了必失败。

@@ -102,7 +102,9 @@
       "help": "도움말",
       "about": "정보",
       "imBot": "IM 봇",
-      "ghosts": "플러그인"
+      "ghosts": "플러그인",
+      "usage": "사용 통계",
+      "piSettings": "Pi 설정"
     },
     "sections": {
       "user": "사용자",
@@ -1423,12 +1425,21 @@
         "suspendedBanner": "이 제공자는 비활성화되어 있습니다. 자격 증명은 유지되며, 활성화하면 모델을 다시 사용할 수 있습니다.",
         "moreActionsAria": "추가 작업"
       },
-      "detect": {
-        "groupLabel": "이 기기에서 감지됨",
-        "action": "인증하기",
-        "hintLoggedIn": "{{cli}}이(가) 이 기기에 로그인되어 있습니다. 인증하여 바로 연결할 수 있습니다",
-        "hintInstalled": "이 기기에 {{cli}}이(가) 설치되어 있습니다"
-      },
+"detect": {
+"groupLabel": "이 기기에서 감지됨",
+"action": "인증하기",
+"hintLoggedIn": "{{cli}}이(가) 이 기기에 로그인되어 있습니다. 인증하여 바로 연결할 수 있습니다",
+"hintInstalled": "이 기기에 {{cli}}이(가) 설치되어 있습니다"
+},
+"pi": {
+"groupLabel": "Pi에서 구성됨",
+"detail": {
+"badge": "Pi가 관리",
+"managedNote": "Pi가 관리 — Pi에서 구성하세요",
+"empty": "Pi에 이 제공자의 사용 가능한 모델이 없습니다",
+"contextWindow": "컨텍스트 {{tokens}}K"
+}
+},
       "wizard": {
         "title": "제공자 추가",
         "titleWith": "추가 · {{name}}",
@@ -3017,6 +3028,64 @@
         "cta": "AI로 정리하기",
         "prompt": "스마트 연락처 정리를 도와주세요. 먼저 현재 상태를 확인하고, 기록할 가치가 있는 사람을 추가한 뒤(시스템 연락처/vCard 가져오기 또는 저에게 질문해도 됩니다), 중복이 있으면 확인 후 병합해 주세요."
       }
+    },
+    "pi": {
+      "title": "Pi 설정",
+      "subtitle": "Pi harness 업데이트, 확장 프로그램 및 설정 가져오기/내보내기 관리",
+      "updatesTitle": "업데이트 감지",
+      "updatesDesc": "Pi 코어 및 확장 프로그램의 새 버전 확인",
+      "checkUpdates": "업데이트 확인",
+      "updating": "업데이트 중…",
+      "updateAll": "모두 업데이트",
+      "updatesFailed": "업데이트 확인 실패",
+      "updateSuccess": "{{count}}개 패키지 업데이트 완료",
+      "updateFailedNames": "{{count}}개 패키지 업데이트 실패: {{names}}",
+      "updatesSummary": "{{count}}개 패키지에 업데이트가 있습니다",
+      "updatesAllLatest": "모든 패키지가 최신입니다",
+      "updatesLookupFailed": "조회 실패",
+      "updateAvailable": "업데이트 있음",
+      "updatesUpToDate": "최신",
+      "packages": "확장 프로그램 및 패키지",
+      "noPackages": "설치된 확장 프로그램이 없습니다",
+      "loading": "로딩 중…",
+      "packagePlaceholder": "패키지 이름 입력, 예: @anthropic/sdk",
+      "add": "추가",
+      "packageAdded": "패키지가 추가되었습니다",
+      "packageAddFailed": "패키지 추가 실패",
+      "packageRemoved": "패키지가 제거되었습니다",
+      "packageRemoveFailed": "패키지 제거 실패",
+      "importExport": "가져오기 및 내보내기",
+      "export": "설정 내보내기",
+      "import": "설정 가져오기",
+      "importExportHint": "현재 Pi 설정(설정, 인증, 모델)을 내보내거나 백업 파일에서 복원",
+      "exportSuccess": "설정을 내보냈습니다",
+      "exportFailed": "내보내기 실패",
+      "importSuccess": "설정을 가져왔습니다",
+      "importFailed": "가져오기 실패"
+    },
+    "usageStats": {
+      "title": "사용 통계",
+      "subtitle": "세 harness의 토큰 사용량 및 비용 보기",
+      "refresh": "새로고침",
+      "exportCsv": "CSV 내보내기",
+      "todayTokens": "오늘 토큰",
+      "last30Days": "최근 30일",
+      "todayCost": "오늘 비용",
+      "totalRequests": "연속 일수",
+      "streakDays": "연속 사용",
+      "cacheHitRate": "캐시 적중률",
+      "tokenBreakdown": "토큰 분석",
+      "input": "입력",
+      "output": "출력",
+      "cacheCreate": "캐시 생성",
+      "cacheHit": "캐시 적중",
+      "dailyTotals": "일일 합계",
+      "modelBreakdown": "모델 세부정보",
+      "model": "모델",
+      "agent": "Harness",
+      "tokens": "토큰",
+      "cost": "비용",
+      "noData": "데이터 없음"
     }
   },
   "remoteDevice": {
@@ -4162,6 +4231,7 @@
         "agent": {
           "claudeCode": "Claude Code",
           "codex": "Codex",
+          "pi": "Pi",
           "pending": "다음: {{agent}}"
         }
       },

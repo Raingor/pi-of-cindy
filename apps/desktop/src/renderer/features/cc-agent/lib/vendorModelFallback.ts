@@ -34,10 +34,12 @@ export function shouldFallbackVendorModel(
   sessionModel: string,
   agent: AgentKind,
 ): boolean {
+  // pi 使用 OpenAI 兼容协议,复用 codex 的供应商路由 → 按 codex 查模型归属。
+  const effectiveAgent: AgentKind = agent === 'pi' ? 'codex' : agent;
   // 本端任一供应商 offer 该模型 → 合法(含自定义供应商、gpt-5.x 等),绝不回退。
-  if (providers.some((p) => providerOffersModel(p, sessionModel, agent))) return false;
+  if (providers.some((p) => providerOffersModel(p, sessionModel, effectiveAgent))) return false;
   // 本端不 offer:仅当对端 agent 明确 offer 它(确定的跨 vendor 错配)才回退;
   // 两端都不认识(别名 / 脏数据 / 目录未加载)→ 不动,避免误杀。
-  const other: AgentKind = agent === 'codex' ? 'claude-code' : 'codex';
+  const other: AgentKind = effectiveAgent === 'codex' ? 'claude-code' : 'codex';
   return providers.some((p) => providerOffersModel(p, sessionModel, other));
 }

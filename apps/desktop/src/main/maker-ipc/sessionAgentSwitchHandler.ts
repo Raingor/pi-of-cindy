@@ -50,18 +50,24 @@ export interface ParkedEngineSessionRef {
   watermarkRowid: number;
 }
 
-/** DB 'cc'/'codex' ↔ maker-core 'claude-code'/'codex' 映射(与 register.ts 各处内联口径一致)。 */
+/** DB 'cc'/'codex'/'pi' ↔ maker-core 'claude-code'/'codex'/'pi' 映射(与 register.ts 各处内联口径一致)。 */
 export function toDbAgentKind(kind: AgentKind): DbAgentKind {
-  return kind === 'codex' ? 'codex' : 'cc';
+  if (kind === 'codex') return 'codex';
+  if (kind === 'pi') return 'pi';
+  return 'cc';
 }
 
 export function toMakerAgentKind(dbKind: string): AgentKind {
-  return dbKind === 'codex' ? 'codex' : 'claude-code';
+  if (dbKind === 'codex') return 'codex';
+  if (dbKind === 'pi') return 'pi';
+  return 'claude-code';
 }
 
 /** 交接 framing 与边界卡展示用的引擎名。 */
 export function agentEngineLabel(dbKind: DbAgentKind): string {
-  return dbKind === 'codex' ? 'Codex' : 'Claude Code';
+  if (dbKind === 'codex') return 'Codex';
+  if (dbKind === 'pi') return 'Pi';
+  return 'Claude Code';
 }
 
 /** role='agent_switch' 边界行的 content 结构(与 renderer AgentSwitchContent 对齐)。 */
@@ -108,7 +114,7 @@ export interface MakerSessionAgentSwitchHandlerDeps {
    * (测试最小 harness)。
    */
   assertModelRouteUsable?(
-    agent: 'claude-code' | 'codex',
+    agent: AgentKind,
     model: string,
     providerId: string | null,
   ): Promise<string | undefined>;
@@ -324,8 +330,8 @@ export async function performSessionAgentSwitch(
   if (typeof sessionId !== 'string' || sessionId.length === 0) {
     throwIpcError('INVALID_PARAMS', 'sessionId required');
   }
-  if (targetAgentKind !== 'claude-code' && targetAgentKind !== 'codex') {
-    throwIpcError('INVALID_PARAMS', 'targetAgentKind must be claude-code | codex');
+  if (targetAgentKind !== 'claude-code' && targetAgentKind !== 'codex' && targetAgentKind !== 'pi') {
+    throwIpcError('INVALID_PARAMS', 'targetAgentKind must be claude-code | codex | pi');
   }
   if (typeof model !== 'string' || model.length === 0) {
     throwIpcError('INVALID_PARAMS', 'model required');
@@ -362,8 +368,8 @@ export async function performSessionAgentSwitch(
     throwIpcError('UNSUPPORTED_CAPABILITY', 'agent switch is not supported for Orca sessions');
   }
 
-  const fromDbKind: DbAgentKind = row.agentKind === 'codex' ? 'codex' : 'cc';
-  const toDbKind: DbAgentKind = targetAgentKind === 'codex' ? 'codex' : 'cc';
+  const fromDbKind: DbAgentKind = row.agentKind === 'codex' ? 'codex' : row.agentKind === 'pi' ? 'pi' : 'cc';
+  const toDbKind: DbAgentKind = targetAgentKind === 'codex' ? 'codex' : targetAgentKind === 'pi' ? 'pi' : 'cc';
   if (fromDbKind === toDbKind) {
     // 同引擎 = 纯模型切换,调用方应走 SET_MODEL;这里按 no-op 成功返回。
     // 顺带清 pending:用户先登记了跨引擎切换、又选回当前引擎 = 改主意取消。

@@ -191,7 +191,8 @@ export async function resolveRouteCopyCapabilities(
  * 默认模型上:只查来源级 suspended 会漏掉「恰好停用了这一个模型」的 override
  * (PR #744 review 第十五轮)。
  */
-const DEFAULT_ONESHOT_MODEL: Record<AgentKind, string> = {
+// pi 自管 model routing,不进入路由裁决:无内部默认模型条目(Partial 缺省 undefined)。
+const DEFAULT_ONESHOT_MODEL: Partial<Record<AgentKind, string>> = {
   'claude-code': 'claude-haiku-4-5',
   codex: 'gpt-5.4-mini',
 };
@@ -211,7 +212,10 @@ export async function isAgentOneShotRouteDisabled(
     // 被停用的隐式默认来源上 —— 只有 pass 才允许(PR #744 review 第五轮)。
     return (await verdictForModelRoute(agent, model, null)).kind !== 'pass';
   }
-  if ((await verdictForModelRoute(agent, DEFAULT_ONESHOT_MODEL[agent], null)).kind !== 'pass') {
+  const defaultModel = DEFAULT_ONESHOT_MODEL[agent];
+  // pi 自管路由、无内部默认模型 -> 不裁决 one-shot 路由停用。
+  if (!defaultModel) return false;
+  if ((await verdictForModelRoute(agent, defaultModel, null)).kind !== 'pass') {
     return true;
   }
   let views: ProviderView[];

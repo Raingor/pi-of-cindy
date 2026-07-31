@@ -1,4 +1,4 @@
-import type { Schedule } from '@cindy/maker-scheduler';
+import type { AgentKind, Schedule } from '@cindy/maker-scheduler';
 
 import { buildPreRunHook } from './scheduleFormLogic';
 import type { ScheduleFormState } from '../hooks/useScheduleForm';
@@ -14,7 +14,7 @@ export interface ProjectScheduleConfig {
   recurring?: boolean;
   manual?: boolean;
   intervalMs?: number;
-  agentKind?: 'claude-code' | 'codex';
+  agentKind?: AgentKind;
   model?: string;
   effort?: string;
   /** Codex Fast 模式开关，仅 Codex 有意义。详见 Schedule.fastMode。 */
