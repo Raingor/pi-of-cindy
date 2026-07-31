@@ -48,7 +48,7 @@ import { useAgentCapabilities, type AgentCapabilities } from '@/hooks/useAgentCa
 import { ModelSelector } from '@/components/new-chat/ModelSelector';
 import { PermissionSelector } from '@/components/new-chat/PermissionSelector';
 import { VendorSegmentedSwitcher } from '@/components/new-chat/VendorSegmentedSwitcher';
-import type { MakerVendor } from '@/lib/ccAgent.types';
+import type { AgentKind, MakerVendor } from '@/lib/ccAgent.types';
 import {
   getProviderModelEffort,
   setProviderModelChoice,
@@ -474,18 +474,19 @@ function PrefsField({
   );
 }
 
-/** hook prefs 的 agentKind('claude-code' | 'codex')→ 选择器的 vendor key。 */
-function toVendorKey(agentKind: string | null): 'cc' | 'codex' {
-  return agentKind === 'codex' ? 'codex' : 'cc';
+/** hook prefs 的 agentKind('claude-code' | 'codex' | 'pi')→ 选择器的 vendor key。 */
+function toVendorKey(agentKind: string | null): AgentKind {
+  if (agentKind === 'pi') return 'pi';
+  if (agentKind === 'codex') return 'codex';
+  return 'cc';
 }
 
 /**
  * 选择器的 vendor key → hook prefs 的 agentKind。
- * MakerVendor 还含 'orca' 等本编辑器不支持的值 —— 分段只有 Claude/Codex 两项,该分支
- * 物理不可达;若未来有人把别的 vendor 接进来,fail-fast 好过静默写成 claude-code
- * 偏好(Copilot review)。
+ * Pi-only 构建: 分段只有 Pi 一个选项, 选中 → 写 'pi' 偏好。
  */
 function toAgentKind(vendor: MakerVendor): KnownAgent {
+  if (vendor === 'pi') return 'pi';
   if (vendor === 'codex') return 'codex';
   if (vendor === 'cc') return 'claude-code';
   throw new Error(`WorkspacePrefsEditor: unsupported vendor '${vendor}' for hook prefs`);
@@ -510,6 +511,8 @@ export function WorkspacePrefsEditor({
       ({
         'claude-code': claudeCaps.capabilities,
         codex: codexCaps.capabilities,
+        // pi 复用 codex 模型目录/capabilities
+        pi: codexCaps.capabilities,
       }) as Record<KnownAgent, AgentCapabilities | null>,
     [claudeCaps.capabilities, codexCaps.capabilities],
   );

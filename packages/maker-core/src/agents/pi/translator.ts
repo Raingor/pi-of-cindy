@@ -196,7 +196,7 @@ function translatePiEvent(
     // ── turn / agent 周期 ─────────────────────────────────────────────────
     case 'turn_start':
       rt.turnDoneEmitted = false;
-      emit(ctx, { type: 'status', data: { isRunning: true }, source: PI_SOURCE });
+      emit(ctx, { type: 'status', data: { isRunning: true, status: 'Working…' }, source: PI_SOURCE });
       break;
     case 'turn_end':
     case 'agent_settled':
@@ -207,18 +207,18 @@ function translatePiEvent(
         rt.retrying = false;
         emit(ctx, {
           type: 'status',
-          data: { isRunning: false },
+          data: { isRunning: false, status: 'Done' },
           source: PI_SOURCE,
         });
         emit(ctx, { type: 'done', data: {}, source: PI_SOURCE });
       }
       break;
     case 'agent_start':
-      emit(ctx, { type: 'status', data: { isRunning: true }, source: PI_SOURCE });
+      emit(ctx, { type: 'status', data: { isRunning: true, status: 'Working…' }, source: PI_SOURCE });
       break;
     case 'agent_end':
       // 单次 low-level run 完成；willRetry=true 时 pi 会自动续，不发终态 done。
-      emit(ctx, { type: 'status', data: { isRunning: false }, source: PI_SOURCE });
+      emit(ctx, { type: 'status', data: { isRunning: false, status: 'Done' }, source: PI_SOURCE });
       break;
 
     // ── compaction ───────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ function translatePiEvent(
       rt.retrying = true;
       emit(ctx, {
         type: 'status',
-        data: { isRunning: true, retrying: true, attempt: e.attempt },
+        data: { isRunning: true, retrying: true, attempt: e.attempt, status: 'Working…' },
         source: PI_SOURCE,
       });
       break;

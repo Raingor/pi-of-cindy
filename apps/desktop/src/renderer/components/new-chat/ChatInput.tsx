@@ -5327,18 +5327,8 @@ export function ChatInput({
                           )
                         : undefined
                     }
-                    // session-agent-switch:本机已建会话提供显式两步引擎切换(列表顶部
-                    // Claude/Codex 分段,先选 Agent 再选模型)。草稿(无 sessionId)与
-                    // device-link / SSH 远程会话不传(v1 不支持切换)。
-                    agentSwitch={
-                      sessionId && vendorKey && !deviceLinkDeviceId && !remoteHostId
-                        ? {
-                            currentVendor: vendorKey,
-                            confirmBrowseSwitch: confirmAgentBrowseSwitch,
-                            onSwitch: performAgentSwitch,
-                          }
-                        : undefined
-                    }
+                    // session-agent-switch 已禁用:Pi-only 构建下只有一个引擎,无需切换。
+                    agentSwitch={undefined}
                     deviceId={deviceLinkDeviceId}
                     // SSH 远程会话隐藏订阅直连模型(chatgpt/ / xai/):bridge 只挂在本地 compat-proxy,
                     // 远程模式走 remoteEndpoint 不经翻译,选了必失败。

@@ -165,7 +165,7 @@ function defaultCollab(): CollabDraft {
 
 function makeDefault(): NewMakerDraft {
   return {
-    vendor: 'cc',
+    vendor: 'pi',
     workingDir: null,
     remoteHostId: null,
     deviceLinkDeviceId: null,
@@ -211,7 +211,7 @@ function sanitize(raw: unknown): NewMakerDraft {
   // sanitize 时把历史 localStorage 残留的 'orca' 自动迁移到 'cc',避免空白入口。
   // pi 保留:用户选了 pi 后跨重启不丢失。
   const vendor: MakerVendor =
-    r.vendor === 'codex' ? 'codex' : r.vendor === 'pi' ? 'pi' : 'cc';
+    r.vendor === 'pi' ? 'pi' : r.vendor === 'codex' ? 'codex' : 'cc';
   const workingDir = normalizeDraftWorkingDir(r.workingDir);
   const remoteHostId =
     typeof r.remoteHostId === 'string' && r.remoteHostId.trim().length > 0

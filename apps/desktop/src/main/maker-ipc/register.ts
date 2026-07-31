@@ -5723,11 +5723,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         });
       }
     }
-    // pi 不经 maker agent-input 队列;此 dep 仅服务 claude-code/codex 的 Orca/繁忙排队路径。
     const agentKind = createOpts.agentKind;
-    if (agentKind === 'pi') {
-      throw new Error(`agent-input queue does not support agent ${agentKind}`);
-    }
     return {
       agentKind,
       workingDir: createOpts.workingDir,
@@ -6891,9 +6887,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     },
     hasPendingInteraction: hasPendingInteractionForSession,
     getAgentKind: (sessionId) => {
-      // pi 不经 maker agent-input 协调器;该 dep 仅识别 claude-code/codex
       const kind = maker.getSession(sessionId)?.agentKind ?? null;
-      return kind === 'pi' ? null : kind;
+      return kind;
     },
     getSdkSessionId: async (sessionId) => {
       const meta = await maker.getSessionMeta(sessionId).catch(() => null);
@@ -7277,7 +7272,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (!msg.createOpts || typeof msg.createOpts !== 'object') {
       throwIpcError('INVALID_PARAMS', 'queued.createOpts required');
     }
-    if (msg.createOpts.agentKind !== 'claude-code' && msg.createOpts.agentKind !== 'codex') {
+    if (msg.createOpts.agentKind !== 'claude-code' && msg.createOpts.agentKind !== 'codex' && msg.createOpts.agentKind !== 'pi') {
       throwIpcError('INVALID_PARAMS', 'queued.createOpts.agentKind invalid');
     }
     const normalized: AgentInputQueuedMessage = { ...msg };

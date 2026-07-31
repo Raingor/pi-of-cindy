@@ -12,7 +12,6 @@ import {
 
 import { FastModeToggle } from '@/components/new-chat/FastModeToggle';
 import { ModelSelector } from '@/components/new-chat/ModelSelector';
-import { VendorSegmentedSwitcher } from '@/components/new-chat/VendorSegmentedSwitcher';
 import { useAgentCapabilities } from '@/hooks/useAgentCapabilities';
 import { useDeviceProviders } from '@/hooks/useDeviceProviders';
 import { useProviders } from '@/hooks/useProviders';
@@ -89,7 +88,7 @@ function writeWorkerPrefs(prefs: WorkerPrefs): void {
 
 export interface CreateWorkerForm {
   role: string;
-  agent: 'claude-code' | 'codex';
+  agent: 'pi';
   model: string;
   effort?: Effort;
   fast?: boolean;
@@ -130,7 +129,8 @@ export function CreateWorkerPopover({
   const navigate = useNavigate();
   const [role, setRole] = useState('developer');
   const [customRole, setCustomRole] = useState('');
-  const [agent, setAgent] = useState<'claude-code' | 'codex'>('codex');
+  // Pi-only: 内部锁定 'codex' 模型目录(Pi 共用),提交时映射为 'pi'。
+  const [agent] = useState<'codex'>('codex');
   const [model, setModel] = useState(DEFAULT_PREFS.codex.model);
   const [effort, setEffort] = useState<Effort>(DEFAULT_PREFS.codex.effort);
   const [fast, setFast] = useState(DEFAULT_PREFS.codex.fast);
@@ -143,7 +143,6 @@ export function CreateWorkerPopover({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
 
-  const ccCaps = useAgentCapabilities('claude-code', deviceId);
   const codexCaps = useAgentCapabilities('codex', deviceId);
   const localProviders = useProviders();
   const remoteProviders = useDeviceProviders(deviceId);
@@ -151,7 +150,7 @@ export function CreateWorkerPopover({
   const providersLoading = deviceId ? remoteProviders.loading : localProviders.loading;
   const providersError = deviceId ? remoteProviders.error : null;
   const visibilityVersion = useModelVisibilityVersion();
-  const activeCapabilitiesState = agent === 'codex' ? codexCaps : ccCaps;
+  const activeCapabilitiesState = codexCaps;
   const activeCaps = activeCapabilitiesState.capabilities;
   const activeModels = useMemo(() => {
     return selectWorkerModels({
@@ -281,7 +280,6 @@ export function CreateWorkerPopover({
     const stored = readWorkerPrefs();
     const agentPrefs = stored[stored.lastAgent];
     setPrefs(stored);
-    setAgent(stored.lastAgent);
     setModel(agentPrefs.model);
     setEffort(agentPrefs.effort);
     setFast(agentPrefs.fast);
@@ -334,35 +332,7 @@ export function CreateWorkerPopover({
     }
   }, [currentModel, currentModelSupportsFast, fast]);
 
-  const vendorKey = agent === 'codex' ? 'codex' : 'cc';
-  const updateAgent = useCallback(
-    (nextAgent: 'claude-code' | 'codex') => {
-      if (nextAgent === agent) return;
-      // 切走前把当前 agent 的 live 编辑(模型/effort/Fast/来源)快照进内存 prefs:
-      // 恢复读的是 prefs,不快照会把「改了还没提交就切了个 tab」的编辑静默回滚到
-      // 打开弹窗时的旧值(codex review)。只更新内存态,localStorage 仍只在提交时
-      // 写 —— 关闭弹窗不持久化未提交编辑,语义不变。
-      const snapshot: WorkerPrefs = {
-        ...prefs,
-        [agent]: {
-          model,
-          effort,
-          fast,
-          // device-link 面板无来源维度(providerSource 恒 null),保留本地记忆原值,
-          // 与提交路径同规则。
-          providerId: deviceId ? prefs[agent].providerId : providerSource,
-        },
-      };
-      setPrefs(snapshot);
-      setAgent(nextAgent);
-      const remembered = snapshot[nextAgent];
-      setModel(remembered.model);
-      setEffort(remembered.effort);
-      setFast(remembered.fast);
-      setProviderSource(deviceId ? null : remembered.providerId);
-    },
-    [agent, deviceId, effort, fast, model, prefs, providerSource],
-  );
+  const vendorKey = 'codex' as const;
 
   const updateModel = useCallback(
     (nextModel: string) => {
@@ -576,7 +546,7 @@ export function CreateWorkerPopover({
     try {
       await onCreate({
         role: activeRole,
-        agent,
+        agent: 'pi',
         model,
         effort: submitEffort,
         fast: currentModelSupportsFast ? fast : undefined,
@@ -664,20 +634,6 @@ export function CreateWorkerPopover({
           {customRoleError && (
             <div className="mt-1 text-11 text-[var(--error-fg)]">{customRoleError}</div>
           )}
-        </div>
-
-        <div className="mb-4">
-          <div className="mb-2 text-12 font-medium uppercase tracking-[0.5px] text-[var(--text-tertiary)]">
-            {t('orca.createWorker.agentLabel')}
-          </div>
-          {/* 应用标准 Agent 分段控件(替换此前手写的按钮组;与 New Maker / IM 目录偏好同款,
-              「不自建选择 UI」的组件复用原则)。 */}
-          <VendorSegmentedSwitcher
-            value={vendorKey}
-            width={220}
-            ariaLabel={t('orca.createWorker.agentLabel')}
-            onChange={(next) => updateAgent(next === 'codex' ? 'codex' : 'claude-code')}
-          />
         </div>
 
         <div className="mb-4">

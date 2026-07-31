@@ -1425,12 +1425,15 @@
         "suspendedBanner": "このプロバイダーは無効になっています。認証情報は保持されており、有効にすると再びモデルを利用できます。",
         "moreActionsAria": "その他の操作"
       },
-      "detect": {
-        "groupLabel": "このデバイスで検出",
-        "action": "認証する",
-        "hintLoggedIn": "{{cli}} はこのデバイスでログイン済みです。認証してすぐに接続できます",
-        "hintInstalled": "このデバイスに {{cli}} がインストールされています"
-      },
+"detect": {
+"groupLabel": "このデバイスで検出",
+"action": "認証する",
+"hintLoggedIn": "{{cli}} はこのデバイスでログイン済みです。認証してすぐに接続できます",
+"hintInstalled": "このデバイスに {{cli}} がインストールされています"
+},
+"pi": {
+"groupLabel": "Pi で設定済み"
+},
       "wizard": {
         "title": "プロバイダーを追加",
         "titleWith": "追加 · {{name}}",

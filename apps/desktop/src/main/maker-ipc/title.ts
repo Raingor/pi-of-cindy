@@ -240,7 +240,7 @@ function parseAutoTitleRequest(raw: unknown): SessionAutoTitleRequest {
   if (typeof text !== 'string') {
     throwIpcError('INVALID_PARAMS', 'invalid text');
   }
-  if (agentKind !== 'claude-code' && agentKind !== 'codex') {
+  if (agentKind !== 'claude-code' && agentKind !== 'codex' && agentKind !== 'pi') {
     throwIpcError('INVALID_PARAMS', 'invalid agentKind');
   }
   if (isUserText !== undefined && typeof isUserText !== 'boolean') {

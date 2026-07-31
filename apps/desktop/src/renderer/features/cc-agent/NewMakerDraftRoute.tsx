@@ -2677,7 +2677,7 @@ export function NewMakerDraftRoute() {
           onCreate={(form: CreateWorkerForm) => {
             patchCollab({
               enabled: true,
-              worker: form.agent === 'codex' ? 'codex' : 'cc',
+              worker: 'codex',
               workerConfig: {
                 role: form.role,
                 model: form.model,

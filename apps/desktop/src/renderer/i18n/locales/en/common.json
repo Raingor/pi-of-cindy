@@ -1426,12 +1426,15 @@
         "suspendedBanner": "This provider is disabled. Credentials are kept; enable it to use its models again.",
         "moreActionsAria": "More Actions"
       },
-      "detect": {
-        "groupLabel": "Detected on this device",
-        "action": "Authorize",
-        "hintLoggedIn": "{{cli}} is signed in on this device — authorize to connect",
-        "hintInstalled": "{{cli}} is installed on this device"
-      },
+"detect": {
+"groupLabel": "Detected on this device",
+"action": "Authorize",
+"hintLoggedIn": "{{cli}} is signed in on this device — authorize to connect",
+"hintInstalled": "{{cli}} is installed on this device"
+},
+"pi": {
+"groupLabel": "Configured in Pi"
+},
       "wizard": {
         "title": "Add provider",
         "titleWith": "Add · {{name}}",

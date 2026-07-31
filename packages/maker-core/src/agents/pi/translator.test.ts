@@ -188,8 +188,8 @@ describe('translatePiLine - turn lifecycle & dedup', () => {
       makeCtx(events),
     );
     expect(events).toEqual([
-      { type: 'status', data: { isRunning: true }, source: 'pi' },
-      { type: 'status', data: { isRunning: false }, source: 'pi' },
+      { type: 'status', data: { isRunning: true, status: 'Working…' }, source: 'pi' },
+      { type: 'status', data: { isRunning: false, status: 'Done' }, source: 'pi' },
       { type: 'done', data: {}, source: 'pi' },
     ]);
   });

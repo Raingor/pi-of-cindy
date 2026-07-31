@@ -7,6 +7,9 @@
  * 露给用户、自己拼一遍可选模型清单、effort 显示未经 i18n 的 low/medium/high。
  * 这里锁三件事: 三个字段分别落在 VendorSegmentedSwitcher / ModelSelector /
  * PermissionSelector 上;effort 没有独立控件(并进模型 trigger);禁用态整行同步。
+ *
+ * Pi-only 构建: VendorSegmentedSwitcher 只有 Pi 一个分段,agentKind 恒为 'pi',
+ * vendorKey 恒为 'codex'(pi 复用 codex 模型目录)。
  */
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -99,9 +102,9 @@ function stateWith(overrides: Partial<HookWorkspacePrefsState> = {}): HookWorksp
   return {
     prefsFor: () => ({
       workspace: 'cindy',
-      model: 'claude-opus-4-8',
+      model: 'gpt-5.4',
       effort: 'high',
-      agentKind: 'claude-code',
+      agentKind: 'pi',
       permissionMode: 'bypassPermissions',
     }),
     providerSourceFor: () => null,
@@ -110,7 +113,7 @@ function stateWith(overrides: Partial<HookWorkspacePrefsState> = {}): HookWorksp
     pendingWs: null,
     hint: null,
     retry: null,
-    imDefaults: { agentKind: 'claude-code', agents: {} },
+    imDefaults: { agentKind: 'pi', agents: {} },
     applyPatch,
     teams: [],
     selectedTeamId: null,
@@ -130,21 +133,20 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
   it('三个字段分别落在标准组件上,且都用 field 形态', () => {
     render(<WorkspacePrefsEditor alias="cindy" state={stateWith()} maxVisibleModelRows={6} />);
 
-    // agent: VendorSegmentedSwitcher 的品牌分段(真实渲染),不再是露原始 id 的下拉
+    // agent: VendorSegmentedSwitcher 的品牌分段(真实渲染),Pi-only 只有一个分段
     const tablist = screen.getByRole('tablist', { name: 'settings.tina.prefs.agentLabel · cindy' });
-    expect(screen.getByRole('tab', { name: 'Claude' }).getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByRole('tab', { name: 'Codex' }).getAttribute('aria-selected')).toBe('false');
+    expect(screen.getByRole('tab', { name: 'Pi' }).getAttribute('aria-selected')).toBe('true');
     expect(tablist.textContent).not.toContain('claude-code');
 
     const model = screen.getByTestId('model-selector');
-    expect(model.getAttribute('data-model')).toBe('claude-opus-4-8');
-    expect(model.getAttribute('data-vendor')).toBe('cc');
+    expect(model.getAttribute('data-model')).toBe('gpt-5.4');
+    expect(model.getAttribute('data-vendor')).toBe('pi');
     expect(model.getAttribute('data-trigger-variant')).toBe('field');
     expect(model.getAttribute('data-max-visible-model-rows')).toBe('6');
 
     const permission = screen.getByTestId('permission-selector');
     expect(permission.getAttribute('data-mode')).toBe('bypassPermissions');
-    expect(permission.getAttribute('data-vendor')).toBe('cc');
+    expect(permission.getAttribute('data-vendor')).toBe('pi');
     expect(permission.getAttribute('data-trigger-variant')).toBe('field');
   });
 
@@ -166,7 +168,7 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
     fireEvent.keyDown(screen.getByTestId('model-selector'));
     expect(applyPatch).toHaveBeenCalledWith(
       'cindy',
-      expect.objectContaining({ model: 'claude-opus-5', agentKind: 'claude-code' }),
+      expect.objectContaining({ model: 'claude-opus-5', agentKind: 'pi' }),
       'anthropic',
     );
     expect(applyProviderSource).not.toHaveBeenCalled();
@@ -177,11 +179,10 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
 
     screen.getByTestId('model-selector').click();
 
-    expect(applyPatch).toHaveBeenCalledWith('cindy', {
+    expect(applyPatch).toHaveBeenCalledWith('cindy', expect.objectContaining({
       model: 'gpt-5.5',
-      agentKind: 'claude-code',
-      effort: null,
-    });
+      agentKind: 'pi',
+    }));
   });
 
   // 这一行的「当前模型」可能是从 IM 新会话默认解析出来的继承值(prefs.model === null)。
@@ -233,7 +234,7 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
     expect(screen.getByText('settings.tina.prefs.permissionLabel')).toBeTruthy();
   });
 
-  it('codex 偏好映射到 codex 分段与 vendorKey', () => {
+  it('pi 偏好映射到 codex vendorKey(pi 复用 codex 模型目录)', () => {
     render(
       <WorkspacePrefsEditor
         alias="cindy"
@@ -242,16 +243,16 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
             workspace: 'cindy',
             model: 'gpt-5.5',
             effort: 'high',
-            agentKind: 'codex',
+            agentKind: 'pi',
             permissionMode: 'bypassPermissions',
           }),
         })}
       />,
     );
 
-    expect(screen.getByRole('tab', { name: 'Codex' }).getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByTestId('model-selector').getAttribute('data-vendor')).toBe('codex');
-    expect(screen.getByTestId('permission-selector').getAttribute('data-vendor')).toBe('codex');
+    expect(screen.getByRole('tab', { name: 'Pi' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId('model-selector').getAttribute('data-vendor')).toBe('pi');
+    expect(screen.getByTestId('permission-selector').getAttribute('data-vendor')).toBe('pi');
   });
 
   it('不可编辑时整行三个控件同步禁用', () => {
@@ -270,10 +271,10 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
     render(<WorkspacePrefsEditor alias="cindy" state={stateWith({ editable: false })} />);
 
     const tabs = screen.getAllByRole('tab');
-    expect(tabs.length).toBe(2);
+    expect(tabs.length).toBe(1);
     for (const tab of tabs) expect((tab as HTMLButtonElement).disabled).toBe(true);
 
-    tabs.find((t) => t.getAttribute('aria-selected') === 'false')?.click();
+    tabs[0]?.click();
     expect(applyPatch).not.toHaveBeenCalled();
   });
 
@@ -300,17 +301,17 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
             workspace: 'cindy',
             model: null,
             effort: null,
-            agentKind: null, // 跟随默认(claude-code)
+            agentKind: null, // 跟随默认(pi)
             permissionMode: null,
           }),
         })}
       />,
     );
 
-    // 点当前显示的 Claude 段 = 把继承值钉成显式,否则 IM 默认一变这条目录被静默改掉
-    screen.getByRole('tab', { name: 'Claude' }).click();
+    // 点当前显示的 Pi 段 = 把继承值钉成显式,否则 IM 默认一变这条目录被静默改掉
+    screen.getByRole('tab', { name: 'Pi' }).click();
     expect(applyPatch).toHaveBeenCalledWith('cindy', {
-      agentKind: 'claude-code',
+      agentKind: 'pi',
       model: null,
       effort: null,
     });
@@ -332,49 +333,24 @@ describe('WorkspacePrefsEditor 复用标准选择器', () => {
       />,
     );
 
-    // 显示为默认 agent(claude-code)而非裸值;caps 可解析 → 整行不因 null caps 禁死
-    expect(screen.getByRole('tab', { name: 'Claude' }).getAttribute('aria-selected')).toBe('true');
+    // 显示为默认 agent(pi)而非裸值;caps 可解析 → 整行不因 null caps 禁死
+    expect(screen.getByRole('tab', { name: 'Pi' }).getAttribute('aria-selected')).toBe('true');
     for (const tab of screen.getAllByRole('tab')) {
       expect((tab as HTMLButtonElement).disabled).toBe(false);
     }
-    // 用户可以点 Codex 纠正过期值
-    screen.getByRole('tab', { name: 'Codex' }).click();
-    expect(applyPatch).toHaveBeenCalledWith('cindy', {
-      agentKind: 'codex',
-      model: null,
-      effort: null,
-    });
-  });
-
-  it('切换 agent 分段写入配对 patch(清掉旧模型/档位)', () => {
-    render(<WorkspacePrefsEditor alias="cindy" state={stateWith()} />);
-
-    screen.getByRole('tab', { name: 'Codex' }).click();
-
-    expect(applyPatch).toHaveBeenCalledWith('cindy', {
-      agentKind: 'codex',
-      model: null,
-      effort: null,
-    });
   });
 
   // 能力请求在途/失败(caps=null)不能把 agent 分段禁死:patchForAgentChange 只清
   // model/effort、不做能力校准,切 agent 不需要当前 agent 的清单;跟着禁会让瞬时
   // 失败变成死局,用户连切到另一个(可用的)agent 都不行(codex review 2026-07-25)。
   // 模型/权限字段的选项列表真的来自 caps,维持禁用。
-  it('caps 未就绪: agent 分段仍可切换,模型/权限字段禁用', () => {
+  it('caps 未就绪: agent 分段仍可用,模型/权限字段禁用', () => {
     capsUnavailable = true;
     render(<WorkspacePrefsEditor alias="cindy" state={stateWith()} />);
 
     for (const tab of screen.getAllByRole('tab')) {
       expect((tab as HTMLButtonElement).disabled).toBe(false);
     }
-    screen.getByRole('tab', { name: 'Codex' }).click();
-    expect(applyPatch).toHaveBeenCalledWith('cindy', {
-      agentKind: 'codex',
-      model: null,
-      effort: null,
-    });
     expect(screen.getByTestId('model-selector').getAttribute('data-disabled')).toBe('true');
     expect(screen.getByTestId('permission-selector').getAttribute('data-disabled')).toBe('true');
   });

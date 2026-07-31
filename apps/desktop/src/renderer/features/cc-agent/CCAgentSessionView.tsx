@@ -1930,11 +1930,12 @@ export function CCAgentSessionView({
         : Promise.resolve();
       try {
         const workerAgent = form.agent;
-        const worker: 'cc' | 'codex' = workerAgent === 'codex' ? 'codex' : 'cc';
+        // pi 复用 codex 的 Orca worker 路由
+        const worker: 'cc' | 'codex' = 'codex';
         setCollabWorker(worker);
         setCreateWorkerOpen(false);
         await makerApiFor(collabSessionId).enableOrca(collabSessionId, {
-          workerAgent,
+          workerAgent: 'codex',
           role: form.role,
           label: createWorkerLabel(form.role, []),
           model: form.model,

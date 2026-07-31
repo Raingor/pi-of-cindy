@@ -62,6 +62,39 @@ import type { LocalCliDetection } from '../../../shared/localCliDetect';
 import { isBuiltinRefreshableProviderId } from '../../../shared/providerModelRefresh';
 import type { CustomProviderConfig, ProviderView } from '@cindy/model-providers';
 
+// ── Pi 供应商类型 ─────────────────────────────────────
+interface PiAuthEntry {
+  type: 'api_key' | 'oauth';
+  hasKey: boolean;
+  env?: Record<string, string>;
+}
+type PiAuth = Record<string, PiAuthEntry>;
+interface PiConfigSnapshot {
+  settings: { defaultProvider?: string; defaultModel?: string } | null;
+  auth: PiAuth | null;
+  modelsJson: { providers: Record<string, unknown> } | null;
+}
+
+/** Pi auth.json 里的 provider id → 展示名映射 (常见供应商)。 */
+const PI_PROVIDER_LABELS: Record<string, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Google',
+  xai: 'xAI',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
+  groq: 'Groq',
+  together: 'Together AI',
+  fireworks: 'Fireworks AI',
+  openrouter: 'OpenRouter',
+  ollama: 'Ollama',
+  lmstudio: 'LM Studio',
+  copilot: 'GitHub Copilot',
+  azure: 'Azure OpenAI',
+  bedrock: 'AWS Bedrock',
+  vertex: 'Google Vertex',
+};
+
 // ---------------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------------
@@ -1223,6 +1256,27 @@ export function ProvidersSection() {
       .catch(() => undefined);
   }, []);
 
+  // Pi 已配置的供应商:从 ~/.pi/agent/auth.json 读取 (key-presence only, 不回传明文)。
+  // pi 自管凭证,这里只做展示同步——让用户在设置页看到 pi 里已经配了哪些供应商。
+  const [piProviders, setPiProviders] = useState<Array<{ id: string; label: string; hasKey: boolean }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (window.electronAPI.maker.pi?.getConfig?.() as Promise<PiConfigSnapshot> | undefined)
+      ?.then((snapshot) => {
+        if (cancelled || !snapshot?.auth) return;
+        const entries = Object.entries(snapshot.auth)
+          .filter(([, entry]) => entry.hasKey)
+          .map(([id, entry]) => ({
+            id,
+            label: PI_PROVIDER_LABELS[id] ?? id,
+            hasKey: entry.hasKey,
+          }));
+        if (!cancelled) setPiProviders(entries);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [refetch]);
+
   // 本机 CLI 扫描:挂载时一次(失败静默空数组;检测建议是增强,不是依赖)。
   useEffect(() => {
     let cancelled = false;
@@ -1534,6 +1588,52 @@ export function ProvidersSection() {
                         setWizard({ entry: { kind: 'builtin', providerId: s.provider.id } })
                       }
                     />
+                  ))}
+                </>
+              )}
+              {piProviders.length > 0 && (
+                <>
+                  <span
+                    className="px-2.5 pb-1 pt-3 text-11 font-semibold uppercase"
+                    style={{ color: 'var(--text-tertiary)', letterSpacing: '0.4px' }}
+                  >
+                    {t('settings.providers.pi.groupLabel')}
+                  </span>
+                  {piProviders.map((p) => (
+                    <button
+                      key={`pi-${p.id}`}
+                      type="button"
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
+                    >
+                      <div
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                        style={{
+                          backgroundColor: 'var(--settings-integration-avatar-bg)',
+                          border: '1px solid var(--settings-integration-avatar-border)',
+                          color: 'var(--settings-integration-avatar-icon)',
+                        }}
+                      >
+                        <span className="text-12 font-semibold leading-none">
+                          {p.label.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span
+                        className="min-w-0 flex-1 truncate text-13"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {p.label}
+                      </span>
+                      <span
+                        className="shrink-0 text-11"
+                        style={{ color: 'var(--text-tertiary)' }}
+                      >
+                        Pi
+                      </span>
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--remote-status-ready)' }}
+                      />
+                    </button>
                   ))}
                 </>
               )}

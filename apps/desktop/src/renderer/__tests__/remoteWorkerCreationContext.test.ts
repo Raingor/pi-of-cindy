@@ -10,7 +10,6 @@ describe('remote Orca Worker creation context', () => {
   it('scopes capabilities, providers, and the nested model selector to the controlled device', () => {
     const popover = read('features/cc-agent/CreateWorkerPopover.tsx');
 
-    expect(popover).toContain("useAgentCapabilities('claude-code', deviceId)");
     expect(popover).toContain("useAgentCapabilities('codex', deviceId)");
     expect(popover).toContain('useDeviceProviders(deviceId)');
     expect(popover).toContain('deviceId={deviceId}');

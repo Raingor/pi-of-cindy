@@ -11,9 +11,9 @@
  *  - npm install 只在 ~/.pi/agent/npm/ 目录内执行
  */
 
-import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve, relative, sep } from 'node:path';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const PI_DIR = join(homedir(), '.pi', 'agent');
@@ -160,6 +160,77 @@ export function readPiConfigSnapshot(): PiConfigSnapshot {
 
 const PI_NPM_DIR = join(PI_DIR, 'npm');
 
+// ─── npm binary resolution ─────────────────────────────
+// Electron launched from Finder/Dock inherits a minimal PATH (/usr/bin:/bin:…)
+// that doesn't include nvm/homebrew/pnpm npm locations. Resolve npm once and
+// cache it so subsequent install/uninstall calls don't re-shell-out each time.
+let cachedNpmPath: string | null | undefined;
+
+function resolveNpmPath(): string | null {
+  if (cachedNpmPath !== undefined) return cachedNpmPath;
+
+  // 1. Try `which npm` via a login shell — picks up nvm/homebrew/pnpm paths.
+  try {
+    const shell = process.env.SHELL || '/bin/zsh';
+    const out = spawnSync(
+      shell,
+      ['-l', '-i', '-c', 'which npm'],
+      { encoding: 'utf8', timeout: 10000 },
+    );
+    if (out.status === 0) {
+      const p = out.stdout.trim();
+      if (p && existsSync(p)) {
+        cachedNpmPath = p;
+        return p;
+      }
+    }
+  } catch {
+    // fall through to candidates
+  }
+
+  // 2. Try common npm binary locations.
+  const candidates = [
+    '/usr/local/bin/npm',        // Homebrew (Intel Mac)
+    '/opt/homebrew/bin/npm',     // Homebrew (Apple Silicon)
+    join(homedir(), '.npm-global/bin/npm'),
+    join(homedir(), '.local/share/pnpm/npm'),
+    join(homedir(), '.nvm/versions/node'),  // nvm — need to scan subdirs
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      // nvm dir needs subdirectory scan (e.g. ~/.nvm/versions/node/v22.23.1/bin/npm)
+      if (c.endsWith('/node')) {
+        try {
+          const versions = readdirSync(c);
+          for (const v of versions) {
+            const npmBin = join(c, v, 'bin', 'npm');
+            if (existsSync(npmBin)) {
+              cachedNpmPath = npmBin;
+              return npmBin;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      } else {
+        cachedNpmPath = c;
+        return c;
+      }
+    }
+  }
+
+  // 3. Fall back to bare 'npm' — might work if PATH happens to include it.
+  cachedNpmPath = null;
+  return null;
+}
+
+function npmSpawnSync(args: string[], opts: { cwd: string; timeout: number }) {
+  const npmPath = resolveNpmPath();
+  const execCmd = npmPath ?? 'npm';
+  return spawnSync(execCmd, args, { ...opts, encoding: 'utf8' });
+}
+
 export function listPiPackages(): PiPackageEntry[] {
   const manifest = readJsonFile<{ dependencies?: Record<string, string> }>(
     join(PI_NPM_DIR, 'package.json'),
@@ -175,10 +246,9 @@ export function listPiPackages(): PiPackageEntry[] {
 
 export function addPiPackage(name: string): boolean {
   try {
-    const out = spawnSync(
-      'npm',
+    const out = npmSpawnSync(
       ['install', name, '--no-audit', '--no-fund', '--legacy-peer-deps'],
-      { cwd: PI_NPM_DIR, encoding: 'utf8', timeout: 120000 },
+      { cwd: PI_NPM_DIR, timeout: 120000 },
     );
     return out.status === 0;
   } catch {
@@ -188,10 +258,9 @@ export function addPiPackage(name: string): boolean {
 
 export function removePiPackage(name: string): boolean {
   try {
-    const out = spawnSync(
-      'npm',
+    const out = npmSpawnSync(
       ['uninstall', name, '--no-audit', '--no-fund', '--legacy-peer-deps'],
-      { cwd: PI_NPM_DIR, encoding: 'utf8', timeout: 60000 },
+      { cwd: PI_NPM_DIR, timeout: 60000 },
     );
     return out.status === 0;
   } catch {
@@ -288,10 +357,9 @@ export function applyPiExtensionUpdates(names: string[]): ApplyUpdateResult[] {
       return { name, success: false, message: 'not an installed extension' };
     }
     try {
-      const out = spawnSync(
-        'npm',
+      const out = npmSpawnSync(
         ['install', `${name}@latest`, '--no-audit', '--no-fund', '--legacy-peer-deps'],
-        { cwd: PI_NPM_DIR, encoding: 'utf8', timeout: 120000 },
+        { cwd: PI_NPM_DIR, timeout: 120000 },
       );
       if (out.status === 0) return { name, success: true };
       const stderr = (out.stderr || '').trim().split('\n').slice(-3).join(' ');

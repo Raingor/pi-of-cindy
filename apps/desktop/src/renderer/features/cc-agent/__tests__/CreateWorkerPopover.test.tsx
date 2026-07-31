@@ -253,7 +253,7 @@ describe('CreateWorkerPopover', () => {
 
     await waitFor(() =>
       expect(onCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ agent: 'codex', model: 'gpt-5.5', effort: 'medium' }),
+        expect.objectContaining({ agent: 'pi', model: 'gpt-5.5', effort: 'medium' }),
       ),
     );
   });
@@ -390,35 +390,6 @@ describe('CreateWorkerPopover', () => {
     );
 
     expect(initialMarkup).not.toContain('orca.createWorker.noAvailableModels');
-  });
-
-  it('converges each agent preference independently after switching agents', async () => {
-    window.localStorage.setItem(
-      'workerCreationPrefs',
-      JSON.stringify({
-        lastAgent: 'codex',
-        codex: { model: 'codex/gpt-5.5', effort: 'high', fast: false },
-        'claude-code': { model: 'claude-removed', effort: 'high', fast: false },
-      }),
-    );
-    mocks.modelsByAgent['claude-code'] = [model('claude-sonnet-4-6')];
-    mocks.capabilitiesByAgent['claude-code'] = {
-      availableModels: [{ id: 'claude-sonnet-4-6' }],
-    };
-
-    render(<CreateWorkerPopover open onClose={vi.fn()} onCreate={vi.fn()} />);
-    await waitFor(() =>
-      expect(screen.getByTestId('model-selector').textContent).toBe('codex/gpt-5.5'),
-    );
-    fireEvent.click(screen.getByRole('tab', { name: 'Claude' }));
-
-    await waitFor(() =>
-      expect(screen.getByTestId('model-selector').textContent).toBe('claude-sonnet-4-6'),
-    );
-    expect(
-      (screen.getByRole('button', { name: 'orca.createWorker.submit' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false);
   });
 
   it('explains why creation stays disabled when no local model is available', async () => {
@@ -819,62 +790,6 @@ describe('CreateWorkerPopover', () => {
     await waitFor(() =>
       expect(onCreate).toHaveBeenCalledWith(
         expect.objectContaining({ providerId: null, fast: true }),
-      ),
-    );
-  });
-
-  it('keeps live source and effort edits across agent tab switches', async () => {
-    // 切 tab 的恢复读的是 prefs:切走前必须把当前 agent 的 live 编辑快照进内存
-    // prefs,否则「选好来源/改好 effort 还没提交就切了个 tab」会被静默回滚到打开
-    // 弹窗时的旧值(codex review)。
-    window.localStorage.setItem(
-      'workerCreationPrefs',
-      JSON.stringify({
-        lastAgent: 'codex',
-        codex: { model: 'gpt-5.5', effort: 'high', fast: false, providerId: 'openai' },
-      }),
-    );
-    mocks.localProviders = [
-      {
-        id: 'openai',
-        name: 'OpenAI',
-        connected: true,
-        agents: ['codex'],
-        models: { codex: [{ id: 'gpt-5.5' }], 'claude-code': [] },
-      },
-      {
-        id: 'xd',
-        name: 'XD Gateway',
-        connected: true,
-        agents: ['codex'],
-        models: { codex: [{ id: 'gpt-5.5' }], 'claude-code': [] },
-      },
-    ];
-    mocks.modelsByAgent.codex = [
-      { id: 'gpt-5.5', efforts: ['low', 'medium', 'high'], defaultEffort: 'high', supportsFastMode: false },
-    ];
-    mocks.capabilitiesByAgent.codex = { availableModels: [{ id: 'gpt-5.5' }] };
-    const onCreate = vi.fn();
-
-    render(<CreateWorkerPopover open onClose={vi.fn()} onCreate={onCreate} />);
-    await waitFor(() =>
-      expect(screen.getByTestId('model-selector').dataset.currentProvider).toBe('openai'),
-    );
-    fireEvent.click(screen.getByTestId('pick-xd-row-bare'));
-    fireEvent.click(screen.getByTestId('edit-active-effort'));
-    fireEvent.click(screen.getByRole('tab', { name: 'Claude' }));
-    await waitFor(() =>
-      expect(screen.getByTestId('model-selector').textContent).toContain('claude-opus-4-7'),
-    );
-    fireEvent.click(screen.getByRole('tab', { name: 'Codex' }));
-    await waitFor(() =>
-      expect(screen.getByTestId('model-selector').dataset.currentProvider).toBe('xd'),
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'orca.createWorker.submit' }));
-
-    await waitFor(() =>
-      expect(onCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'gpt-5.5', providerId: 'xd', effort: 'low' }),
       ),
     );
   });

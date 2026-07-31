@@ -1431,6 +1431,9 @@
         "hintLoggedIn": "检测到 {{cli}} 已登录，可直接授权接入",
         "hintInstalled": "检测到本机已安装 {{cli}}"
       },
+      "pi": {
+        "groupLabel": "Pi 已配置"
+      },
       "wizard": {
         "title": "添加供应商",
         "titleWith": "添加 · {{name}}",

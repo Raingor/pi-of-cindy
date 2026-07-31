@@ -375,18 +375,11 @@ export function SessionTabsBar({
             )}
           >
             <DropdownMenuItem
-              onSelect={() => onCreateNew('cc')}
+              onSelect={() => onCreateNew('pi')}
               className="h-7 px-2.5 rounded-md text-[13px] text-[var(--msg-assistant-text)] focus:bg-[var(--cmd-palette-item-hover)]"
             >
-              <VendorIcon vendor="cc" size={14} className="mr-2 text-foreground" />
-              Claude
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => onCreateNew('codex')}
-              className="h-7 px-2.5 rounded-md text-[13px] text-[var(--msg-assistant-text)] focus:bg-[var(--cmd-palette-item-hover)]"
-            >
-              <VendorIcon vendor="codex" size={14} className="mr-2 text-foreground" />
-              Codex
+              <VendorIcon vendor="pi" size={14} className="mr-2 text-foreground" />
+              Pi
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

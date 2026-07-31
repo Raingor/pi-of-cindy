@@ -1425,12 +1425,15 @@
         "suspendedBanner": "이 제공자는 비활성화되어 있습니다. 자격 증명은 유지되며, 활성화하면 모델을 다시 사용할 수 있습니다.",
         "moreActionsAria": "추가 작업"
       },
-      "detect": {
-        "groupLabel": "이 기기에서 감지됨",
-        "action": "인증하기",
-        "hintLoggedIn": "{{cli}}이(가) 이 기기에 로그인되어 있습니다. 인증하여 바로 연결할 수 있습니다",
-        "hintInstalled": "이 기기에 {{cli}}이(가) 설치되어 있습니다"
-      },
+"detect": {
+"groupLabel": "이 기기에서 감지됨",
+"action": "인증하기",
+"hintLoggedIn": "{{cli}}이(가) 이 기기에 로그인되어 있습니다. 인증하여 바로 연결할 수 있습니다",
+"hintInstalled": "이 기기에 {{cli}}이(가) 설치되어 있습니다"
+},
+"pi": {
+"groupLabel": "Pi에서 구성됨"
+},
       "wizard": {
         "title": "제공자 추가",
         "titleWith": "추가 · {{name}}",
