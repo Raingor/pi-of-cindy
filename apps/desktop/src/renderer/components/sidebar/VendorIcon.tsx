@@ -25,7 +25,7 @@ export type VendorIconKind = 'cc' | 'codex' | 'pi';
  * 吞成 Claude 脸,2026-07-30 实测 bug)。兼容 'claude-code' 别名与 null。
  */
 export function agentKindToVendor(kind: string | null | undefined): VendorIconKind {
-  return kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : 'cc';
+  return kind === 'codex' ? 'codex' : kind === 'cc' || kind === 'claude-code' ? 'cc' : 'pi';
 }
 
 interface VendorIconProps {

@@ -10,11 +10,13 @@
  *
  * 注意 MakerVendor 还含 'orca',但它不是用户可选的引擎(已被 ChatInput 底部的
  * 协同 toggle 取代),故不在此表内。
+ *
+ * 2026-08 裁决:Pi 是唯一基座 harness,cc/codex 不再对用户可选。
  */
 
 import type { MakerVendor } from './ccAgent.types';
 
-export const SELECTABLE_VENDORS = ['cc', 'codex', 'pi'] as const satisfies readonly MakerVendor[];
+export const SELECTABLE_VENDORS = ['pi'] as const satisfies readonly MakerVendor[];
 
 export type SelectableVendor = (typeof SELECTABLE_VENDORS)[number];
 

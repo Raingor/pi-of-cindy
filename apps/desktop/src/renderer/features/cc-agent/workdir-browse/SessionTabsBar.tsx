@@ -36,12 +36,6 @@ import { cn } from '@/lib/utils';
 import { WINDOW_DRAG_STYLE, WINDOW_NO_DRAG_STYLE } from '@/components/layout/windowDrag';
 import { Tip } from '@/components/ui/tooltip';
 import { VendorIcon } from '@/components/sidebar/VendorIcon';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { AgentKind, Session } from '@/lib/ccAgent.types';
 import { makerChatStore } from '@/lib/makerChatStore';
 import { getSessionDisplayTitle, toStoredSessionTitle } from '../lib/sessionDisplayTitle';
@@ -350,56 +344,24 @@ export function SessionTabsBar({
       </div>
 
       {/* 右侧 + 按钮:sticky 在 tabs 区右边,不参与横向滚动。
-          点击 → 弹下拉菜单(Claude / Codex);选 agent → 调用方用
-          newMakerDraft 里对应 vendor 的上次 prefs + 当前 workdir 创建会话。
+          点击 → 直接创建 Pi 会话(Pi-only,无需下拉选引擎)。
           border-l 与 tab 的 border-r 同色同位,把 + 区从横向滚动区视觉切开,
           避免最后一个 tab 滚到边缘时和 + 按钮糊成一坨。 */}
       {canCreateNew && (
       <div className="flex shrink-0 items-center border-l border-[var(--cmd-palette-border)] px-1.5" style={WINDOW_NO_DRAG_STYLE}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={t('ccAgent.workdirBrowse.sessionTabs.newSession')}
-              className={cn(
-                'flex size-6 items-center justify-center rounded-md',
-                'text-[var(--settings-section-desc)]',
-                'hover:bg-[var(--chat-input-chip-bg)] hover:text-foreground',
-                'data-[state=open]:bg-[var(--chat-input-chip-bg)] data-[state=open]:text-foreground',
-                'transition-colors outline-none',
-              )}
-            >
-              <Plus size={14} strokeWidth={2} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={4}
-            className={cn(
-              // 与 ProjectNode / SessionItem 菜单同款 shadcn 覆盖,统一项目侧
-              // dropdown 视觉。
-              'rounded-xl p-0.5 overflow-hidden min-w-[140px]',
-              'bg-[var(--cmd-palette-bg)]',
-              'border border-[var(--cmd-palette-border)]',
-              'shadow-[var(--shadow-menu)]',
-            )}
-          >
-            <DropdownMenuItem
-              onSelect={() => onCreateNew('cc')}
-              className="h-7 px-2.5 rounded-md text-[13px] text-[var(--msg-assistant-text)] focus:bg-[var(--cmd-palette-item-hover)]"
-            >
-              <VendorIcon vendor="cc" size={14} className="mr-2 text-foreground" />
-              Claude
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => onCreateNew('codex')}
-              className="h-7 px-2.5 rounded-md text-[13px] text-[var(--msg-assistant-text)] focus:bg-[var(--cmd-palette-item-hover)]"
-            >
-              <VendorIcon vendor="codex" size={14} className="mr-2 text-foreground" />
-              Codex
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <button
+          type="button"
+          aria-label={t('ccAgent.workdirBrowse.sessionTabs.newSession')}
+          onClick={() => onCreateNew('pi')}
+          className={cn(
+            'flex size-6 items-center justify-center rounded-md',
+            'text-[var(--settings-section-desc)]',
+            'hover:bg-[var(--chat-input-chip-bg)] hover:text-foreground',
+            'transition-colors outline-none',
+          )}
+        >
+          <Plus size={14} strokeWidth={2} />
+        </button>
       </div>
       )}
     </div>

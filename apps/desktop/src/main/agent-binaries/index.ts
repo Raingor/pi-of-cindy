@@ -210,6 +210,62 @@ export function getCachedBinaryStatus(kind: AgentBinaryKind): CachedBinaryStatus
   return { binaryReady: false };
 }
 
+// ── dev-only: 本地系统 pi 二进制发现 ─────────────────────────────────────────
+// 当 monorepo LFS bundle (apps/pi-bin/<platform>/pi) 不可用时,dev 模式额外搜索
+// 开发者本机已安装的 pi。正式版永远不走这里(app.isPackaged 守卫在 prepare 内)。
+
+const PI_NODE_ROOT = path.join(
+  process.env.HOME ?? (process.platform === 'win32' ? process.env.USERPROFILE ?? '' : ''),
+  '.local', 'share', 'pi-node',
+);
+
+function isExecutableFile(p: string): boolean {
+  try {
+    fs.accessSync(p, fs.constants.X_OK);
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 查找开发者本机已安装的 pi 可执行文件。顺序:
+ *  1. PATH 里直接可执行的 `pi`（用户已加进 shell profile）
+ *  2. `~/.local/share/pi-node/current/bin/pi`（installer 的稳定 symlink）
+ *  3. pi-node 下各版本目录的 bin/pi（按版本目录名降序取最新）
+ * 返回绝对路径;均未命中返回 null。
+ */
+function findLocalSystemPiBinary(): string | null {
+  const exeName = process.platform === 'win32' ? 'pi.exe' : 'pi';
+
+  // 1. PATH
+  const pathSep = process.platform === 'win32' ? ';' : ':';
+  for (const dir of (process.env.PATH ?? '').split(pathSep)) {
+    if (!dir) continue;
+    const candidate = path.join(dir, exeName);
+    if (isExecutableFile(candidate)) return candidate;
+  }
+
+  // 2. pi-node current symlink
+  const currentPath = path.join(PI_NODE_ROOT, 'current', 'bin', exeName);
+  if (isExecutableFile(currentPath)) return currentPath;
+
+  // 3. glob 版本目录（node-vX.Y.Z-platform-arch），降序取最新
+  let versionDirs: string[] = [];
+  try {
+    versionDirs = fs.readdirSync(PI_NODE_ROOT).filter((d) => d.startsWith('node-'));
+  } catch {
+    return null;
+  }
+  versionDirs.sort().reverse();
+  for (const v of versionDirs) {
+    const candidate = path.join(PI_NODE_ROOT, v, 'bin', exeName);
+    if (isExecutableFile(candidate)) return candidate;
+  }
+
+  return null;
+}
+
 // ── 主入口: prepare ──────────────────────────────────────────────────────────
 
 export async function prepare(
@@ -227,6 +283,17 @@ export async function prepare(
       console.warn(`[agent-binaries/${kind}] dev fallback: SHA256 check SKIPPED — for development only`);
       lastReadyPath.set(kind, devPath);
       return { ready: true, path: devPath, downloaded: false };
+    }
+    // pi 额外降级:开发者本机已装的 pi(PATH / ~/.local/share/pi-node/)。
+    // cc/codex 不走此路径——它们有各自的官方 CLI fallback 链。
+    if (kind === 'pi') {
+      const systemPi = findLocalSystemPiBinary();
+      if (systemPi) {
+        console.log(`[agent-binaries/pi] dev system-installed pi hit: ${systemPi}`);
+        console.warn('[agent-binaries/pi] using system pi binary — SHA256 check SKIPPED, for development only');
+        lastReadyPath.set(kind, systemPi);
+        return { ready: true, path: systemPi, downloaded: false };
+      }
     }
     return { ready: false, error: `${kind} dev binary not found for ${getPlatformKey()}`, downloaded: false };
   }

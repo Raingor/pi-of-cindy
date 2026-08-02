@@ -85,7 +85,7 @@ export interface CollabDraft {
 }
 
 export interface NewMakerDraft {
-  /** 当前选中的 vendor。默认 'cc',用户切换后写回 + 持久化。 */
+  /** 当前选中的 vendor。默认 'pi'(Pi-only),用户切换后写回 + 持久化。 */
   vendor: MakerVendor;
   /** 选中的 workingDir;初次 null,Project 行内 + 会预填到此。 */
   workingDir: string | null;
@@ -190,14 +190,14 @@ function defaultVendorPrefs(vendor: MakerVendor): VendorPrefs {
 }
 
 function defaultCollab(): CollabDraft {
-  return { enabled: false, worker: 'codex' };
+  return { enabled: false, worker: 'pi' };
 }
 
 const DEFAULT_WORKTREE_ENABLED = false;
 
 function makeDefault(): NewMakerDraft {
   return {
-    vendor: 'cc',
+    vendor: 'pi',
     workingDir: null,
     remoteHostId: null,
     deviceLinkDeviceId: null,

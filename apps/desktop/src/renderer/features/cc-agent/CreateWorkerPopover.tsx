@@ -13,7 +13,6 @@ import {
 
 import { FastModeToggle } from '@/components/new-chat/FastModeToggle';
 import { ModelSelector } from '@/components/new-chat/ModelSelector';
-import { VendorSegmentedSwitcher } from '@/components/new-chat/VendorSegmentedSwitcher';
 import { agentKindToVendor } from '@/components/sidebar/VendorIcon';
 import { useAgentCapabilities } from '@/hooks/useAgentCapabilities';
 import { useDeviceProviders } from '@/hooks/useDeviceProviders';
@@ -51,7 +50,7 @@ interface WorkerPrefs {
 }
 
 const DEFAULT_PREFS: WorkerPrefs = {
-  lastAgent: 'codex',
+  lastAgent: 'pi',
   codex: { model: 'codex/gpt-5.5', effort: 'high', fast: false, providerId: null },
   'claude-code': { model: 'claude-opus-4-7', effort: 'high', fast: false, providerId: null },
   // pi worker 默认模型与 orcaWorkerCreationService.resolveWorkerConfig 的 pi 分支一致。
@@ -76,7 +75,7 @@ function readWorkerPrefs(): WorkerPrefs {
     };
     return {
       lastAgent:
-        parsed.lastAgent === 'claude-code' ? 'claude-code' : parsed.lastAgent === 'pi' ? 'pi' : 'codex',
+        parsed.lastAgent === 'claude-code' ? 'claude-code' : parsed.lastAgent === 'codex' ? 'codex' : 'pi',
       codex: agentPrefs('codex'),
       'claude-code': agentPrefs('claude-code'),
       pi: agentPrefs('pi'),
@@ -688,16 +687,11 @@ export function CreateWorkerPopover({
             <div className="mb-2 text-12 font-medium uppercase tracking-[0.5px] text-[var(--text-tertiary)]">
               {t('orca.createWorker.agentLabel')}
             </div>
-            {/* 应用标准 Agent 分段控件(替换此前手写的按钮组;与 New Maker / IM 目录偏好同款,
-                「不自建选择 UI」的组件复用原则)。 */}
-            <VendorSegmentedSwitcher
-              value={vendorKey}
-              width={220}
-              ariaLabel={t('orca.createWorker.agentLabel')}
-              onChange={(next) =>
-                updateAgent(next === 'codex' ? 'codex' : next === 'pi' ? 'pi' : 'claude-code')
-              }
-            />
+            {/* Pi-only:不再需要引擎分段控件,直接展示当前引擎标识。 */}
+            <div className="flex h-7 items-center gap-1.5 text-13 text-[var(--text-secondary)]">
+              <span className="font-semibold" style={{ fontSize: 12 }}>π</span>
+              Pi
+            </div>
           </div>
 
           <div className="min-w-0">

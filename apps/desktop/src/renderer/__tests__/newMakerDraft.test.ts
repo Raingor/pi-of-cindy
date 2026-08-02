@@ -45,10 +45,10 @@ async function loadModule() {
 }
 
 describe('newMakerDraft store', () => {
-  it('默认状态:vendor=cc,workingDir=null,lastByVendor 各 vendor 的硬默认填齐', async () => {
+  it('默认状态:vendor=pi,workingDir=null,lastByVendor 各 vendor 的硬默认填齐', async () => {
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('cc');
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
     expect(d.lastByVendor.cc.permissionMode).toBe('auto');
     expect(d.lastByVendor.cc.effort).toBe('medium');
@@ -234,32 +234,33 @@ describe('newMakerDraft store', () => {
 
   it('switchVendor:落地当前 vendor 的最新 prefs 后再切到目标 vendor', async () => {
     const { getDraft, switchVendor } = await loadModule();
-    // 当前 vendor='cc',传入"模拟用户改过的 cc prefs"
+    // 当前 vendor='pi',传入"模拟用户改过的 pi prefs"
     switchVendor('codex', {
-      ...getDraft().lastByVendor.cc,
+      ...getDraft().lastByVendor.pi,
       model: 'claude-opus-4-7',
       effort: 'high',
       permissionMode: 'plan',
     });
     const d = getDraft();
     expect(d.vendor).toBe('codex');
-    // 旧 vendor(cc)的 prefs 被落地为传入的值
-    expect(d.lastByVendor.cc.model).toBe('claude-opus-4-7');
-    expect(d.lastByVendor.cc.effort).toBe('high');
-    expect(d.lastByVendor.cc.permissionMode).toBe('plan');
+    // 旧 vendor(pi)的 prefs 被落地为传入的值
+    expect(d.lastByVendor.pi.model).toBe('claude-opus-4-7');
+    expect(d.lastByVendor.pi.effort).toBe('high');
+    expect(d.lastByVendor.pi.permissionMode).toBe('plan');
     // 新 vendor(codex)的 prefs 不变(等待用户在 codex 下继续操作)
     expect(d.lastByVendor.codex.permissionMode).toBe('auto');
   });
 
-  it('switchVendor:选中的引擎跨重启保留(模拟 app 重启后仍是上次选的)', async () => {
+  it('switchVendor:非可选引擎跨重启后被 sanitize 回退默认(模拟 app 重启)', async () => {
     const m1 = await loadModule();
-    expect(m1.getDraft().vendor).toBe('cc');
-    m1.switchVendor('codex', m1.getDraft().lastByVendor.cc);
+    expect(m1.getDraft().vendor).toBe('pi');
+    // codex 不再是可选引擎,switchVendor 可以在会话内切过去,但重启后 sanitize 回退 pi
+    m1.switchVendor('codex', m1.getDraft().lastByVendor.pi);
     expect(m1.getDraft().vendor).toBe('codex');
 
     vi.resetModules();
     const m2 = await loadModule();
-    expect(m2.getDraft().vendor).toBe('codex');
+    expect(m2.getDraft().vendor).toBe('pi');
   });
 
   it('sanitize:引擎白名单按 SELECTABLE_VENDORS 校验,表内的值一律保留', async () => {
@@ -278,7 +279,7 @@ describe('newMakerDraft store', () => {
       memStorage.setItem('xdt:newMakerDraft:v1', JSON.stringify({ vendor }));
       vi.resetModules();
       const { getDraft } = await loadModule();
-      expect(getDraft().vendor).toBe('cc');
+      expect(getDraft().vendor).toBe('pi');
     }
   });
 
@@ -294,8 +295,8 @@ describe('newMakerDraft store', () => {
     const codexBefore = getDraft().lastByVendor.codex;
     patchCurrentVendorPrefs({ effort: 'xhigh', model: 'claude-opus-4-7' });
     const d = getDraft();
-    expect(d.lastByVendor.cc.effort).toBe('xhigh');
-    expect(d.lastByVendor.cc.model).toBe('claude-opus-4-7');
+    expect(d.lastByVendor.pi.effort).toBe('xhigh');
+    expect(d.lastByVendor.pi.model).toBe('claude-opus-4-7');
     expect(d.lastByVendor.codex).toEqual(codexBefore);
   });
 
@@ -305,23 +306,23 @@ describe('newMakerDraft store', () => {
     //（即使 patchDraft 已把含种子默认 model 的快照落盘)
     m1.patchDraft({ workingDir: '/foo' });
     expect(m1.getDraft().modelChosenByVendor).toEqual({});
-    expect(m1.getPersistedVendorModel('cc')).toBe('');
+    expect(m1.getPersistedVendorModel('pi')).toBe('');
 
     // 只改 effort → 仍不算选过 model
     m1.patchCurrentVendorPrefs({ effort: 'xhigh' });
-    expect(m1.getPersistedVendorModel('cc')).toBe('');
+    expect(m1.getPersistedVendorModel('pi')).toBe('');
 
     // 显式选 model → 打标记,getPersistedVendorModel 返回该值
     m1.patchCurrentVendorPrefs({ model: 'claude-opus-4-8' });
-    expect(m1.getDraft().modelChosenByVendor).toEqual({ cc: true });
-    expect(m1.getPersistedVendorModel('cc')).toBe('claude-opus-4-8');
+    expect(m1.getDraft().modelChosenByVendor).toEqual({ pi: true });
+    expect(m1.getPersistedVendorModel('pi')).toBe('claude-opus-4-8');
     expect(m1.getPersistedVendorModel('codex')).toBe('');
 
     // 模拟 app 重启 → 标记与值都恢复
     vi.resetModules();
     const m2 = await loadModule();
-    expect(m2.getDraft().modelChosenByVendor).toEqual({ cc: true });
-    expect(m2.getPersistedVendorModel('cc')).toBe('claude-opus-4-8');
+    expect(m2.getDraft().modelChosenByVendor).toEqual({ pi: true });
+    expect(m2.getPersistedVendorModel('pi')).toBe('claude-opus-4-8');
   });
 
   it('patchVendorPrefsPreservingModelChoice:会话同步草稿默认不打显式选择标记', async () => {
@@ -379,7 +380,7 @@ describe('newMakerDraft store', () => {
     expect(getDraft().workingDir).toBe('/foo');
     clearDraft();
     expect(getDraft().workingDir).toBeNull();
-    expect(getDraft().vendor).toBe('cc');
+    expect(getDraft().vendor).toBe('pi');
   });
 
   it('Fast Mode:按模型记忆,缺省 false', async () => {
@@ -410,7 +411,7 @@ describe('newMakerDraft store', () => {
     vi.resetModules();
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('cc');
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
   });
 
@@ -439,16 +440,16 @@ describe('newMakerDraft store', () => {
   it('schema 部分缺失的 localStorage 入参 → 缺字段补默认', async () => {
     memStorage.setItem(
       'xdt:newMakerDraft:v1',
-      JSON.stringify({ vendor: 'codex' /* workingDir / lastByVendor 都缺 */ }),
+      JSON.stringify({ vendor: 'pi' /* workingDir / lastByVendor 都缺 */ }),
     );
     vi.resetModules();
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('codex');
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
     expect(d.lastByVendor.cc.permissionMode).toBe('auto');
-    expect(d.lastByVendor.codex.effort).toBe('high');
-    expect(d.lastByVendor.codex.permissionMode).toBe('auto');
+    expect(d.lastByVendor.pi.effort).toBe('high');
+    expect(d.lastByVendor.pi.permissionMode).toBe('auto');
     expect(d.fastModeByModel).toEqual({});
   });
 
@@ -690,11 +691,11 @@ describe('newMakerDraft store', () => {
     expect(subscriber).not.toHaveBeenCalled();
   });
 
-  it('vendor 字段非合法值(非 cc/codex)→ 回退 cc', async () => {
+  it('vendor 字段非合法值(非 cc/codex)→ 回退 pi', async () => {
     memStorage.setItem('xdt:newMakerDraft:v1', JSON.stringify({ vendor: 'gemini' }));
     vi.resetModules();
     const { getDraft } = await loadModule();
-    expect(getDraft().vendor).toBe('cc');
+    expect(getDraft().vendor).toBe('pi');
   });
 
   it('schema:fastModeByModel 只把 true 当作 enabled,其余值归一为 false', async () => {

@@ -1756,12 +1756,12 @@ export function NewMakerDraftRoute() {
   );
 
   // 当前草稿选中的 vendor 变为不可用(如 Pi 未注册 / 被控端无 Pi)时,coerce 到首个可用来源
-  // (优先 cc),避免 tablist 卡在被隐藏段、且防止创建出注定 requireAgent 报错的会话。
+  // (优先 pi),避免 tablist 卡在被隐藏段、且防止创建出注定 requireAgent 报错的会话。
   // 只在已加载可用性后收敛;fallback 一定可见,收敛一次即稳定(switchVendor 同值早返,不成环)。
   useEffect(() => {
     if (!availableAgentsLoaded) return;
     if (!hiddenSwitcherVendors.includes(draft.vendor)) return;
-    const fallback = (['cc', 'codex', 'pi'] as const).find((vendor) => availableVendors.has(vendor));
+    const fallback = (['pi', 'cc', 'codex'] as const).find((vendor) => availableVendors.has(vendor));
     if (fallback && fallback !== draft.vendor) handleVendorChange(fallback);
   }, [availableAgentsLoaded, hiddenSwitcherVendors, availableVendors, draft.vendor, handleVendorChange]);
 
