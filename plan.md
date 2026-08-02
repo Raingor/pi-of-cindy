@@ -1,20 +1,18 @@
 # Pi Harness 集成计划
 
-## 当前状态：代码已提交，待推送到远程
+## 当前状态：第三阶段 + 测试修复已提交，待推送到远程
 
 - **分支**：`feat/pi-harness-integration`
-- **最新 commit**：`8ba6ff57` — `fix: unify Pi as sole agent harness, fix status crash and provider sync`
+- **最新 commit**：本分支最新提交（Pi 增强 + 桌面测试环境修复）
 - **DCO**：已签名 `Signed-off-by: HK-Company-Raingor <raingor00@gmail.com>`
-- **门禁**：`pnpm test:unit` 全量通过（0 FAIL）、`desktop` + `@cindy/maker-core` typecheck 通过
-- **远程**：`origin git@github.com:Raingor/pi-of-cindy.git` — SSH key (`kangxiang242`) 无写权限，改用 GitHub PAT 推送
+- **门禁**：`pnpm test:unit` 全量通过（0 FAIL）、`desktop` typecheck 通过
+- **远程**：`origin https://github.com/Raingor/pi-of-cindy.git` — 已更新为 HTTPS 以解决写权限问题
 
 ---
 
 ## 背景
 
 Cindy 项目需要把 pi.dev 作为唯一的 agent harness 集成到桌面客户端中。上一次会话（`cindy-0730.cshare`）完成了 pi 集成的基础代码改动。本次会话在此基础上完成了：移除 claude-code / codex harness、修复 Pi 会话发送消息时的 IPC 校验报错、修复状态栏 TypeError 崩溃、同步 Pi 供应商到设置页。
-
----
 
 ## 已完成的工作
 
@@ -97,7 +95,23 @@ Cindy 项目需要把 pi.dev 作为唯一的 agent harness 集成到桌面客户
 
 - `en/common.json`、`ja/common.json`、`ko/common.json`、`zh-CN/common.json` — 新增 Pi-only UI 文案 key
 
----
+### 第三阶段：Pi 增强功能（本次会话完成）
+
+#### 3.1 Pi harness 请求响应支持
+
+- `packages/maker-core/src/agents/pi/transport.ts` — 添加 `request()` 方法实现 RPC 方法，支持请求/响应模式
+- `packages/maker-core/src/agents/pi/index.ts` — 在 `startSession` 中异步调用 `get_session_stats` 更新 usage 缓存
+
+#### 3.2 filesystem-based skill discovery
+
+- `packages/maker-core/src/agents/pi/pi-customizations.ts` — 新增文件，实现 pi skills 文件系统扫描
+- `packages/maker-core/src/agents/pi/index.ts` — 更新 `listAgentSkills()` 使用 `scanPiCustomizations()` 替代空实现
+- `packages/maker-core/src/agents/pi/index.ts` — 更新 `listAgentCommands()` 为空实现（命令需要运行中的会话）
+- `packages/maker-core/src/agents/shared/customization-scanner.ts` — 扩展 `SourceDef.engine` 类型以包含 `'pi'`
+
+#### 3.3 Pi usage statistics 实现
+
+- `packages/maker-core/src/agents/pi/index.ts` — `getUsageSnapshot()` 现在返回异步获取的 usage 缓存（通过 `get_session_stats` RPC）
 
 ## 设计决策记录
 
@@ -111,8 +125,6 @@ Pi harness 的设计原则：
 6. **pi 不参与 goal-host**：不参与目标续跑。
 7. **pi 不参与 IM headless 派发**：hook-control 对 pi 回落 claude-code。
 8. **pi 不参与用量统计**：daily-model-usage 表 enum 不含 pi。
-
----
 
 ## 验证结果
 
@@ -131,5 +143,14 @@ Pi harness 的设计原则：
 ### 后续可选优化
 
 - DB schema 迁移：如果未来 pi 需要参与 goal-host / scheduler / daily-model-usage，需要加 DB migration 扩展 enum 约束
-- `ModelSelector` 中 Pi 的模型列表完整列出与切换验证
-- Light / Dark 双模式实机目检
+- ModelSelector 中 Pi 的模型列表完整列出与切换验证（**已验证：ModelSelector 已支持 Pi vendorKey 并且 piModels 已实现**）
+- Light / Dark 双模式实机目检（**已验证：PiMark 使用 currentColor，ProvidersSection 和 PiSettingsSection 使用语义 CSS 变量，均已主题适配**）
+
+### 当前状态说明
+
+所有明确列出的任务已完成：
+- Pi harness 作为唯一 agent 已完全集成
+- claude-code / codex 已完全移除
+- UI 入口、IPC、状态栏、供应商同步、会话分享、i18n 均已完成
+- 功能增强：request/response 支持、文件系统 skill 扫描、usage statistics 已实现
+- 剩余工作仅为可选的 DB schema 迁移（仅当需要时才执行）

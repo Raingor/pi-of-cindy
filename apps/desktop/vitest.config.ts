@@ -83,6 +83,9 @@ export default defineConfig({
     // Main-process code is pure Node — no DOM needed. Renderer tests (if/when
     // added) should switch to 'jsdom' via per-file `// @vitest-environment`.
     environment: 'node',
+    // 测试环境隔离:清除宿主代理 env(见 clearProxyEnv.ts),避免 outboundFetch
+    // 走真实代理网络绕过测试的全局 fetch stub。
+    setupFiles: ['src/test/vitest/clearProxyEnv.ts'],
     // Keep include arrays project-local: Vitest merges array options inherited
     // through extends:true, so a root include would make the resource project
     // collect standard tests too. The two projects remain mutually exclusive.

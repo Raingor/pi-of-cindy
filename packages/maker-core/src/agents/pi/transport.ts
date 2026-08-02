@@ -35,6 +35,7 @@ export interface PiStdioTransportOptions {
 
 export interface PiTransport {
   writeLine(line: string): Promise<void>;
+  request(command: Record<string, unknown>, timeoutMs?: number): Promise<Record<string, unknown>>;
   onLine(handler: LineHandler): () => void;
   onStderr(handler: StderrHandler): () => void;
   onClose(handler: CloseHandler): () => void;
@@ -51,6 +52,11 @@ export function createPiStdioTransport(opts: PiStdioTransportOptions): PiTranspo
   const lineHandlers = new Set<LineHandler>();
   const stderrHandlers = new Set<StderrHandler>();
   const closeHandlers = new Set<CloseHandler>();
+  const pendingRequests = new Map<
+    string,
+    { resolve: (resp: Record<string, unknown>) => void; reject: (err: Error) => void; timer: NodeJS.Timeout }
+  >();
+  let nextRequestId = 1;
   /**
    * pi 在 spawn 后、首个 onLine 订阅前就可能往 stdout 吐 line（ready 事件等）。
    * 先 buffer，首个订阅注册时按序 drain，避免竞态丢行。与 codex StdioTransport
@@ -77,6 +83,23 @@ export function createPiStdioTransport(opts: PiStdioTransportOptions): PiTranspo
   const dispatchLine = (rawLine: string) => {
     // 接受可选的 \r\n，剥掉尾部 \r（与 pi docs Node 示例一致）。
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    // 响应帧：若存在匹配的 pending request，resolve 它而非走 lineHandlers。
+    if (line.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(line) as { type?: string; id?: string };
+        if (parsed?.type === 'response' && parsed?.id) {
+          const pending = pendingRequests.get(parsed.id);
+          if (pending) {
+            clearTimeout(pending.timer);
+            pendingRequests.delete(parsed.id);
+            pending.resolve(parsed as Record<string, unknown>);
+            return;
+          }
+        }
+      } catch {
+        // 非 JSON 或解析失败：继续走 lineHandlers
+      }
+    }
     if (!lineHandlerArmed) {
       lineBuffer.push(line);
       return;
@@ -119,6 +142,11 @@ export function createPiStdioTransport(opts: PiStdioTransportOptions): PiTranspo
   const fireClose = (reason: string): void => {
     if (closed) return;
     closed = true;
+    for (const [, pending] of pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(`pi transport closed (${reason})`));
+    }
+    pendingRequests.clear();
     for (const cb of closeHandlers) {
       try {
         cb({ reason });
@@ -149,6 +177,30 @@ export function createPiStdioTransport(opts: PiStdioTransportOptions): PiTranspo
         child.stdin.write(line + '\n', 'utf8', (err) => {
           if (err) reject(err);
           else resolve();
+        });
+      });
+    },
+
+    request(command: Record<string, unknown>, timeoutMs = 30_000): Promise<Record<string, unknown>> {
+      if (closed || !child.stdin.writable) {
+        return Promise.reject(
+          new Error('PiStdioTransport.request after close'),
+        );
+      }
+      const id = `req-${nextRequestId++}`;
+      const payload = { ...command, id };
+      return new Promise<Record<string, unknown>>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pendingRequests.delete(id);
+          reject(new Error(`pi request ${command.type as string} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        pendingRequests.set(id, { resolve, reject, timer });
+        child.stdin.write(JSON.stringify(payload) + '\n', 'utf8', (err) => {
+          if (err) {
+            clearTimeout(timer);
+            pendingRequests.delete(id);
+            reject(err);
+          }
         });
       });
     },

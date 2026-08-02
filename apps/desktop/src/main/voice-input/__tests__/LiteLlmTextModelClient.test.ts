@@ -4,6 +4,11 @@ const undiciFetchMock = vi.fn();
 vi.mock('undici', () => ({
   fetch: (...args: unknown[]) => undiciFetchMock(...args),
   Agent: class { /* no-op stub */ },
+  // LiteLlmTextModelClient → refinerHttpDispatcher → outbound-fetch 的
+  // 模块图也会从 undici 取值导入这些符号;提供 no-op stub,保持测试密闭。
+  Dispatcher: class { /* no-op stub */ },
+  ProxyAgent: class { /* no-op stub */ },
+  buildConnector: () => () => {},
 }));
 
 import { LiteLlmTextModelClient } from '../LiteLlmTextModelClient.js';

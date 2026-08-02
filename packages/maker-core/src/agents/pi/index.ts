@@ -48,6 +48,7 @@ import {
   type PiRuntimeState,
   type PiTranslateContext,
 } from './translator.js';
+import { scanPiCustomizations } from './pi-customizations.js';
 
 /**
  * pi 能力声明。pi 自管 provider/model/usage/memory，所以大部分标 unsupported；
@@ -112,16 +113,28 @@ export class PiAgent extends BaseAgent {
   }
 
   override listAgentCommands(): AgentBuiltinCommand[] {
-    // TODO: 后续调 pi `get_commands` 把 extension / skill / prompt-template
-    // 命令暴露进 Cindy `/` 面板（映射成 AgentBuiltinCommand）。首版空集。
     return [];
   }
 
   override async listAgentSkills(
-    _opts: ListAgentSkillsOptions,
+    opts: ListAgentSkillsOptions,
   ): Promise<ListAgentSkillsResult> {
-    // pi 的 skills 走 `get_commands`（source:'skill'），与命令同源；首版不暴露。
-    return { skills: [] };
+    const { items, errors } = await scanPiCustomizations(opts);
+    return {
+      skills: items
+        .filter((it) => it.kind === 'skill' && it.enabled !== false)
+        .map((it) => ({
+          kind: 'agent-skill' as const,
+          name: it.name,
+          description: it.description,
+          source: 'skill' as const,
+          path: it.absolutePath,
+          scope: (it.scope === 'repo' ? 'repo' : 'user') as 'user' | 'repo',
+          enabled: it.enabled ?? true,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      errors,
+    };
   }
 
   async startSession(opts: StartSessionOptions): Promise<AgentSessionHandle> {
@@ -139,6 +152,7 @@ export class PiAgent extends BaseAgent {
     // 运行时当前模型（Cindy 侧口径，`<provider>/<modelId>` 格式）。启动时
     // 经 --model 传入首值，后续 setModel 就地去重。
     let mutableModel = opts.model ?? '';
+    let usageCache: UsageSnapshot = { tokenUsage: 0, contextTokens: 0, contextWindow: 0, costUsd: 0 };
 
     const transport: PiTransport = createPiStdioTransport({
       binaryPath: this.deps.binaryPath,
@@ -151,6 +165,29 @@ export class PiAgent extends BaseAgent {
         ? ['--no-session', '--model', mutableModel]
         : ['--no-session'],
     });
+
+    // 异步获取 usage 统计（非阻塞，失败时回退到零快照）。
+    void transport
+      .request({ type: 'get_session_stats' })
+      .then((resp) => {
+        if (resp.success) {
+          const data = resp.data as {
+            tokens?: { input?: number; output?: number; total?: number };
+            cost?: number;
+          } | undefined;
+          const tokens = data?.tokens ?? {};
+          const tokenUsage = (tokens.input ?? 0) + (tokens.output ?? 0);
+          usageCache = {
+            tokenUsage,
+            contextTokens: 0,
+            contextWindow: 0,
+            costUsd: typeof data?.cost === 'number' ? data.cost : 0,
+          };
+        }
+      })
+      .catch(() => {
+        // 静默回退到零快照。
+      });
 
     const ctx: PiTranslateContext = {
       emit: (e) => eventQueue.push(e),
@@ -237,9 +274,7 @@ export class PiAgent extends BaseAgent {
         return eventQueue;
       },
       getUsageSnapshot(): UsageSnapshot {
-        // pi 自管 usage：首版返回零快照。
-        // TODO: 可选异步 get_session_stats 响应填充（非阻塞，下次 status 内联）。
-        return { tokenUsage: 0, contextTokens: 0, contextWindow: 0, costUsd: 0 };
+        return usageCache;
       },
       setInteractionResolver(resolver: InteractionResolver): void {
         interactionResolver = resolver;
