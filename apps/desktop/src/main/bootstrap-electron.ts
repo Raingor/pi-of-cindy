@@ -213,10 +213,10 @@ import {
   prepare as binaryPrepare,
   peekNeedsDownload as binaryPeekNeedsDownload,
   broadcastResetForStep as binaryBroadcastResetForStep,
-  getCachedBinaryStatus,
   type AgentBinaryKind,
   type PrepareResult,
 } from './agent-binaries';
+import { probeLocalPi } from './pi-agent/localPi';
 import { RendererBootGuard } from './renderer-boot-guard';
 import yaml from 'js-yaml';
 import matter from 'gray-matter';
@@ -5462,9 +5462,6 @@ const registerIpcHandlers = () => {
   // getMaker() 在构造期就读 binary path, 早于 splash 调用会抛错; 第一次 splash 成功后置 true,
   // 后续 retry 走 check-environment 不重复注册 (重复 ipcMain.handle 会覆盖同名 handler)。
   let makerIpcsRegistered = false;
-  // Pi 是“本次启动可选”的能力：一旦首次准备失败，就算后续清单/CDN恢复，
-  // 也不再把 Pi 动态塞回已经构造好的 Maker，避免返回状态与实际能力不一致。
-  let piDisabledForLaunch = false;
   const registerMakerIpcsAfterSplash = async (): Promise<void> => {
     if (makerIpcsRegistered) return;
     // 模型供应商目录(providers.json)按「OSS 真源 / bundled 兜底」加载一次存内存:必须在第一次
@@ -5705,8 +5702,9 @@ const registerIpcHandlers = () => {
         : undefined;
 
     // ── Phase 0: peek 各 vendor 是否需要下载（决定 (x/y) 标签）────────────────
+    // 2026-08-29 Pi-first 改造:pi 不再走下载链,只探测本机,不参与下载步骤标签。
     const needySteps: AgentBinaryKind[] = [];
-    for (const kind of ['claude-code', 'codex', 'pi'] as const) {
+    for (const kind of ['claude-code', 'codex'] as const) {
       try {
         if (await binaryPeekNeedsDownload(kind)) needySteps.push(kind);
       } catch {
@@ -5816,50 +5814,36 @@ const registerIpcHandlers = () => {
     }
 
     // ── Phase 3: pi 段（可选,失败不阻塞启动）──────────────────────────────────
-    // broadcastFailure: false —— pi 下载失败不能把 splash 打进失败态;静默禁用
-    // 本次 pi 注册，Claude Code / Codex 与 Cindy 本身仍照常可用。
-    // 只从 Pi 阶段开始计时，不能让前面的必需 binary 下载吃掉 Pi 自己的预算。
-    const piInstallSignal = app.isPackaged
-      ? AbortSignal.timeout(PI_AGENT_INSTALL_STARTUP_DEADLINE_MS)
-      : undefined;
+    // 2026-08-29 Pi-first 改造(用户确认):不再经 CDN 下载捆绑 pi,只探测本机安装的
+    // pi(标准位置 + PATH,见 pi-agent/localPi.ts)。探测失败仅禁用本次 pi 能力,
+    // Claude Code / Codex 与 Cindy 本身照常可用;缺失由登录页/设置引导安装。
+    // 探测有内建 per-spawn 超时;这里再加整体上限(沿用原 pi 启动预算),超时按未安装处理。
     resetBeforeSegment('pi', claudeRes.downloaded === true || codexRes.downloaded === true);
 
     let piInfo: { status: 'passed' | 'failed'; path?: string; error?: string };
-    // 轮 27 LOW-4:首次准备失败后账号切换(同一进程),二进制可能已由后台
-    // 下载/手动放置变得可用 —— 轻量重试:意外可用则清除标志继续准备。
-    if (piDisabledForLaunch) {
-      const cached = getCachedBinaryStatus('pi');
-      if (cached?.binaryPath && cached.binaryPath.length > 0) {
-        piDisabledForLaunch = false;
-      }
-    }
-    if (piDisabledForLaunch) {
+    try {
+      const localPi = await Promise.race([
+        probeLocalPi({ force: true }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('local pi probe timed out')),
+            PI_AGENT_INSTALL_STARTUP_DEADLINE_MS,
+          ),
+        ),
+      ]);
+      piInfo =
+        localPi.installed && localPi.path
+          ? { status: 'passed' as const, path: localPi.path }
+          : { status: 'failed' as const, error: 'pi not installed on this machine' };
+    } catch (err: unknown) {
       piInfo = {
         status: 'failed' as const,
-        error: 'pi disabled for this launch after an earlier prepare failure',
+        error: err instanceof Error ? err.message : String(err),
       };
-    } else {
-      try {
-        const piRes = await binaryPrepare('pi', {
-          ...stepOptsFor('pi'),
-          broadcastFailure: false,
-          signal: piInstallSignal,
-        });
-        piInfo =
-          piRes.ready && piRes.path
-            ? { status: 'passed' as const, path: piRes.path }
-            : { status: 'failed' as const, error: piRes.error ?? 'pi binary not available' };
-      } catch (err: unknown) {
-        piInfo = {
-          status: 'failed' as const,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
     }
     if (piInfo.status === 'failed') {
-      piDisabledForLaunch = true;
       console.warn(
-        `[bootstrap-electron] pi binary prepare failed (non-fatal, pi disabled for this launch): ${piInfo.error}`,
+        `[bootstrap-electron] local pi probe failed (non-fatal, pi disabled for this launch): ${piInfo.error}`,
       );
     }
 

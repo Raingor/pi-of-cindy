@@ -54,7 +54,7 @@ import type {
   ProviderWireProtocol,
 } from '@cindy/model-providers';
 
-import { getReadyBinaryPath } from '../agent-binaries/index.js';
+import { getCachedLocalPiPath } from '../pi-agent/localPi.js';
 import { t } from '../i18n.js';
 import { spawnPiSubagentRunner } from '../cindy-brain/piSubagentRunnerHost.js';
 import { getPiExtraSpawnConfig } from '../mcp-integrations/piEnvironment.js';
@@ -732,11 +732,14 @@ const PI_BUNDLED_RESERVED_PROVIDER_IDS = ['anthropic', 'openai-codex', 'xai'] as
 /**
  * 解析 pi 主执行文件绝对路径;找不到返回 null(pi 为可选实验 agent,不阻塞启动)。
  * pi 产物是目录形态(主二进制 + theme/ 等运行时资产),路径指向其中的可执行文件。
- * 路径只来自 agent-binaries 受管链：正式版是 CDN 下载到 userData/pi/<version>/
- * 的已校验目录，dev 是 apps/pi-bin/<platform>/ 中 pnpm install:pi 的产物。
+ *
+ * 2026-08-29 Pi-first 改造(用户确认的行为变更):不再使用 agent-binaries 受管下载链,
+ * 只调用**本机安装的 pi**(标准位置 + PATH 探测,见 pi-agent/localPi.ts);探测由
+ * splash 阶段完成,这里同步读缓存。缺失时 buildPiAgent 返回 null、pi 任务创建报错,
+ * 登录页/设置提供安装引导。
  */
 export function resolvePiBinaryPath(): string | null {
-  return getReadyBinaryPath('pi') ?? null;
+  return getCachedLocalPiPath();
 }
 
 // ── AuthAdapter(XD 网关 key)─────────────────────────────────────────────────

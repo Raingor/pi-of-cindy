@@ -1,4 +1,8 @@
-/** Pi 正式版二进制必须与 Claude Code / Codex 一样只走 CDN，不能重新塞回安装包。 */
+/**
+ * Pi 二进制分发契约(2026-08-29 Pi-first 改造后重写):Cindy 不下载、不捆绑 pi,
+ * 运行时只调用本机安装的 pi(pi-agent/localPi.ts 探测缓存);安装包与 CDN 链
+ * 都不再有 pi 资产。
+ */
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,16 +20,29 @@ describe('Pi binary distribution contract', () => {
     expect(forge).not.toContain('stagePi(targetPlatform');
   });
 
-  it('resolves Pi only through the managed CDN/dev binary chain', () => {
+  it('resolves Pi only through the local-machine probe cache', () => {
     const host = fs.readFileSync(
       path.join(desktopRoot, 'src/main/maker-host/pi-host.ts'),
       'utf8',
     );
 
-    expect(host).toContain("getReadyBinaryPath('pi')");
+    expect(host).toContain('getCachedLocalPiPath()');
+    expect(host).not.toContain("getReadyBinaryPath('pi')");
     expect(host).not.toContain("getCachedBinaryStatus('pi')");
     expect(host).not.toContain("path.join(process.resourcesPath, 'pi'");
     expect(host).not.toContain('安装包自带');
+  });
+
+  it('probes the local pi once at splash and never downloads one', () => {
+    const bootstrap = fs.readFileSync(
+      path.join(desktopRoot, 'src/main/bootstrap-electron.ts'),
+      'utf8',
+    );
+
+    expect(bootstrap).toContain('probeLocalPi({ force: true })');
+    // 探测被启动预算兜底,超时按未安装处理,不阻塞 splash。
+    expect(bootstrap).toContain('PI_AGENT_INSTALL_STARTUP_DEADLINE_MS');
+    expect(bootstrap).not.toContain("binaryPrepare('pi'");
   });
 
   it('bounds optional Pi preparation so CDN trouble cannot hold the startup page', () => {
@@ -33,33 +50,24 @@ describe('Pi binary distribution contract', () => {
       path.join(desktopRoot, 'src/main/bootstrap-electron.ts'),
       'utf8',
     );
-    const binaries = fs.readFileSync(
-      path.join(desktopRoot, 'src/main/agent-binaries/index.ts'),
-      'utf8',
-    );
 
-    expect(bootstrap).toContain('PI_AGENT_INSTALL_STARTUP_DEADLINE_MS = 60_000');
-    expect(bootstrap).toContain('signal: piInstallSignal');
-    expect(binaries).toContain('signal: opts.signal');
   });
 
-  it('does not expose an old Pi cache through the binary-version IPC', () => {
+  it('reports the local pi through the binary-version IPC', () => {
     const binaryVersion = fs.readFileSync(
       path.join(desktopRoot, 'src/main/maker-ipc/binary-version.ts'),
       'utf8',
     );
 
-    expect(binaryVersion).toContain("if (kind === 'pi') return null;");
+    expect(binaryVersion).toContain("if (kind === 'pi') return getCachedLocalPiPath();");
   });
 
-  it('keeps a failed Pi disabled when check-environment is retried', () => {
+  it('treats a missing local pi as non-fatal for startup', () => {
     const bootstrap = fs.readFileSync(
       path.join(desktopRoot, 'src/main/bootstrap-electron.ts'),
       'utf8',
     );
 
-    expect(bootstrap).toContain('let piDisabledForLaunch = false;');
-    expect(bootstrap).toContain('if (piDisabledForLaunch)');
-    expect(bootstrap).toContain('piDisabledForLaunch = true;');
+    expect(bootstrap).toContain('local pi probe failed (non-fatal');
   });
 });

@@ -21,6 +21,13 @@ vi.mock('../../agent-binaries/index.js', () => ({
   getReadyBinaryPath: () => state.binaryPath,
 }));
 
+// 2026-08-29 Pi-first 改造:pi-host 经 pi-agent/localPi 的探测缓存解析本机 pi。
+vi.mock('../../pi-agent/localPi.js', () => ({
+  getCachedLocalPiPath: () => state.binaryPath,
+  probeLocalPi: vi.fn(async () => ({ installed: false, path: null, version: null })),
+  getLocalPiStatusSnapshot: vi.fn(() => null),
+}));
+
 vi.mock('../runtime-configs.js', () => ({
   getRipgrepBinaryPath: () => state.ripgrepPath,
 }));

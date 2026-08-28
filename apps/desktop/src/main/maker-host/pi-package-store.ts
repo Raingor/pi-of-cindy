@@ -26,7 +26,7 @@ import {
   type PiPackageView,
 } from '../../shared/piPackages.js';
 import { createLogger } from '../logger.js';
-import { getReadyBinaryPath } from '../agent-binaries/index.js';
+import { getCachedLocalPiPath } from '../pi-agent/localPi.js';
 import { withSecurityBoundaryLock } from '../device-link/crossProcessLock.js';
 import { atomicWriteFileSync } from '../utils/atomicWriteFile.js';
 import {
@@ -512,8 +512,8 @@ export async function runPiPackageCommand(
   timeoutMs = COMMAND_TIMEOUT_MS,
   options: RunPiPackageCommandOptions = {},
 ): Promise<{ stdout: string; stderr: string }> {
-  const binaryPath = getReadyBinaryPath('pi');
-  if (!binaryPath) throw new Error('Pi is not installed in Cindy');
+  const binaryPath = getCachedLocalPiPath();
+  if (!binaryPath) throw new Error('Local pi binary not found');
   await fs.mkdir(packageHome(), { recursive: true, mode: 0o700 });
 
   return new Promise((resolve, reject) => {
@@ -625,7 +625,7 @@ function parsePiVersionOutput(output: string): string | undefined {
 async function getCurrentPiVersion(): Promise<string | undefined> {
   if (currentPiVersionPromise) return currentPiVersionPromise;
   currentPiVersionPromise = (async () => {
-    const binaryPath = getReadyBinaryPath('pi');
+    const binaryPath = getCachedLocalPiPath();
     if (!binaryPath) return undefined;
     const directoryVersion = path.basename(path.dirname(binaryPath));
     if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(directoryVersion)) return directoryVersion;
@@ -1497,7 +1497,7 @@ async function inspectAllPackagesFreshUnderMutationLock(): Promise<InspectedPack
 }
 
 async function listPiPackagesNow(): Promise<PiPackageListResult> {
-  if (!getReadyBinaryPath('pi')) return { available: false, packages: [] };
+  if (!getCachedLocalPiPath()) return { available: false, packages: [] };
   const inspected = await inspectAllPackages();
   return {
     available: true,
@@ -1621,7 +1621,7 @@ function snapshotUnavailableWarningForPackage(
 export async function resolveManagedPiPackageResources(
   options?: { snapshotRoot: string; snapshotLimits?: PiPackageSnapshotLimits },
 ): Promise<PiManagedPackageResources> {
-  if (!getReadyBinaryPath('pi')) {
+  if (!getCachedLocalPiPath()) {
     return { extensions: [], skills: [], promptTemplates: [], packageRoots: [] };
   }
   try {

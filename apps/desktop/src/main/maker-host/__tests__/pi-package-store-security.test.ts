@@ -55,8 +55,10 @@ vi.mock('electron', () => ({
   app: { getPath: () => runtime.userData },
 }));
 
-vi.mock('../../agent-binaries/index.js', () => ({
-  getReadyBinaryPath: () => '/mock/0.83.0/pi',
+// 2026-08-29 Pi-first 改造:pi 路径改由 pi-agent/localPi 的本机探测缓存提供,
+// 测试直接钉住该缓存,避免依赖真实本机是否装有 pi。
+vi.mock('../../pi-agent/localPi.js', () => ({
+  getCachedLocalPiPath: () => '/mock/0.83.0/pi',
 }));
 
 vi.mock('../../logger.js', () => ({

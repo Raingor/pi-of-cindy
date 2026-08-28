@@ -189,13 +189,12 @@ Claude Code 仍用独立百分比。env:`CINDY_PI_API_KEY`、
       字段指向整包 tar.gz(归档根即完整目录分发,SHA256 为 tar.gz 的),启动时按
       manifest 版本下载到 `userData/pi/<version>/` 并清旧版。正式安装包不内置 Pi；
       manifest 缺字段或下载失败时**不阻塞启动**(splash 不进失败态),本次不注册 pi。
-      **不变量(刻意如此,别当 bug 改掉)**:`pi-host.resolvePiBinaryPath` 只读
-      `getReadyBinaryPath('pi')`——即本次启动 prepare 成功回填的路径,**不回落
-      `getCachedBinaryStatus`**,因此不会复用上一次启动下载的旧版本。`prepare()` 先取
-      CDN manifest、取不到就直接失败(不看本地存货),所以离线时 pi 本次不可用。这与
-      Claude Code 一致(同样只读 `getReadyBinaryPath`),但与 **Codex 不同**——codex 读
-      `getCachedBinaryStatus`,会接受早前已 `.verified` 的旧版本,离线仍可用。想让 pi
-      也离线可用属于行为变更,需先确认再改,不要以"和 codex 对齐"为由顺手改回。
+      **不变量(2026-08-29 Pi-first 改造后重写,用户确认的行为变更)**:pi 与
+      cc/codex 不同,不再走 CDN 受管下载链,运行时只调用**本机安装的 pi**。
+      `pi-agent/localPi.ts` 在 splash 阶段探测标准位置(~/.local/bin、/opt/homebrew/bin、
+      /usr/local/bin、~/.pi/bin、Win 用户安装目录)与 PATH,`pi-host.resolvePiBinaryPath`
+      与 `pi-package-store` 只同步读探测缓存(`getCachedLocalPiPath`),不回落任何受管
+      缓存;本机无 pi 时本次启动 pi 不可用,由登录页/设置引导安装,不阻塞 Cindy 启动。
       发布入口**不在本仓**:
       二进制发布统一走 cindy 同级目录的独立工程 `cindy-binary-release`
       (`pnpm release:pi -- --region cn|global`,默认 canary 通道;配置与安全机制见
