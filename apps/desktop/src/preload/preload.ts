@@ -7035,6 +7035,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:computer:update-driver', opts),
       onUpdateProgress: fanOutComputerDriverUpdateProgress,
     },
+    // ── Pi Agent 数据层 (pi-web-switch 移植) ──────────────────────────────
+    piAgent: {
+      readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
+      writeSettings: (settings: unknown) =>
+        ipcRenderer.invoke('maker:pi-agent:write-settings', settings),
+      readUsage: () => ipcRenderer.invoke('maker:pi-agent:read-usage'),
+      usageByRange: (fromDate: string, toDate: string) =>
+        ipcRenderer.invoke('maker:pi-agent:usage-by-range', { fromDate, toDate }),
+      listSessions: () => ipcRenderer.invoke('maker:pi-agent:list-sessions'),
+      sessionPreview: (filePath: string, limit?: number) =>
+        ipcRenderer.invoke('maker:pi-agent:session-preview', { filePath, limit }),
+      trashSession: (filePath: string) =>
+        ipcRenderer.invoke('maker:pi-agent:trash-session', { filePath }),
+      listTrash: () => ipcRenderer.invoke('maker:pi-agent:list-trash'),
+      restoreTrash: (trashPath: string) =>
+        ipcRenderer.invoke('maker:pi-agent:restore-trash', { trashPath }),
+      deleteTrash: (trashPath: string) =>
+        ipcRenderer.invoke('maker:pi-agent:delete-trash', { trashPath }),
+      readMemory: () => ipcRenderer.invoke('maker:pi-agent:read-memory'),
+      deleteMemoryEntry: (filename: string, entryText: string) =>
+        ipcRenderer.invoke('maker:pi-agent:delete-memory-entry', { filename, entryText }),
+      optimizeMemory: () => ipcRenderer.invoke('maker:pi-agent:optimize-memory'),
+      readMemoryConfig: () => ipcRenderer.invoke('maker:pi-agent:read-memory-config'),
+      writeMemoryConfig: (config: unknown) =>
+        ipcRenderer.invoke('maker:pi-agent:write-memory-config', config),
+      readMemoryStatus: () => ipcRenderer.invoke('maker:pi-agent:read-memory-status'),
+      readSubagents: () => ipcRenderer.invoke('maker:pi-agent:read-subagents'),
+      updateAgent: (fileName: string, patch: { model?: string; thinking?: string }) =>
+        ipcRenderer.invoke('maker:pi-agent:update-agent', { fileName, patch }),
+      checkUpdates: () => ipcRenderer.invoke('maker:pi-agent:check-updates'),
+      applyUpdates: (names: string[]) =>
+        ipcRenderer.invoke('maker:pi-agent:apply-updates', { names }),
+      searchPackages: (query: string) =>
+        ipcRenderer.invoke('maker:pi-agent:search-packages', { query }),
+      testProvider: (baseUrl: string, apiKey?: string) =>
+        ipcRenderer.invoke('maker:pi-agent:test-provider', { baseUrl, apiKey }),
+      testModel: (baseUrl: string, modelId: string, apiKey?: string) =>
+        ipcRenderer.invoke('maker:pi-agent:test-model', { baseUrl, modelId, apiKey }),
+      fetchModels: (baseUrl: string, apiKey?: string) =>
+        ipcRenderer.invoke('maker:pi-agent:fetch-models', { baseUrl, apiKey }),
+      exportConfig: () => ipcRenderer.invoke('maker:pi-agent:export-config'),
+      importConfig: (config: unknown) =>
+        ipcRenderer.invoke('maker:pi-agent:import-config', config),
+    },
   },
 
   // ── 剪贴板历史快捷面板 ────────────────────────────────────────────

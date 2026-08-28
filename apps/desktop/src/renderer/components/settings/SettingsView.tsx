@@ -41,6 +41,12 @@ import { HelpSection } from './HelpSection';
 import { HelpAssistantPanel } from './HelpAssistantPanel';
 import { AgentResourceSection } from './AgentResourceSection';
 import { PiPackagesSection } from './PiPackagesSection';
+import { PiConfigImportExport } from './PiConfigImportExport';
+import { PiDashboardSection } from './pi-dashboard/PiDashboardSection';
+import { PiSessionsSection } from './pi-sessions/PiSessionsSection';
+import { PiMemorySection } from './pi-memory/PiMemorySection';
+import { PiSubagentsSection } from './pi-subagents/PiSubagentsSection';
+import { PiSpeedTestSection } from './pi-speedtest/PiSpeedTestSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
 import { ContactsSection } from './contacts/ContactsSection';
@@ -387,6 +393,11 @@ export function SettingsView() {
                       <GitSafetySection />
                     </section>
 
+                    {/* Section — Pi Config Import/Export */}
+                    <section className="py-[18px]" aria-label={t('settings.piConfig.title')}>
+                      <PiConfigImportExport />
+                    </section>
+
                     {/* Section — Experimental (py 18). */}
                     <section className="py-[18px]" aria-label={t('settings.sections.experimental')}>
                       <ExperimentalSection />
@@ -613,6 +624,54 @@ export function SettingsView() {
               <div role="tabpanel" id="settings-panel-about" aria-labelledby="settings-tab-about">
                 <section aria-label={t('settings.sections.about')}>
                   <AboutSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-dashboard' && (
+              <div role="tabpanel" id="settings-panel-pi-dashboard" aria-labelledby="settings-tab-pi-dashboard">
+                <section aria-label={t('settings.tabs.piDashboard')}>
+                  <PiDashboardSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-sessions' && (
+              <div role="tabpanel" id="settings-panel-pi-sessions" aria-labelledby="settings-tab-pi-sessions">
+                <section aria-label={t('settings.tabs.piSessions')}>
+                  <PiSessionsSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-memory' && (
+              <div role="tabpanel" id="settings-panel-pi-memory" aria-labelledby="settings-tab-pi-memory">
+                <section aria-label={t('settings.tabs.piMemory')}>
+                  <PiMemorySection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-subagents' && (
+              <div role="tabpanel" id="settings-panel-pi-subagents" aria-labelledby="settings-tab-pi-subagents">
+                <section aria-label={t('settings.tabs.piSubagents')}>
+                  <PiSubagentsSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-speedtest' && (
+              <div role="tabpanel" id="settings-panel-pi-speedtest" aria-labelledby="settings-tab-pi-speedtest">
+                <section aria-label={t('settings.tabs.piSpeedtest')}>
+                  <PiSpeedTestSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'pi-packages' && (
+              <div role="tabpanel" id="settings-panel-pi-packages" aria-labelledby="settings-tab-pi-packages">
+                <section aria-label={t('settings.tabs.piPackages')}>
+                  <PiPackagesSection />
                 </section>
               </div>
             )}

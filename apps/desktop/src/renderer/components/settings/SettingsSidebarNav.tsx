@@ -2,20 +2,26 @@ import type { ComponentType, ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LucideProps } from 'lucide-react';
 import {
+  Activity,
   Boxes,
+  Brain,
   ChartColumn,
   CircleDollarSign,
   CircleHelp,
   FileUp,
+  Gauge,
   Info,
   Keyboard,
   MessageCircle,
+  MessageSquare,
   Mic,
   MonitorCog,
   MonitorSmartphone,
+  Package,
   Plug,
   Settings2,
   Sparkles,
+  Users,
   Wrench,
 } from 'lucide-react';
 
@@ -72,6 +78,12 @@ const TAB_ICON: Record<VisibleSettingsTab, SettingsNavIcon> = {
   'builtin-tools': Wrench,
   'computer-use': MonitorCog,
   'im-bot': MessageCircle,
+  'pi-dashboard': Activity,
+  'pi-sessions': MessageSquare,
+  'pi-memory': Brain,
+  'pi-subagents': Users,
+  'pi-speedtest': Gauge,
+  'pi-packages': Package,
   help: CircleHelp,
   about: Info,
 };

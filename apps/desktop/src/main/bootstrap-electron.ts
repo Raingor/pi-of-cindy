@@ -747,6 +747,7 @@ import { disposeDesktopContactsManager } from './maker-host/maker-contacts-host.
 import { registerMakerHelpIpc } from './maker-ipc/help.js';
 import { registerHelpFeedbackIpc } from './maker-ipc/help-feedback.js';
 import { registerMyIssuesIpc } from './maker-ipc/my-issues.js';
+import { registerPiAgentIpc } from './maker-ipc/piAgentHandlers.js';
 import { registerMakerPlanWriteIpc } from './maker-ipc/plan-write.js';
 import { registerMakerRewindIpc } from './maker-ipc/rewind.js';
 import { registerMakerForkIpc } from './maker-ipc/fork.js';
@@ -7979,6 +7980,9 @@ app.on('ready', async () => {
   // (或二进制 provision 失败时)就可能被打开 —— 挂在 splash 之后会让页面拿到
   // "No handler registered" 且不会自动恢复。
   registerMyIssuesIpc();
+  // Pi Agent 数据层(pi-web-switch 移植):读写 ~/.pi/agent/ 下的配置/会话/记忆等。
+  // 不依赖 Maker 与 agent 二进制,Settings 打开即可用。
+  registerPiAgentIpc();
   // chat-data-localization F2/F5：注册 localDb IPC + 干净退出快照钩子。
   // 不立即开 db；ensureReady 由 AuthContext 在登录成功后通过 IPC 触发。
   // onReady 回调是 owner DB 权威就绪点；它先放行本地读，再与 splash 端的

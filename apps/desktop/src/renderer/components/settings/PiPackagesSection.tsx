@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, Puzzle, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowUpCircle, ChevronDown, ChevronRight, PackageSearch, Puzzle, RefreshCw, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type {
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { extractIpcError } from '@/utils/ipcError';
 import { SettingsTextInput } from './SettingsTextInput';
+import { PackageBrowser } from './pi-packages/PackageBrowser';
 
 const CARD_CLASS = cn(
   'flex flex-col overflow-hidden rounded-xl',
@@ -139,6 +140,14 @@ export function PiPackagesSection() {
   const [compatibilityNotice, setCompatibilityNotice] = useState<PiPackageView | null>(null);
   const [busy, setBusy] = useState<PiPackageBusyOperation | null>(null);
   const [expandedSources, setExpandedSources] = useState<Set<string>>(() => new Set());
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{
+    pi: { name: string; installed: string; latest: string | null; hasUpdate: boolean } | null;
+    extensions: Array<{ name: string; installed: string; latest: string | null; hasUpdate: boolean }>;
+    checkedAt: number;
+  } | null>(null);
+  const [updatingNames, setUpdatingNames] = useState<Set<string>>(new Set());
   const mountedRef = useRef(false);
   const hasLoadedRef = useRef(false);
   const loadGenerationRef = useRef(0);
@@ -225,6 +234,101 @@ export function PiPackagesSection() {
     }
   };
 
+  const api = window.electronAPI?.maker?.piAgent;
+
+  const checkForUpdates = async () => {
+    if (!api?.checkUpdates || updateChecking) return;
+    setUpdateChecking(true);
+    try {
+      const result = (await api.checkUpdates()) as Awaited<ReturnType<typeof api.checkUpdates>>;
+      setUpdateResult(result as typeof updateResult);
+    } catch {
+      toast.error(t('settings.piPackages.updateCheckFailed'));
+    } finally {
+      setUpdateChecking(false);
+    }
+  };
+
+  const applyUpdate = async (name: string) => {
+    if (!api?.applyUpdates || updatingNames.has(name)) return;
+    setUpdatingNames((prev) => new Set(prev).add(name));
+    try {
+      const results = (await api.applyUpdates([name])) as Array<{
+        name: string;
+        success: boolean;
+        message?: string;
+      }>;
+      const r = results.find((x) => x.name === name);
+      if (r?.success) {
+        toast.success(t('settings.piPackages.updateSuccess', { name }));
+        setUpdateResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                pi: prev.pi?.name === name ? { ...prev.pi, hasUpdate: false } : prev.pi,
+                extensions: prev.extensions.map((e) =>
+                  e.name === name ? { ...e, hasUpdate: false } : e,
+                ),
+              }
+            : prev,
+        );
+      } else {
+        toast.error(r?.message ?? t('settings.piPackages.updateFailed', { name }));
+      }
+    } catch {
+      toast.error(t('settings.piPackages.updateFailed', { name }));
+    } finally {
+      setUpdatingNames((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      });
+    }
+  };
+
+  const applyAllUpdates = async () => {
+    if (!updateResult) return;
+    const names = [
+      ...(updateResult.pi?.hasUpdate ? [updateResult.pi.name] : []),
+      ...updateResult.extensions.filter((e) => e.hasUpdate).map((e) => e.name),
+    ];
+    if (names.length === 0) return;
+    setUpdatingNames(new Set(names));
+    try {
+      const results = (await api!.applyUpdates(names)) as Array<{
+        name: string;
+        success: boolean;
+        message?: string;
+      }>;
+      const succeeded = results.filter((r) => r.success).map((r) => r.name);
+      if (succeeded.length > 0) {
+        toast.success(t('settings.piPackages.updateAllSuccess', { count: succeeded.length }));
+      }
+      const failed = results.filter((r) => !r.success);
+      if (failed.length > 0) {
+        toast.error(t('settings.piPackages.updateAllPartial', { count: failed.length }));
+      }
+      setUpdateResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              pi:
+                prev.pi && succeeded.includes(prev.pi.name)
+                  ? { ...prev.pi, hasUpdate: false }
+                  : prev.pi,
+              extensions: prev.extensions.map((e) =>
+                succeeded.includes(e.name) ? { ...e, hasUpdate: false } : e,
+              ),
+            }
+          : prev,
+      );
+    } catch {
+      toast.error(t('settings.piPackages.updateCheckFailed'));
+    } finally {
+      setUpdatingNames(new Set());
+    }
+  };
+
   const installSource = source.trim();
   const empty = useMemo(
     () => loadState === 'ready' && available && packages.length === 0,
@@ -304,6 +408,177 @@ export function PiPackagesSection() {
             {t('settings.piPackages.inspectionHint')}
           </p>
         </div>
+      </section>
+
+      {/* Browse Packages */}
+      <section className="flex flex-col gap-3" aria-labelledby="pi-extension-browse-title">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1">
+            <h3
+              id="pi-extension-browse-title"
+              className="text-14 font-medium text-[var(--settings-section-sublabel)]"
+            >
+              {t('settings.piPackages.browseTitle')}
+            </h3>
+            <p className="text-12 leading-[1.45] text-[var(--settings-section-desc)]">
+              {t('settings.piPackages.browseDescription')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBrowseOpen((v) => !v)}
+            className={cn(ACTION_CLASS, 'gap-1.5')}
+          >
+            <PackageSearch size={14} />
+            {browseOpen
+              ? t('settings.piPackages.browseCollapse')
+              : t('settings.piPackages.browseExpand')}
+          </button>
+        </div>
+        {browseOpen && (
+          <div className={CARD_CLASS}>
+            <div className="px-4 py-4">
+              <PackageBrowser
+                installedSources={new Set(packages.map((p) => p.source))}
+                onInstall={(id) => {
+                  if (isRelativeLocalPiPackageSource(id)) {
+                    toast.error(t('settings.piPackages.relativePathUnsupported'));
+                    return;
+                  }
+                  void runMutation('install', id);
+                }}
+                busy={Boolean(busy)}
+              />
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Updates */}
+      <section className="flex flex-col gap-3" aria-labelledby="pi-extension-updates-title">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1">
+            <h3
+              id="pi-extension-updates-title"
+              className="text-14 font-medium text-[var(--settings-section-sublabel)]"
+            >
+              {t('settings.piPackages.updatesTitle')}
+            </h3>
+            <p className="text-12 leading-[1.45] text-[var(--settings-section-desc)]">
+              {t('settings.piPackages.updatesDescription')}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={updateChecking || loadState !== 'ready'}
+            onClick={() => void checkForUpdates()}
+            className={cn(ACTION_CLASS, 'gap-1.5')}
+          >
+            {updateChecking ? <Spinner size={14} /> : <RefreshCw size={14} />}
+            {t('settings.piPackages.checkUpdates')}
+          </button>
+        </div>
+
+        {updateResult && (
+          <div className={CARD_CLASS}>
+            <div className="flex flex-col gap-2 px-4 py-3">
+              {updateResult.pi && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--settings-theme-card-border)] px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-13 font-medium text-[var(--settings-section-title)]">
+                      Pi Agent
+                    </p>
+                    <p className="text-11 text-[var(--settings-section-desc)]">
+                      {t('settings.piPackages.updateVersion', {
+                        installed: updateResult.pi.installed,
+                        latest: updateResult.pi.latest ?? '—',
+                      })}
+                    </p>
+                  </div>
+                  {updateResult.pi.hasUpdate ? (
+                    <button
+                      type="button"
+                      disabled={updatingNames.has(updateResult.pi.name)}
+                      onClick={() => void applyUpdate(updateResult.pi!.name)}
+                      className={cn(ACTION_CLASS, 'gap-1 text-11')}
+                    >
+                      {updatingNames.has(updateResult.pi.name) ? (
+                        <Spinner size={12} />
+                      ) : (
+                        <ArrowUpCircle size={13} />
+                      )}
+                      {t('settings.piPackages.update')}
+                    </button>
+                  ) : (
+                    <span className="text-11 text-emerald-500">
+                      {t('settings.piPackages.upToDate')}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {updateResult.extensions.map((ext) => (
+                <div
+                  key={ext.name}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[var(--settings-theme-card-border)] px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-13 font-medium text-[var(--settings-section-title)]">
+                      {ext.name}
+                    </p>
+                    <p className="text-11 text-[var(--settings-section-desc)]">
+                      {t('settings.piPackages.updateVersion', {
+                        installed: ext.installed,
+                        latest: ext.latest ?? '—',
+                      })}
+                    </p>
+                  </div>
+                  {ext.hasUpdate ? (
+                    <button
+                      type="button"
+                      disabled={updatingNames.has(ext.name)}
+                      onClick={() => void applyUpdate(ext.name)}
+                      className={cn(ACTION_CLASS, 'gap-1 text-11')}
+                    >
+                      {updatingNames.has(ext.name) ? (
+                        <Spinner size={12} />
+                      ) : (
+                        <ArrowUpCircle size={13} />
+                      )}
+                      {t('settings.piPackages.update')}
+                    </button>
+                  ) : (
+                    <span className="text-11 text-emerald-500">
+                      {t('settings.piPackages.upToDate')}
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {updateResult.extensions.length === 0 && !updateResult.pi && (
+                <p className="py-4 text-center text-12 text-[var(--settings-section-desc)]">
+                  {t('settings.piPackages.noUpdates')}
+                </p>
+              )}
+
+              {updateResult.extensions.some((e) => e.hasUpdate) || updateResult.pi?.hasUpdate ? (
+                <button
+                  type="button"
+                  disabled={updatingNames.size > 0}
+                  onClick={() => void applyAllUpdates()}
+                  className={cn(ACTION_CLASS, 'mt-1 self-start gap-1.5')}
+                >
+                  {updatingNames.size > 0 ? (
+                    <Spinner size={14} />
+                  ) : (
+                    <ArrowUpCircle size={14} />
+                  )}
+                  {t('settings.piPackages.updateAll')}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-3" aria-labelledby="pi-extension-installed-title">

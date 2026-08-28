@@ -26,6 +26,12 @@ export type SettingsTab =
   | 'pi-extensions'
   | 'computer-use'
   | 'im-bot'
+  | 'pi-dashboard'
+  | 'pi-sessions'
+  | 'pi-memory'
+  | 'pi-subagents'
+  | 'pi-speedtest'
+  | 'pi-packages'
   | 'help'
   | 'about';
 
@@ -53,6 +59,13 @@ export const TAB_IDS = [
   'ghosts',
   'builtin-tools',
   'computer-use',
+  // ── Pi Agent 工具集(pi-web-switch 移植) ──
+  'pi-dashboard',
+  'pi-sessions',
+  'pi-memory',
+  'pi-subagents',
+  'pi-speedtest',
+  'pi-packages',
   'help',
   'about',
 ] as const satisfies ReadonlyArray<SettingsTab>;
@@ -78,6 +91,12 @@ export const TAB_LABEL_KEY: Record<SettingsTab, string> = {
   'pi-extensions': 'settings.tabs.piExtensions',
   'computer-use': 'settings.tabs.computerUse',
   'im-bot': 'settings.tabs.imBot',
+  'pi-dashboard': 'settings.tabs.piDashboard',
+  'pi-sessions': 'settings.tabs.piSessions',
+  'pi-memory': 'settings.tabs.piMemory',
+  'pi-subagents': 'settings.tabs.piSubagents',
+  'pi-speedtest': 'settings.tabs.piSpeedtest',
+  'pi-packages': 'settings.tabs.piPackages',
   help: 'settings.tabs.help',
   about: 'settings.tabs.about',
 };

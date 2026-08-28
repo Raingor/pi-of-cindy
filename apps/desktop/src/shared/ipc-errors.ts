@@ -241,7 +241,13 @@ export type IpcErrorCode =
   | 'PRIVACY_CONSENT_REQUIRED' // 未明示同意《隐私政策》
   | 'LOG_UPLOAD_EMPTY' // 采集后没有任何可上报的记录
   | 'LOG_UPLOAD_FAILED' // 上传失败(离线 / 被拒 / 超时)
-  | 'LOG_UPLOAD_BUSY'; // 已有一次上报在进行中
+  | 'LOG_UPLOAD_BUSY' // 已有一次上报在进行中
+  // Pi Agent 数据层(pi-web-switch 移植):~/.pi/agent/ 文件读写
+  | 'PI_AGENT_DIR_NOT_FOUND' // ~/.pi/agent 目录不存在(用户未安装 pi CLI)
+  | 'PI_AGENT_FILE_CORRUPT' // JSON/JSONL 文件解析失败
+  | 'PI_AGENT_SESSION_LOCKED' // 会话文件正被 pi 进程写入,不允许删除
+  | 'PI_AGENT_MEMORY_BUSY' // memory 整合已在进行中(全局并发 1)
+  | 'PI_AGENT_IMPORT_FAILED'; // 配置导入合并失败(格式/版本不兼容)
 
 export interface IpcError {
   code: IpcErrorCode;
@@ -440,6 +446,11 @@ const IPC_ERROR_CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'LOG_UPLOAD_EMPTY',
   'LOG_UPLOAD_FAILED',
   'LOG_UPLOAD_BUSY',
+  'PI_AGENT_DIR_NOT_FOUND',
+  'PI_AGENT_FILE_CORRUPT',
+  'PI_AGENT_SESSION_LOCKED',
+  'PI_AGENT_MEMORY_BUSY',
+  'PI_AGENT_IMPORT_FAILED',
 ]);
 
 export function isIpcErrorCode(code: unknown): code is IpcErrorCode {

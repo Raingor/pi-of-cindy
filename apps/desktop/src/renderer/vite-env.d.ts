@@ -6297,6 +6297,36 @@ interface ElectronAPI {
       updateDriver: (opts?: { joinOnly?: boolean }) => Promise<ComputerDriverInstallResult>;
       onUpdateProgress: (callback: (progress: ComputerDriverUpdateProgress) => void) => () => void;
     };
+
+    // ── Pi Agent 数据层 (pi-web-switch 移植) ──
+    piAgent: {
+      readSettings: () => Promise<unknown>;
+      writeSettings: (settings: unknown) => Promise<unknown>;
+      readUsage: () => Promise<unknown>;
+      usageByRange: (fromDate: string, toDate: string) => Promise<unknown>;
+      listSessions: () => Promise<unknown[]>;
+      sessionPreview: (filePath: string, limit?: number) => Promise<unknown>;
+      trashSession: (filePath: string) => Promise<unknown>;
+      listTrash: () => Promise<unknown[]>;
+      restoreTrash: (trashPath: string) => Promise<unknown>;
+      deleteTrash: (trashPath: string) => Promise<unknown>;
+      readMemory: () => Promise<unknown>;
+      deleteMemoryEntry: (filename: string, entryText: string) => Promise<unknown>;
+      optimizeMemory: () => Promise<unknown>;
+      readMemoryConfig: () => Promise<unknown>;
+      writeMemoryConfig: (config: unknown) => Promise<unknown>;
+      readMemoryStatus: () => Promise<unknown>;
+      readSubagents: () => Promise<unknown>;
+      updateAgent: (fileName: string, patch: { model?: string; thinking?: string }) => Promise<unknown>;
+      checkUpdates: () => Promise<unknown>;
+      applyUpdates: (names: string[]) => Promise<unknown>;
+      searchPackages: (query: string) => Promise<unknown[]>;
+      testProvider: (baseUrl: string, apiKey?: string) => Promise<unknown>;
+      testModel: (baseUrl: string, modelId: string, apiKey?: string) => Promise<unknown>;
+      fetchModels: (baseUrl: string, apiKey?: string) => Promise<unknown[]>;
+      exportConfig: () => Promise<unknown>;
+      importConfig: (config: unknown) => Promise<unknown>;
+    };
   };
 }
 

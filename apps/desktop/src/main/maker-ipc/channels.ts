@@ -741,6 +741,35 @@ export const MAKER_INVOKE = {
   GOAL_PAUSE: 'maker:goal:pause',
   GOAL_RESUME: 'maker:goal:resume',
   GOAL_UPDATE: 'maker:goal:update',
+  // ── Pi Agent 数据层 (pi-web-switch 移植) ─────────────────────────────────
+  // 读写 ~/.pi/agent/ 下的 settings/auth/models/sessions/memory/subagents 等。
+  // 只读通道不写 Cindy 自身的 SQLite store,无数据冲突。
+  PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
+  PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
+  PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',
+  PI_AGENT_USAGE_BY_RANGE: 'maker:pi-agent:usage-by-range',
+  PI_AGENT_LIST_SESSIONS: 'maker:pi-agent:list-sessions',
+  PI_AGENT_SESSION_PREVIEW: 'maker:pi-agent:session-preview',
+  PI_AGENT_TRASH_SESSION: 'maker:pi-agent:trash-session',
+  PI_AGENT_LIST_TRASH: 'maker:pi-agent:list-trash',
+  PI_AGENT_RESTORE_TRASH: 'maker:pi-agent:restore-trash',
+  PI_AGENT_DELETE_TRASH: 'maker:pi-agent:delete-trash',
+  PI_AGENT_READ_MEMORY: 'maker:pi-agent:read-memory',
+  PI_AGENT_DELETE_MEMORY_ENTRY: 'maker:pi-agent:delete-memory-entry',
+  PI_AGENT_OPTIMIZE_MEMORY: 'maker:pi-agent:optimize-memory',
+  PI_AGENT_READ_MEMORY_CONFIG: 'maker:pi-agent:read-memory-config',
+  PI_AGENT_WRITE_MEMORY_CONFIG: 'maker:pi-agent:write-memory-config',
+  PI_AGENT_READ_MEMORY_STATUS: 'maker:pi-agent:read-memory-status',
+  PI_AGENT_READ_SUBAGENTS: 'maker:pi-agent:read-subagents',
+  PI_AGENT_UPDATE_AGENT: 'maker:pi-agent:update-agent',
+  PI_AGENT_CHECK_UPDATES: 'maker:pi-agent:check-updates',
+  PI_AGENT_APPLY_UPDATES: 'maker:pi-agent:apply-updates',
+  PI_AGENT_SEARCH_PACKAGES: 'maker:pi-agent:search-packages',
+  PI_AGENT_TEST_PROVIDER: 'maker:pi-agent:test-provider',
+  PI_AGENT_TEST_MODEL: 'maker:pi-agent:test-model',
+  PI_AGENT_FETCH_MODELS: 'maker:pi-agent:fetch-models',
+  PI_AGENT_EXPORT_CONFIG: 'maker:pi-agent:export-config',
+  PI_AGENT_IMPORT_CONFIG: 'maker:pi-agent:import-config',
 } as const;
 
 /**

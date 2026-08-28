@@ -10,6 +10,7 @@ import {
   FolderOpen,
   Import as ImportIcon,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -327,6 +328,10 @@ export function AppearanceSection() {
   const [localThemesVersion, setLocalThemesVersion] = useState(0);
   const [uiSizeInput, setUiSizeInput] = useState(String(uiSize));
   const [codeSizeInput, setCodeSizeInput] = useState(String(codeSize));
+  const [windowZoom, setWindowZoom] = useState(() => {
+    return window.electronAPI?.appearanceSettings?.getSync?.()?.windowZoom ?? 1;
+  });
+  const [zoomInput, setZoomInput] = useState(String(Math.round(windowZoom * 100)));
   const families = useMemo(() => getThemeFamilies(), [localThemesVersion]);
   const selectedFamily = families.find((f) => f.id === familyId) ?? families[0];
 
@@ -341,6 +346,23 @@ export function AppearanceSection() {
   useEffect(() => {
     setCodeSizeInput(String(codeSize));
   }, [codeSize]);
+
+  const commitWindowZoom = useCallback((value: number) => {
+    const clamped = Math.min(3, Math.max(0.5, Math.round(value * 10) / 10));
+    setWindowZoom(clamped);
+    setZoomInput(String(Math.round(clamped * 100)));
+    window.electronAPI?.appearanceSettings?.setPatch?.({ windowZoom: clamped });
+  }, []);
+
+  const commitZoomInput = useCallback(() => {
+    const trimmed = zoomInput.trim();
+    const next = Number(trimmed);
+    if (Number.isFinite(next) && next >= 50 && next <= 300) {
+      commitWindowZoom(next / 100);
+    } else {
+      setZoomInput(String(Math.round(windowZoom * 100)));
+    }
+  }, [zoomInput, windowZoom, commitWindowZoom]);
 
   useEffect(
     () =>
@@ -716,6 +738,78 @@ export function AppearanceSection() {
                 'focus:border-[var(--settings-input-border-focus)]',
               )}
             />
+          </div>
+        </div>
+
+        <div className="h-px bg-[var(--settings-input-border)]" />
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p
+                className="text-13 font-medium text-[var(--settings-section-sublabel)]"
+                style={{ letterSpacing: '0.12px' }}
+              >
+                {t('settings.appearance.zoom.label')}
+              </p>
+              <p className="mt-1 text-12 leading-[1.4] text-[var(--settings-section-sublabel)] opacity-70">
+                {t('settings.appearance.zoom.description')}
+              </p>
+            </div>
+            <Tip text={t('settings.appearance.zoom.reset')}>
+              <button
+                type="button"
+                aria-label={t('settings.appearance.zoom.reset')}
+                onClick={() => commitWindowZoom(1)}
+                disabled={windowZoom === 1}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl',
+                  'border border-[var(--settings-input-border)]',
+                  'bg-[var(--settings-input-bg)] text-[var(--settings-input-text)]',
+                  'transition-colors hover:bg-[var(--settings-menu-bg-hover)]',
+                  'disabled:cursor-default disabled:opacity-40 disabled:hover:bg-[var(--settings-input-bg)]',
+                )}
+              >
+                <RefreshCw size={14} />
+              </button>
+            </Tip>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Search size={14} className="shrink-0 text-[var(--settings-section-sublabel)] opacity-50" />
+            <Slider
+              min={50}
+              max={300}
+              step={10}
+              value={[Math.round(windowZoom * 100)]}
+              onValueChange={([next]) => {
+                if (typeof next === 'number') commitWindowZoom(next / 100);
+              }}
+              aria-label={t('settings.appearance.zoom.aria')}
+            />
+            <input
+              type="number"
+              aria-label={t('settings.appearance.zoom.label')}
+              min={50}
+              max={300}
+              step={10}
+              value={zoomInput}
+              onChange={(e) => setZoomInput(e.target.value)}
+              onBlur={commitZoomInput}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  commitZoomInput();
+                  e.currentTarget.blur();
+                }
+              }}
+              className={cn(
+                'h-9 w-[72px] rounded-xl border px-3 text-right text-13 outline-none',
+                'border-[var(--settings-input-border)] bg-[var(--settings-input-bg)]',
+                'font-mono text-[var(--settings-input-text)]',
+                'focus:border-[var(--settings-input-border-focus)]',
+              )}
+            />
+            <span className="shrink-0 text-12 text-[var(--settings-section-sublabel)] opacity-50">%</span>
           </div>
         </div>
 
