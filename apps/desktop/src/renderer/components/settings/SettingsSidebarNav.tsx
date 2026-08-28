@@ -6,7 +6,6 @@ import {
   Boxes,
   Brain,
   CircleHelp,
-  FileUp,
   Gauge,
   Info,
   Keyboard,
@@ -14,11 +13,9 @@ import {
   MonitorCog,
   MonitorSmartphone,
   Package,
-  Plug,
   Settings2,
   Sparkles,
   Users,
-  Wrench,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -65,10 +62,7 @@ const TAB_ICON: Record<VisibleSettingsTab, SettingsNavIcon> = {
   providers: Boxes,
   shortcuts: Keyboard,
   'agent-island': AgentIslandNavIcon,
-  import: FileUp,
   'remote-control': MonitorSmartphone,
-  ghosts: Plug,
-  'builtin-tools': Wrench,
   'computer-use': MonitorCog,
   'pi-dashboard': Activity,
   'pi-sessions': MessageSquare,
