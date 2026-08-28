@@ -36,7 +36,6 @@ import {
 
 import { cn } from '@/lib/utils';
 import { useProviders } from '@/hooks/useProviders';
-import { isChatGptConnectionConnected, useCodexAuth } from '@/hooks/useCodexAuth';
 import { useApiKey } from '@/hooks/useApiKey';
 import { extractIpcError } from '@/utils/ipcError';
 import { useModelAccessStatus } from '@/hooks/useModelAccessStatus';
@@ -91,7 +90,6 @@ import { OAuthDeviceCodeCard } from './OAuthDeviceCodeCard';
 import { SettingsTextInput } from './SettingsTextInput';
 import { buildUnionRows, UnifiedModelList } from './UnifiedModelList';
 import { EnabledModelsPanel } from './EnabledModelsPanel';
-import { AnthropicMark } from '@/components/icons/AnthropicMark';
 import { OpenAIMark } from '@/components/icons/OpenAIMark';
 import { XDIncMark } from '@/components/icons/XDIncMark';
 import { hasProviderLogo, ProviderLogoMark } from '@/components/icons/ProviderLogoMark';
@@ -105,6 +103,9 @@ import type { CustomProviderConfig, ProviderView } from '@cindy/model-providers'
 // ---------------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------------
+
+/** 2026-08-29 Pi-first 改造:订阅 OAuth 已下架的内置渠道(id),设置 UI 不再提供接入入口。 */
+const RETIRED_OAUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['anthropic', 'openai']);
 
 function providerHasModels(provider: ProviderView): boolean {
   // 专属媒体清单(imageModels/videoModels/embeddingModels)也算「有模型」:XD 动态
@@ -153,23 +154,6 @@ function ConnectedPill() {
     >
       <Check size={12} strokeWidth={2.5} />
       {t('settings.providers.pill.connected')}
-    </span>
-  );
-}
-
-/** OpenAI OAuth 仍可恢复但需要用户重新连接；使用中性 chip，避免表现成全局故障。 */
-function ReconnectRequiredPill() {
-  const { t } = useTranslation();
-  return (
-    <span
-      className="flex h-[22px] shrink-0 select-none items-center gap-1 rounded-full px-2.5 text-11 font-medium"
-      style={{
-        backgroundColor: 'var(--settings-btn-secondary-bg)',
-        color: 'var(--settings-section-desc)',
-      }}
-    >
-      <RefreshCw size={11} />
-      {t('settings.providers.openai.reconnectRequired')}
     </span>
   );
 }
@@ -462,215 +446,17 @@ function DetailHeader({
 }
 
 // ---------------------------------------------------------------------------
-// Anthropic —— OAuth(Claude.ai 订阅),复用 maker.claudeOAuth*。
+// OpenAI —— ChatGPT/Codex 订阅 OAuth 已随 2026-08-29 Pi-first 改造下架(后端
+// 保留);设置里仅保留与登录态解耦的图像平台 key 管理。
 // ---------------------------------------------------------------------------
 
-function AnthropicHeader({
-  provider,
-  onChanged,
-}: {
-  provider?: ProviderView;
-  onChanged: () => void;
-}) {
+function OpenAiImagesHeader({ provider }: { provider?: ProviderView }) {
   const { t } = useTranslation();
-  const { confirm } = useConfirmDialog();
-  const [busy, setBusy] = useState(false);
-  const [loggingIn, setLoggingIn] = useState(false);
-  const connected = provider?.connected ?? false;
-
-  const handleLogin = useCallback(async () => {
-    setLoggingIn(true);
-    try {
-      const r = await window.electronAPI.maker.claudeOAuthLogin();
-      if (r.ok) {
-        toast.success(t('settings.connections.claude.toast.loggedIn'));
-        onChanged();
-      } else if (r.reason === 'login_cancelled') {
-        /* 用户取消,不弹错 */
-      } else if (r.reason === 'not_a_subscription') {
-        toast.error(t('settings.connections.claude.toast.notSubscription'));
-      } else {
-        toast.error(t('settings.connections.claude.toast.loginFailed'));
-      }
-    } catch {
-      toast.error(t('settings.connections.claude.toast.loginFailed'));
-    } finally {
-      setLoggingIn(false);
-    }
-  }, [onChanged, t]);
-
-  const handleLogout = useCallback(async () => {
-    const confirmed = await confirm({
-      title: t('settings.connections.claude.logoutConfirm.title'),
-      description: t('settings.connections.claude.logoutConfirm.description'),
-      confirmText: t('settings.connections.claude.logoutConfirm.confirm'),
-      cancelText: t('settings.connections.claude.logoutConfirm.cancel'),
-    });
-    if (!confirmed) return;
-    setBusy(true);
-    try {
-      await window.electronAPI.maker.claudeOAuthLogout();
-      toast.success(t('settings.connections.claude.toast.loggedOut'));
-      onChanged();
-    } catch {
-      toast.error(t('settings.connections.claude.toast.logoutFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }, [confirm, onChanged, t]);
-
-  const trailing = connected ? (
-    <div className="flex shrink-0 items-center gap-2.5">
-      <ConnectedPill />
-      <PillButton
-        label={t('settings.providers.button.disconnect')}
-        onClick={() => void handleLogout()}
-        disabled={busy}
-      />
-    </div>
-  ) : (
-    <PillButton
-      label={
-        loggingIn ? t('settings.providers.button.cancel') : t('settings.providers.button.authorize')
-      }
-      onClick={() => {
-        if (loggingIn) {
-          void window.electronAPI.maker.claudeOAuthCancel();
-          setLoggingIn(false);
-        } else {
-          void handleLogin();
-        }
-      }}
-    />
-  );
-
-  return (
-    <DetailHeader
-      icon={<AnthropicMark size={18} />}
-      title={t('settings.providers.anthropic.title')}
-      subtitle={providerSubtitleForDisplay(provider, t('settings.providers.anthropic.modelLabel'), {
-        fallback: t('settings.providers.anthropic.subtitle'),
-      })}
-      trailing={trailing}
-      provider={provider}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// OpenAI —— OAuth(ChatGPT 订阅 / Codex),复用 useCodexAuth()。
-// ---------------------------------------------------------------------------
-
-function OpenAiHeader({ provider, onChanged }: { provider?: ProviderView; onChanged: () => void }) {
-  const { t } = useTranslation();
-  const { confirm } = useConfirmDialog();
-  const {
-    state,
-    reconnectCredentialScope,
-    recoveryCheck,
-    refresh,
-    triggerLogin,
-    cancelLogin,
-    logout,
-  } = useCodexAuth();
   // 图像 API key 行(2026-07 图像多来源):ChatGPT 订阅 OAuth 调不了平台 images API
   // (实测缺 scope),图像通道用独立的平台 key。仅当目录给 openai 声明了 imageModels
   // 才渲染(远端目录可能撤掉该能力)。
   const imagesKeyRow = (provider?.imageModels?.length ?? 0) > 0 && (
     <ImageApiKeyRow secretId="openai-images" provider={provider} />
-  );
-  const reconnectRequired = state.kind === 'reconnect-required';
-  const loggingIn = state.kind === 'login-pending';
-  const connected = isChatGptConnectionConnected(state, provider?.connected ?? false);
-  const credentialScope = reconnectRequired
-    ? (state.credentialScope ?? 'unknown')
-    : (reconnectCredentialScope ?? 'unknown');
-
-  const handleLogout = useCallback(async () => {
-    const confirmed = await confirm({
-      title: t('settings.connections.codex.logoutConfirm.title'),
-      description: t('settings.connections.codex.logoutConfirm.description'),
-      confirmText: t('settings.connections.codex.logoutConfirm.confirm'),
-      cancelText: t('settings.connections.codex.logoutConfirm.cancel'),
-    });
-    if (!confirmed) return;
-    try {
-      await logout();
-      toast.success(t('settings.connections.codex.toast.loggedOut'));
-    } catch {
-      toast.error(t('settings.connections.codex.toast.logoutFailed'));
-    } finally {
-      onChanged();
-    }
-  }, [confirm, logout, onChanged, t]);
-
-  const handleLogin = useCallback(async () => {
-    const outcome = await triggerLogin();
-    if (outcome === 'authenticated') {
-      onChanged();
-    } else if (outcome === 'unverified') {
-      toast.error(t('chatgptAuthRecovery.verificationFailed'));
-    } else if (outcome === 'failed') {
-      toast.error(t('settings.connections.codex.toast.loginFailed'));
-    }
-  }, [triggerLogin, onChanged, t]);
-
-  const handleRecovery = useCallback(async () => {
-    if (recoveryCheck === 'checking' || loggingIn) return;
-    if (recoveryCheck === 'failed') {
-      await refresh();
-      return;
-    }
-    await handleLogin();
-  }, [handleLogin, loggingIn, recoveryCheck, refresh]);
-
-  const recoveryDetail = reconnectRequired ? (
-    <p className="text-12 leading-relaxed text-[var(--settings-integration-subtitle)]">
-      {t(
-        credentialScope === 'system-shared'
-          ? 'chatgptAuthRecovery.systemSharedInvalidated'
-          : credentialScope === 'instance-isolated'
-            ? 'chatgptAuthRecovery.instanceIsolatedInvalidated'
-            : 'chatgptAuthRecovery.unknownInvalidated',
-      )}
-    </p>
-  ) : null;
-
-  const trailing = connected ? (
-    <div className="flex shrink-0 items-center gap-2.5">
-      <ConnectedPill />
-      <PillButton
-        label={t('settings.providers.button.disconnect')}
-        onClick={() => void handleLogout()}
-      />
-    </div>
-  ) : reconnectRequired ? (
-    <div className="flex shrink-0 items-center gap-2.5">
-      <ReconnectRequiredPill />
-      <PillButton
-        label={t(
-          recoveryCheck === 'checking' || loggingIn
-            ? 'chatgptAuthRecovery.checking'
-            : recoveryCheck === 'failed'
-              ? 'chatgptAuthRecovery.recheck'
-              : 'chatgptAuthRecovery.relogin',
-        )}
-        onClick={() => void handleRecovery()}
-        disabled={recoveryCheck === 'checking' || loggingIn}
-      />
-    </div>
-  ) : (
-    <PillButton
-      label={
-        loggingIn
-          ? t('settings.providers.openai.cancelConnect')
-          : t('settings.providers.openai.connect')
-      }
-      onClick={() => {
-        if (loggingIn) void cancelLogin();
-        else void handleLogin();
-      }}
-    />
   );
 
   return (
@@ -678,16 +464,9 @@ function OpenAiHeader({ provider, onChanged }: { provider?: ProviderView; onChan
       icon={<OpenAIMark size={18} />}
       title={t('settings.providers.openai.title')}
       subtitle={t('settings.providers.openai.subtitle')}
-      trailing={trailing}
+      trailing={undefined}
       provider={provider}
-      detail={
-        recoveryDetail || imagesKeyRow ? (
-          <div className="flex flex-col gap-3">
-            {recoveryDetail}
-            {imagesKeyRow}
-          </div>
-        ) : undefined
-      }
+      detail={imagesKeyRow ? <div className="flex flex-col gap-3">{imagesKeyRow}</div> : undefined}
     />
   );
 }
@@ -1849,10 +1628,6 @@ export function ProvidersSection() {
   const { dataOwnerId } = useAuth();
   const { confirm } = useConfirmDialog();
   const { providers, providerOrder, ownerGeneration, loading, refetch } = useProviders();
-  // OpenAI 的 reconnect-required 是 useCodexAuth 独有状态(目录 connected 此时为 false):
-  // 该状态下 OpenAI 行必须留在左栏,否则「重新连接」入口不可达,用户被迫从向导重发现。
-  const codexAuth = useCodexAuth();
-  const openaiReconnectRequired = codexAuth.state.kind === 'reconnect-required';
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingProviderOrder, setPendingProviderOrder] = useState<{
@@ -1935,16 +1710,16 @@ export function ProvidersSection() {
     const rows: ProviderView[] = [];
     for (const p of providers) {
       if (p.source === 'builtin') {
+        // 2026-08-29 Pi-first 改造:anthropic(Claude.ai OAuth)入口整体下架,不占行。
+        if (p.id === 'anthropic') continue;
+        // OpenAI 的 ChatGPT/Codex OAuth 已下架;仅当声明了图像清单时保留行,
+        // 供「图像生成 API key」(与登录态解耦的平台 key)配置管理。
+        if (p.id === 'openai') {
+          if ((p.imageModels?.length ?? 0) > 0) rows.push(p);
+          continue;
+        }
         // reconnect-required 视同占行:凭证失效 ≠ 用户断开,重连入口必须保留。
-        // OpenAI 图像 key 与 ChatGPT OAuth 两套凭证解耦:imageModels 已声明时,
-        // 即使未做 OAuth 登录也需占行以便配置 / 管理图像 key。
-        const openaiHasImageCap = p.id === 'openai' && (p.imageModels?.length ?? 0) > 0;
-        if (
-          p.id === 'xd' ||
-          p.connected ||
-          (p.id === 'openai' && openaiReconnectRequired) ||
-          openaiHasImageCap
-        ) {
+        if (p.id === 'xd' || p.connected) {
           rows.push(p);
         }
         continue;
@@ -1960,7 +1735,7 @@ export function ProvidersSection() {
       }
     }
     return rows;
-  }, [providers, openaiReconnectRequired]);
+  }, [providers]);
 
   const orderedVisibleProviders = useMemo(
     () => applyProviderOrder(visibleProviders, providerOrder),
@@ -2090,12 +1865,15 @@ export function ProvidersSection() {
     [byId, listProviders, persistVisibleProviderOrder, t],
   );
 
-  // 检测建议:CLI 已安装 + 对应渠道存在于目录 + 未连接,且**未以任何形态占行**
-  // (OpenAI reconnect-required 已在主列表时,不再重复出建议行)。
+  // 检测建议:CLI 已安装 + 对应渠道存在于目录 + 未连接,且**未以任何形态占行**。
+  // anthropic / openai 的订阅 OAuth 已随 2026-08-29 Pi-first 改造下架,不再出建议行。
   const suggestions = useMemo(() => {
     const listedIds = new Set(listProviders.map((p) => p.id));
     return detections
-      .filter((d) => d.installed && !listedIds.has(d.providerId))
+      .filter(
+        (d) =>
+          d.installed && !listedIds.has(d.providerId) && !RETIRED_OAUTH_PROVIDER_IDS.has(d.providerId),
+      )
       .map((d) => ({ detection: d, provider: byId.get(d.providerId) }))
       .filter(
         (s): s is { detection: LocalCliDetection; provider: ProviderView } =>
@@ -2128,6 +1906,8 @@ export function ProvidersSection() {
         setSelectedId(CINDY_SIGNIN_ID);
       } else if (connect === MANAGED_OLLAMA_PROVIDER_ID) {
         setWizard({});
+      } else if (RETIRED_OAUTH_PROVIDER_IDS.has(connect)) {
+        // 已下架渠道(anthropic / openai):吞掉深链参数即可,不再打开授权流。
       } else if (target && target.source === 'builtin') {
         setWizard({ entry: { kind: 'builtin', providerId: connect } });
       } else {
@@ -2302,10 +2082,10 @@ export function ProvidersSection() {
   );
 
   // 详情头部按供应商类型分派(鉴权逻辑与重构前一致)。
+  // anthropic 的唯一鉴权是已下架的 Claude.ai OAuth,行整体不再渲染(见 visibleProviders)。
   const renderDetailHeader = (p: ProviderView): ReactNode => {
     if (p.id === 'xd') return <XdGatewayHeader provider={p} onChanged={refetch} />;
-    if (p.id === 'anthropic') return <AnthropicHeader provider={p} onChanged={refetch} />;
-    if (p.id === 'openai') return <OpenAiHeader provider={p} onChanged={refetch} />;
+    if (p.id === 'openai') return <OpenAiImagesHeader provider={p} />;
     if (p.id === 'xai') return <XaiHeader provider={p} onChanged={refetch} />;
     if (
       p.source === 'builtin' &&
@@ -2382,7 +2162,6 @@ export function ProvidersSection() {
                   <ListRow
                     provider={provider}
                     selected={!cindySigninActive && effectiveSelected?.id === provider.id}
-                    reconnectRequired={provider.id === 'openai' && openaiReconnectRequired}
                     onSelect={() => setSelectedId(provider.id)}
                     position={index + 1}
                     total={listProviders.length}

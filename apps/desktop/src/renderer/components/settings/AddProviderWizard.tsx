@@ -37,7 +37,6 @@ import { extractIpcError } from '@/utils/ipcError';
 import { pickWizardRecommend, type WizardRecommend } from './wizardRecommend';
 import { localCliDisplayName, type LocalCliDetection } from '../../../shared/localCliDetect';
 import { providerMonogram } from '@/lib/providerModels';
-import { isChatGptConnectionConnected, useCodexAuth } from '@/hooks/useCodexAuth';
 import { useProviderOAuthDeviceCode } from '@/hooks/useProviderOAuthDeviceCode';
 import { hasProviderLogo, ProviderLogoMark } from '@/components/icons/ProviderLogoMark';
 import { LocalOllamaInstall, offersManagedOllamaInstall } from './LocalOllamaInstall';
@@ -330,7 +329,6 @@ export function AddProviderWizard({
   onDone,
 }: AddProviderWizardProps) {
   const { t, i18n } = useTranslation();
-  const codexAuth = useCodexAuth();
 
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [query, setQuery] = useState('');
@@ -457,7 +455,8 @@ export function AddProviderWizard({
     };
   }, []);
 
-  // Step 1 数据:未连接的 OAuth 渠道(bespoke 三家 + 目录通用 OAuth;xd 凭据自动下发不进向导)。
+  // Step 1 数据:未连接的 OAuth 渠道(xai;目录通用 OAuth;xd 凭据自动下发不进向导)。
+  // anthropic / openai 的订阅 OAuth 已随 2026-08-29 Pi-first 改造下架,不再进向导。
   const oauthChoices = useMemo(
     () =>
       providers.filter(
@@ -465,8 +464,7 @@ export function AddProviderWizard({
           p.id !== 'xd' &&
           p.source === 'builtin' &&
           !p.connected &&
-          (['anthropic', 'openai', 'xai'].includes(p.id) ||
-            (p.auth.method === 'oauth' && !!p.auth.oauth)),
+          (p.id === 'xai' || (p.auth.method === 'oauth' && !!p.auth.oauth)),
       ),
     [providers],
   );
@@ -663,68 +661,42 @@ export function AddProviderWizard({
     if (preset) pickPreset(preset);
   }, [entry, presets, pickPreset]);
 
-  /**
-   * 本向导内是否发起过 OpenAI 登录。codexAuth 反映的是整机 ChatGPT 凭证,不含
-   * 「凭证归哪个账号」的 native binding —— 换账号后本机可能已有别人绑定的登录,
-   * 此时 codexAuth 一挂载就是 connected;若不加此限定,检测建议直达打开的向导会
-   * 挂载即自关,既不弹任何 UI 也不给当前账号补绑定,「去授权」永远点不出效果。
-   */
-  const openaiLoginStartedRef = useRef(false);
-
   // ── OAuth 授权(复用既有鉴权流;成功即完成,无第 3 步)────────────────────
-  const handleAuthorize = useCallback(
-    async (mode: 'browser' | 'device-code' = 'browser') => {
-      if (!sel || sel.kind !== 'oauth') return;
-      const id = sel.provider.id;
-      clearGenericDeviceCode();
-      setLoggingIn(true);
-      try {
-        let ok = false;
-        if (id === 'anthropic') {
-          const r = await window.electronAPI.maker.claudeOAuthLogin();
-          ok = r.ok;
-          if (!r.ok && r.reason === 'not_a_subscription') {
-            toast.error(t('settings.connections.claude.toast.notSubscription'));
-            return;
-          }
-          if (!r.ok && r.reason === 'login_cancelled') return;
-        } else if (id === 'openai') {
-          openaiLoginStartedRef.current = true;
-          const outcome = await codexAuth.triggerLogin(mode);
-          ok = outcome === 'authenticated';
-          if (outcome === 'cancelled') return;
-        } else if (id === 'xai') {
-          const r = await window.electronAPI.maker.xaiOAuthLogin();
+  const handleAuthorize = useCallback(async () => {
+    if (!sel || sel.kind !== 'oauth') return;
+    const id = sel.provider.id;
+    clearGenericDeviceCode();
+    setLoggingIn(true);
+    try {
+      let ok = false;
+      if (id === 'xai') {
+        const r = await window.electronAPI.maker.xaiOAuthLogin();
+        ok = r.ok;
+        if (!r.ok && r.reason === 'login_cancelled') return;
+      } else {
+        const ownedLogin = beginGenericOwnedLogin();
+        try {
+          const r = await window.electronAPI.maker.providerOAuthLogin(id, {
+            ownerId: ownedLogin.ownerId,
+          });
           ok = r.ok;
           if (!r.ok && r.reason === 'login_cancelled') return;
-        } else {
-          const ownedLogin = beginGenericOwnedLogin();
-          try {
-            const r = await window.electronAPI.maker.providerOAuthLogin(id, {
-              ownerId: ownedLogin.ownerId,
-            });
-            ok = r.ok;
-            if (!r.ok && r.reason === 'login_cancelled') return;
-          } finally {
-            ownedLogin.finish();
-          }
+        } finally {
+          ownedLogin.finish();
         }
-        if (ok) {
-          toast.success(
-            t('settings.providers.wizard.authorizedToast', { name: sel.provider.name }),
-          );
-          onDone(id);
-        } else {
-          toast.error(t('settings.providers.wizard.authorizeFailed', { name: sel.provider.name }));
-        }
-      } catch {
-        toast.error(t('settings.providers.wizard.authorizeFailed', { name: sel.provider.name }));
-      } finally {
-        setLoggingIn(false);
       }
-    },
-    [sel, clearGenericDeviceCode, beginGenericOwnedLogin, codexAuth, onDone, t],
-  );
+      if (ok) {
+        toast.success(t('settings.providers.wizard.authorizedToast', { name: sel.provider.name }));
+        onDone(id);
+      } else {
+        toast.error(t('settings.providers.wizard.authorizeFailed', { name: sel.provider.name }));
+      }
+    } catch {
+      toast.error(t('settings.providers.wizard.authorizeFailed', { name: sel.provider.name }));
+    } finally {
+      setLoggingIn(false);
+    }
+  }, [sel, clearGenericDeviceCode, beginGenericOwnedLogin, onDone, t]);
 
   /**
    * 取消进行中的 OAuth(与详情头的行为对称):等待授权期间点按钮 / 关弹窗 / 返回
@@ -733,13 +705,11 @@ export function AddProviderWizard({
   const cancelAuthorize = useCallback(() => {
     if (!sel || sel.kind !== 'oauth') return;
     const id = sel.provider.id;
-    if (id === 'anthropic') void window.electronAPI.maker.claudeOAuthCancel();
-    else if (id === 'openai') void codexAuth.cancelLogin();
-    else if (id === 'xai') void window.electronAPI.maker.xaiOAuthCancel();
+    if (id === 'xai') void window.electronAPI.maker.xaiOAuthCancel();
     else cancelGenericOwnedLogin();
     clearGenericDeviceCode();
     setLoggingIn(false);
-  }, [sel, clearGenericDeviceCode, cancelGenericOwnedLogin, codexAuth]);
+  }, [sel, clearGenericDeviceCode, cancelGenericOwnedLogin]);
 
   /** 关闭向导:授权等待中先取消再关,不留挂起的 login runner。 */
   const handleClose = useCallback(() => {
@@ -763,22 +733,6 @@ export function AddProviderWizard({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleClose]);
-
-  // OpenAI 走 useCodexAuth:hook 状态翻 connected 时视为完成(triggerLogin 也会返回,
-  // oneshot ref 保证只收口一次)。只收口本向导内发起的登录(openaiLoginStartedRef),
-  // 不把「本机已有凭证」误当成完成 —— 见 openaiLoginStartedRef 的注释。
-  const openaiDoneRef = useRef(false);
-  useEffect(() => {
-    if (openaiDoneRef.current || !openaiLoginStartedRef.current) return;
-    if (
-      sel?.kind === 'oauth' &&
-      sel.provider.id === 'openai' &&
-      isChatGptConnectionConnected(codexAuth.state, false)
-    ) {
-      openaiDoneRef.current = true;
-      onDone('openai');
-    }
-  }, [codexAuth.state, sel, onDone]);
 
   // ── 预设:进入 Step 3 时自动拉取模型 ─────────────────────────────────────
   const startFetch = useCallback(async () => {
@@ -1179,16 +1133,6 @@ export function AddProviderWizard({
           agent: AGENT_LABEL[sel.provider.agents[0]],
         })
       : null;
-  const openAiDeviceLoginPending =
-    sel?.kind === 'oauth' &&
-    sel.provider.id === 'openai' &&
-    loggingIn &&
-    codexAuth.state.kind === 'login-pending' &&
-    codexAuth.state.mode === 'device-code';
-  const openAiDeviceCode =
-    openAiDeviceLoginPending && codexAuth.state.kind === 'login-pending'
-      ? codexAuth.state.deviceCode
-      : undefined;
 
   const checkedCount = [...picks.values()].filter((v) => v.checked).length;
   const presetHasRecommendedModels =
@@ -1582,40 +1526,22 @@ export function AddProviderWizard({
                     {t('settings.providers.button.cancel')}
                   </button>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void handleAuthorize('browser')}
-                      className="flex h-9 items-center justify-center rounded-full border px-6 text-13 font-medium transition-colors hover:bg-[var(--surface-hover)]"
-                      style={{
-                        backgroundColor: 'var(--settings-btn-secondary-bg)',
-                        borderColor: 'var(--settings-btn-secondary-border)',
-                        color: 'var(--settings-btn-secondary-text)',
-                      }}
-                    >
-                      {t(
-                        sel.provider.id === 'openai'
-                          ? 'settings.providers.wizard.authorizeInBrowser'
-                          : sel.provider.auth.oauth?.flow === 'device-code'
-                            ? 'settings.providers.wizard.authorizeWithDeviceCode'
-                            : 'settings.providers.button.authorize',
-                      )}
-                    </button>
-                    {sel.provider.id === 'openai' && (
-                      <button
-                        type="button"
-                        onClick={() => void handleAuthorize('device-code')}
-                        className="flex h-9 items-center justify-center rounded-full border px-6 text-13 font-medium transition-colors hover:bg-[var(--surface-hover)]"
-                        style={{
-                          backgroundColor: 'transparent',
-                          borderColor: 'var(--settings-btn-secondary-border)',
-                          color: 'var(--settings-btn-secondary-text)',
-                        }}
-                      >
-                        {t('settings.providers.wizard.authorizeWithDeviceCode')}
-                      </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleAuthorize()}
+                    className="flex h-9 items-center justify-center rounded-full border px-6 text-13 font-medium transition-colors hover:bg-[var(--surface-hover)]"
+                    style={{
+                      backgroundColor: 'var(--settings-btn-secondary-bg)',
+                      borderColor: 'var(--settings-btn-secondary-border)',
+                      color: 'var(--settings-btn-secondary-text)',
+                    }}
+                  >
+                    {t(
+                      sel.provider.auth.oauth?.flow === 'device-code'
+                        ? 'settings.providers.wizard.authorizeWithDeviceCode'
+                        : 'settings.providers.button.authorize',
                     )}
-                  </>
+                  </button>
                 )}
                 {/* 替代路径:API 用户没有订阅,OAuth 对其是错误路径——切到该渠道的
                     官方 API 预设表单(填 key),与从目录选预设完全同一条流水线。
@@ -1637,7 +1563,6 @@ export function AddProviderWizard({
                   </button>
                 )}
               </div>
-              {openAiDeviceLoginPending && <OAuthDeviceCodeCard deviceCode={openAiDeviceCode} />}
               {genericDeviceFlow && loggingIn && (
                 <OAuthDeviceCodeCard deviceCode={genericDeviceCode} />
               )}

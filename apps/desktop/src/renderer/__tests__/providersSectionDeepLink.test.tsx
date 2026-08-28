@@ -3,9 +3,10 @@
 /**
  * ProvidersSection — 深链定位(?connect / ?wizard)关键不变量:
  *   1. connect=<内置未占行渠道> → 向导以 builtin entry 直达授权步;URL 参数消费后被清除。
- *   2. connect=<左栏占行供应商>(如已连接的 anthropic)→ 直接选中,不开向导。
- *   3. connect=<目录外 id> → 视为 preset id,向导以 preset entry 打开。
- *   4. wizard=1 → 向导目录第一步(entry undefined)。
+ *   2. connect=<已下架的订阅 OAuth 渠道>(anthropic / openai)→ 不开向导,参数吞掉即清。
+ *   3. connect=<左栏占行供应商>(如已连接的 xai)→ 直接选中,不开向导。
+ *   4. connect=<目录外 id> → 视为 preset id,向导以 preset entry 打开。
+ *   5. wizard=1 → 向导目录第一步(entry undefined)。
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -186,72 +187,16 @@ afterEach(() => {
 });
 
 describe('ProvidersSection — 深链定位', () => {
-  it('ChatGPT 系统共享登录失效时显示来源说明并在 Cindy 中重新登录', async () => {
-    codexAuthState.state = {
-      kind: 'reconnect-required',
-      reason: 'token_revoked',
-      credentialScope: 'system-shared',
-    };
-    codexAuthState.reconnectCredentialScope = 'system-shared';
-    providersState.providers = [
-      makeProvider('openai', {
-        name: 'OpenAI',
-        agents: ['codex', 'claude-code'],
-        connected: false,
-        models: { codex: [], 'claude-code': [] },
-      }),
-    ];
-    renderAt('?tab=providers&connect=openai');
-
-    const openAiListRow = await screen.findByRole('button', { name: /OpenAI/ });
-    expect(openAiListRow.textContent).toContain('settings.providers.openai.reconnectRequired');
-    expect((openAiListRow.lastElementChild as HTMLElement).style.backgroundColor).toBe(
-      'var(--remote-status-failed)',
-    );
-    expect(await screen.findByText('chatgptAuthRecovery.systemSharedInvalidated')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'chatgptAuthRecovery.relogin' }));
-
-    await waitFor(() => expect(codexAuthActions.triggerLogin).toHaveBeenCalledOnce());
-    expect(window.electronAPI.openChatGPTApp).not.toHaveBeenCalled();
-  });
-
-  it('ChatGPT 系统共享重新登录被取消时保留恢复入口', async () => {
-    codexAuthState.state = {
-      kind: 'reconnect-required',
-      reason: 'token_revoked',
-      credentialScope: 'system-shared',
-    };
-    codexAuthState.reconnectCredentialScope = 'system-shared';
-    providersState.providers = [
-      makeProvider('openai', {
-        name: 'OpenAI',
-        agents: ['codex', 'claude-code'],
-        connected: false,
-        models: { codex: [], 'claude-code': [] },
-      }),
-    ];
-    codexAuthActions.triggerLogin.mockResolvedValueOnce('cancelled');
-    renderAt('?tab=providers&connect=openai');
-
-    fireEvent.click(await screen.findByRole('button', { name: 'chatgptAuthRecovery.relogin' }));
-
-    await waitFor(() => expect(codexAuthActions.triggerLogin).toHaveBeenCalledOnce());
-    expect(toastError).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'chatgptAuthRecovery.relogin' })).not.toBeNull();
-    expect(window.electronAPI.openChatGPTApp).not.toHaveBeenCalled();
-  });
-
-  it('connect=anthropic(未占行内置渠道)→ 向导 builtin 直达;参数消费后清除', async () => {
+  it('connect=anthropic(已下架订阅 OAuth 渠道)→ 不开向导;参数消费后清除', async () => {
     renderAt('?tab=providers&connect=anthropic');
 
-    await waitFor(() => expect(screen.queryByTestId('wizard-stub')).not.toBeNull());
-    expect(wizardSpy).toHaveBeenCalledWith({ kind: 'builtin', providerId: 'anthropic' });
     await waitFor(() => expect(screen.getByTestId('search').textContent).toBe('?tab=providers'));
+    expect(screen.queryByTestId('wizard-stub')).toBeNull();
   });
 
   it('connect=<左栏占行供应商> → 直接选中,不开向导', async () => {
     providersState.providers = [
-      makeProvider('anthropic', { name: 'Anthropic', connected: true }),
+      makeProvider('xai', { name: 'xAI', connected: true }),
       makeProvider('xd', {
         name: 'Cindy AI',
         auth: { method: 'managed' } as ProviderView['auth'],
@@ -259,12 +204,10 @@ describe('ProvidersSection — 深链定位', () => {
         models: { 'claude-code': [], codex: [] },
       }),
     ];
-    renderAt('?tab=providers&connect=anthropic');
+    renderAt('?tab=providers&connect=xai');
 
-    // 详情头切到 anthropic(默认是置顶的 xd;title key 只在详情头出现)。向导不打开。
-    await waitFor(() =>
-      expect(screen.getByText('settings.providers.anthropic.title')).not.toBeNull(),
-    );
+    // 详情头切到 xai(默认是置顶的 xd;title key 只在详情头出现)。向导不打开。
+    await waitFor(() => expect(screen.getByText('settings.providers.xai.title')).not.toBeNull());
     expect(screen.queryByTestId('wizard-stub')).toBeNull();
     await waitFor(() => expect(screen.getByTestId('search').textContent).toBe('?tab=providers'));
   });

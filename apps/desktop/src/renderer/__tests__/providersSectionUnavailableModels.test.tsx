@@ -289,23 +289,20 @@ describe('ProvidersSection — 双栏管理', () => {
     expect(toast.error).toHaveBeenLastCalledWith('settings.providers.models.refreshFailed');
   });
 
-  it('检测到本机 CLI 且渠道未连接 → 建议行出现,点击直达向导授权步', async () => {
+  it('已下架订阅 OAuth 渠道(anthropic / openai)不再产生 CLI 检测建议行(2026-08-29 Pi-first 改造)', async () => {
     scanResult = {
       detections: [
         { cli: 'claude-cli', providerId: 'anthropic', installed: true, loggedIn: true },
-        { cli: 'codex-cli', providerId: 'openai', installed: false, loggedIn: false },
+        { cli: 'codex-cli', providerId: 'openai', installed: true, loggedIn: false },
       ],
     };
     render(React.createElement(MemoryRouter, null, React.createElement(ProvidersSection)));
 
-    // 建议组标签 + Anthropic 建议行(codex 未安装不出现)。
-    expect(await screen.findByText('settings.providers.detect.groupLabel')).not.toBeNull();
-    const action = screen.getByText('settings.providers.detect.action');
-    fireEvent.click(action.closest('button')!);
-
-    // 向导以 entry 直达 anthropic。
-    expect(screen.getByTestId('wizard-stub')).not.toBeNull();
-    expect(wizardSpy).toHaveBeenCalledWith({ kind: 'builtin', providerId: 'anthropic' });
+    // 建议组与建议行都不出现,向导不打开。
+    await waitFor(() =>
+      expect(screen.queryByText('settings.providers.detect.groupLabel')).toBeNull(),
+    );
+    expect(screen.queryByTestId('wizard-stub')).toBeNull();
   });
 
   it('首次记录可见项，并用方向键提交新的可见顺序', async () => {
