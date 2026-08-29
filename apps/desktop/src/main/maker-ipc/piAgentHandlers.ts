@@ -102,6 +102,17 @@ export function registerPiAgentIpc(): void {
     }
   });
 
+  // 一键安装:复用受管下载链(进度走 binary-download-progress 广播),落到 ~/.pi/bin。
+  ipcMain.handle(MAKER_INVOKE.PI_LOCAL_INSTALL, async (event) => {
+    assertTrustedAppRendererEvent(event);
+    try {
+      return await installLocalPi();
+    } catch (err) {
+      if (err instanceof PiInstallError) throwIpcError(err.code, err.message);
+      throw err;
+    }
+  });
+
   // ── Settings ────────────────────────────────────────────────────────────
   ipcMain.handle(MAKER_INVOKE.PI_AGENT_READ_SETTINGS, (event) => {
     assertTrustedAppRendererEvent(event);

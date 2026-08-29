@@ -41,3 +41,17 @@
   - 新 IPC maker:pi-local:status（PI_LOCAL_STATUS，piAgentHandlers 注册，preload piLocal）
   - pi-harness.md §6 不变量按新决策重写；piBinaryDistribution 契约测试改钉新不变量
   - 验证：desktop typecheck 通过；pnpm test:unit:related 全过（含 localPi 5 个新单测）
+- Phase 4: 登录页一键安装 PI 引导 — 完成
+  - main/pi-agent/piInstaller.ts：复用受管下载链(prepare('pi')，CDN+SHA256，dev 走
+    apps/pi-bin)→ 落盘 ~/.pi/bin/pi-runtime → unix symlink ~/.pi/bin/pi（Win 无特权
+    symlink 失败回落目录形态 ~/.pi/bin/pi/）→ force 重探校验
+  - 新 IPC maker:pi-local:install（PiInstallError 三错误码进统一 IPC 错误协议，
+    ipc-errors.ts 注册）；preload/d.ts 增加 piLocal.install
+  - 登录页 PiInstallCard：挂载查状态，未安装才渲染；进度听 binary-download-progress
+    (vendor=pi)；安装完成即隐。 LoginPage 挂载于 stage 内容之后
+  - i18n 5 语新增 login.piInstall.*；顺带修复第一轮移植遗留的 44 处术语门禁违规
+    （会话→任务、折叠→收起、子代理→Subagent/Agent、harness→Harness、lead→Lead、
+    ko 공급자→제공자），pnpm check:i18n-glossary 恢复通过
+  - 安装位置注记：~/.pi/bin 未必在 shell PATH，Cindy 探测覆盖该目录不依赖 PATH，
+    终端可见性由卡片 manualHint 文案说明
+  - 验证：desktop typecheck 通过；pnpm test:unit:related 全过；check:i18n-glossary 通过

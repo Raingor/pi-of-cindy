@@ -40,6 +40,7 @@ import ssoIcon from '@/assets/login/icons/sso.svg';
 import ssoIconDark from '@/assets/login/icons/sso-dark.svg';
 
 import { LoginStage } from './LoginStage';
+import { PiInstallCard } from './PiInstallCard';
 import { LoginCaptchaOverlay } from './LoginCaptchaOverlay';
 import {
   LoginBackButton,
@@ -1369,6 +1370,10 @@ export function LoginPage({
         bottomReserve={panelBottomReserve}
       >
         {node}
+      {/* Pi-first 改造:本机未安装 pi 时的安装引导(已安装/未就绪时不渲染)。 */}
+      <div className="relative z-10 flex w-full justify-center px-6 pb-4">
+        <PiInstallCard />
+      </div>
       </LoginStage>
       {accountSwitcherOpen ? (
         <Suspense fallback={null}>

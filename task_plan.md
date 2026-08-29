@@ -48,11 +48,11 @@
 - [x] 新 IPC：`maker:pi-local:status` 供登录页与设置页查询
 - [x] pi 缺失时任务创建报错 + 文案引导安装
 
-### Phase 4: 登录页一键安装 PI [pending]
-- [ ] LoginPage 检测 pi 状态（挂载时查）
-- [ ] 未安装 → 安装引导卡片（参考 LocalOllamaInstall 样板）
-- [ ] 一键安装：下载 pi release（复用 agent-binaries 下载逻辑）→ 安装到 ~/.local/bin/pi → 验证
-- [ ] i18n 5 语言
+### Phase 4: 登录页一键安装 PI [done 2026-08-29]
+- [x] LoginPage 检测 pi 状态（挂载时查）
+- [x] 未安装 → 安装引导卡片（参考 LocalOllamaInstall 样板）
+- [x] 一键安装：下载 pi release（复用 agent-binaries 下载逻辑）→ 安装到 ~/.local/bin/pi → 验证
+- [x] i18n 5 语言
 
 ### Phase 5: 数据目录全切 ~/.pi/agent [pending]
 - [ ] `resolvePiAgentHome` 注入改为 ~/.pi/agent

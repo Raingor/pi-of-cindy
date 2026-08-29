@@ -2023,7 +2023,7 @@
       "enabledModels": {
         "title": "활성화된 모델",
         "disableAll": "모두 비활성화",
-        "empty": "공급자 간 활성화된 모델이 없습니다.",
+        "empty": "제공자 간 활성화된 모델이 없습니다.",
         "remove": "제거"
       }
     },
@@ -2695,7 +2695,7 @@
       "title": "개인화",
       "subtitle": "사용자 정의 프롬프트",
       "description": "어시스턴트에 추가 지침과 컨텍스트를 제공합니다.",
-      "placeholder": "여기에 사용자 정의 지침을 입력하세요. Claude / Codex 시스템 프롬프트 끝에 추가됩니다.\n\n· {{appName}} 내장 세션에만 적용됩니다. 기존 세션은 시작 시점의 스냅샷을 유지하며, 변경 사항은 다음 새 세션부터 적용됩니다.\n· 모든 Claude Code 세션(터미널, 기타 IDE 포함)에서 강제로 적용하려면 ~/.claude/settings.json 에 SessionStart 훅을 설정하세요(harness 수준 강제).\n· Codex CLI 는 ~/.codex/hooks.json 에 SessionStart 훅을 설정하면 harness 수준 강제 주입이 가능합니다(CC와 동일). 또는 ~/.codex/AGENTS.md 자동 로드(소프트 제약, 모델이 무시할 수 있음)도 사용 가능합니다.",
+      "placeholder": "여기에 사용자 정의 지침을 입력하세요. Claude / Codex 시스템 프롬프트 끝에 추가됩니다.\n\n· {{appName}} 내장 세션에만 적용됩니다. 기존 세션은 시작 시점의 스냅샷을 유지하며, 변경 사항은 다음 새 세션부터 적용됩니다.\n· 모든 Claude Code 세션(터미널, 기타 IDE 포함)에서 강제로 적용하려면 ~/.claude/settings.json 에 SessionStart 훅을 설정하세요(Harness 수준 강제).\n· Codex CLI 는 ~/.codex/hooks.json 에 SessionStart 훅을 설정하면 Harness 수준 강제 주입이 가능합니다(CC와 동일). 또는 ~/.codex/AGENTS.md 자동 로드(소프트 제약, 모델이 무시할 수 있음)도 사용 가능합니다.",
       "ariaLabel": "사용자 정의 지침",
       "save": "저장",
       "overLimit": " — 길이 제한 초과",
@@ -3199,9 +3199,9 @@
       "tab_chains": "체인",
       "tab_history": "기록",
       "noAgents": "에이전트를 찾을 수 없습니다",
-      "noAgentsDesc": "~/.pi/agent/agents/에 에이전트 정의가 없습니다",
+      "noAgentsDesc": "Subagent 정의 파일이 없습니다",
       "noChains": "체인을 찾을 수 없습니다",
-      "noChainsDesc": "~/.pi/agent/chains/에 체인 정의가 없습니다",
+      "noChainsDesc": "chains/ 폴더에 체인 정의가 없습니다",
       "noHistory": "실행 기록 없음",
       "noHistoryDesc": "아직 에이전트 실행 기록이 없습니다",
       "edit": "편집",
@@ -5808,10 +5808,10 @@
       "subtitle": "모델별 누적"
     },
     "byAgent": {
-      "title": "Agent / harness별",
+      "title": "Agent / Harness별",
       "subtitle": "최근 30일",
       "col": {
-        "agent": "Agent / harness",
+        "agent": "Agent / Harness",
         "total": "최근 30일 토큰",
         "share": "비중",
         "today": "오늘",
@@ -10815,7 +10815,7 @@
     "split": {
       "leadLabel": "Lead ({{agent}})",
       "workerLabel": "Worker ({{agent}})",
-      "leadNotFound": "Orca lead session 을 찾을 수 없습니다",
+      "leadNotFound": "Orca Lead session 을 찾을 수 없습니다",
       "waitingForWorker": "Worker 대기 중",
       "closeAria": "닫기"
     }

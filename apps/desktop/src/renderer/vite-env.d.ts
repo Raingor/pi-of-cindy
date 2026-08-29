@@ -6301,6 +6301,7 @@ interface ElectronAPI {
     // ── 本机 pi 探测(Pi-first 改造) ──
     piLocal: {
       getStatus: () => Promise<unknown>;
+      install: () => Promise<unknown>;
     };
     // ── Pi Agent 数据层 (pi-web-switch 移植) ──
     piAgent: {

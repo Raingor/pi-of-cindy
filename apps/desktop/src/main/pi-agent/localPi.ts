@@ -42,6 +42,8 @@ function candidatePaths(): string[] {
   return [
     path.join(home, '.local', 'bin', bin),
     path.join(home, '.pi', 'bin', bin),
+    // piInstaller 的 Windows 无特权兜底:完整目录落在 ~/.pi/bin/pi/ 内。
+    path.join(home, '.pi', 'bin', 'pi', bin),
     '/opt/homebrew/bin/pi',
     '/usr/local/bin/pi',
     path.join(home, 'AppData', 'Local', 'Programs', 'pi', bin),

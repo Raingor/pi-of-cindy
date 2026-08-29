@@ -7038,6 +7038,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ── 本机 pi 探测(Pi-first 改造) ──────────────────────────────────────
     piLocal: {
       getStatus: () => ipcRenderer.invoke('maker:pi-local:status'),
+      install: () => ipcRenderer.invoke('maker:pi-local:install'),
     },
     // ── Pi Agent 数据层 (pi-web-switch 移植) ──────────────────────────────
     piAgent: {

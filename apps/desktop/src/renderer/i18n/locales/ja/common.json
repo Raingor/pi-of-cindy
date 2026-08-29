@@ -2695,7 +2695,7 @@
       "title": "パーソナライズ",
       "subtitle": "カスタムプロンプト",
       "description": "アシスタントに追加の指示やコンテキストを与えます。",
-      "placeholder": "ここにカスタム指示を入力してください。Claude / Codex のシステムプロンプト末尾に追加されます。\n\n· {{appName}} の内蔵セッションのみに適用されます。既存のセッションは起動時スナップショットを保持し、変更は次回の新規セッションから有効になります。\n· すべての Claude Code セッション(ターミナルや他の IDE を含む)で強制的に有効にするには、~/.claude/settings.json に SessionStart フックを設定してください(harness レベルの強制)。\n· Codex CLI は ~/.codex/hooks.json に SessionStart フックを設定すると harness レベルで強制注入できます（CC と同等）。または ~/.codex/AGENTS.md による自動読み込み（ソフト制約、モデルが無視する場合あり）も利用できます。",
+      "placeholder": "ここにカスタム指示を入力してください。Claude / Codex のシステムプロンプト末尾に追加されます。\n\n· {{appName}} の内蔵セッションのみに適用されます。既存のセッションは起動時スナップショットを保持し、変更は次回の新規セッションから有効になります。\n· すべての Claude Code セッション(ターミナルや他の IDE を含む)で強制的に有効にするには、~/.claude/settings.json に SessionStart フックを設定してください(Harness レベルの強制)。\n· Codex CLI は ~/.codex/hooks.json に SessionStart フックを設定すると Harness レベルで強制注入できます（CC と同等）。または ~/.codex/AGENTS.md による自動読み込み（ソフト制約、モデルが無視する場合あり）も利用できます。",
       "ariaLabel": "カスタム指示",
       "save": "保存",
       "overLimit": " — 文字数制限を超過",
@@ -3199,9 +3199,9 @@
       "tab_chains": "チェーン",
       "tab_history": "履歴",
       "noAgents": "エージェントが見つかりません",
-      "noAgentsDesc": "~/.pi/agent/agents/ にエージェント定義がありません",
+      "noAgentsDesc": "Subagent 定義ファイルがありません",
       "noChains": "チェーンが見つかりません",
-      "noChainsDesc": "~/.pi/agent/chains/ にチェーン定義がありません",
+      "noChainsDesc": "chains/ フォルダにチェーン定義がありません",
       "noHistory": "実行履歴がありません",
       "noHistoryDesc": "エージェントの実行記録はまだありません",
       "edit": "編集",
@@ -5808,10 +5808,10 @@
       "subtitle": "モデル別の積み上げ"
     },
     "byAgent": {
-      "title": "Agent / harness 別",
+      "title": "Agent / Harness 別",
       "subtitle": "直近 30 日",
       "col": {
-        "agent": "Agent / harness",
+        "agent": "Agent / Harness",
         "total": "直近 30 日のトークン",
         "share": "割合",
         "today": "今日",
@@ -10815,7 +10815,7 @@
     "split": {
       "leadLabel": "Lead ({{agent}})",
       "workerLabel": "Worker ({{agent}})",
-      "leadNotFound": "Orca lead session が見つかりません",
+      "leadNotFound": "Orca Lead session が見つかりません",
       "waitingForWorker": "Worker を待機中",
       "closeAria": "閉じる"
     }

@@ -5810,10 +5810,10 @@
       "subtitle": "Stacked by model"
     },
     "byAgent": {
-      "title": "By Agent / harness",
+      "title": "By Agent / Harness",
       "subtitle": "Last 30 days",
       "col": {
-        "agent": "Agent / harness",
+        "agent": "Agent / Harness",
         "total": "Tokens (30d)",
         "share": "Share",
         "today": "Today",
@@ -10832,7 +10832,7 @@
     "split": {
       "leadLabel": "Lead ({{agent}})",
       "workerLabel": "Worker ({{agent}})",
-      "leadNotFound": "Orca lead session not found",
+      "leadNotFound": "Orca Lead session not found",
       "waitingForWorker": "Waiting for worker",
       "closeAria": "Close"
     }
