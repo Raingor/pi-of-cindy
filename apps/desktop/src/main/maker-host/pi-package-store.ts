@@ -11,9 +11,9 @@ import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs, unwatchFile, watchFile, type Stats } from 'node:fs';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
-import { app } from 'electron';
 import matter from 'gray-matter';
 
 import {
@@ -280,7 +280,9 @@ let inspectionGeneration = 0;
 const snapshotUnavailableRoots = new Map<string, SnapshotUnavailableWarning>();
 
 function packageHome(): string {
-  return path.join(app.getPath('userData'), 'pi-package-home');
+  // 2026-08-29 Pi-first 改造:扩展包目录切到 ~/.pi/agent —— 与本机 pi 共用同一份
+  // packages/extensions 数据,设置页扩展包列表即本机 pi 的扩展。
+  return path.join(homedir(), '.pi', 'agent');
 }
 
 async function snapshotRootForInstalledPackage(
@@ -327,7 +329,7 @@ async function publishPiPackagesChanged(options: { invalidateCache?: boolean } =
 }
 
 function mutationLockPath(): string {
-  return path.join(app.getPath('userData'), 'pi-package-home.mutation.lock');
+  return `${packageHome()}.mutation.lock`;
 }
 
 async function withPiPackageMutationLock<T>(operation: () => Promise<T>): Promise<T> {

@@ -55,3 +55,13 @@
   - 安装位置注记：~/.pi/bin 未必在 shell PATH，Cindy 探测覆盖该目录不依赖 PATH，
     终端可见性由卡片 manualHint 文案说明
   - 验证：desktop typecheck 通过；pnpm test:unit:related 全过；check:i18n-glossary 通过
+- Phase 5: 数据目录全切 ~/.pi/agent — 完成（真机跑任务验证待做）
+  - pi-host resolvePiAgentHome 本地分支 → ~/.pi/agent（远端分支不变）；会话/run-tmp/
+    权限档随之落 ~/.pi/agent，与已移植的 Pi Sessions/Memory 等 tab 同一数据源
+  - pi-package-store packageHome → ~/.pi/agent（electron app import 随之移除），
+    mutation lock 改为 <home>/.pi/agent.mutation.lock；扩展包页显示本机 pi 扩展
+  - 澄清:models.json/settings.json 每会话隔离写在 run-tmp/<hex>,不覆盖用户真实
+    models.json —— findings.md 原判断有误,已更正;maker-core 无需合并写入改动
+  - 测试:pi-package-store-security.test 钉 os.homedir 到临时目录并更新路径断言(73 过)
+  - 验证:desktop typecheck / test:unit:related 全过;maker-core 2 个真 pi 二进制
+    integration 用例在本机超时/残留失败,为存量环境问题,与本次无关

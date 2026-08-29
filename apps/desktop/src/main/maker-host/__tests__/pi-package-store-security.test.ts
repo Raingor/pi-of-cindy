@@ -55,6 +55,16 @@ vi.mock('electron', () => ({
   app: { getPath: () => runtime.userData },
 }));
 
+// 2026-08-29 Pi-first 改造:packageHome() = ~/.pi/agent(经 os.homedir)。
+// 测试把 homedir 钉到每个用例的临时目录,避免读写真实用户目录。
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    homedir: () => runtime.userData,
+  };
+});
+
 // 2026-08-29 Pi-first 改造:pi 路径改由 pi-agent/localPi 的本机探测缓存提供,
 // 测试直接钉住该缓存,避免依赖真实本机是否装有 pi。
 vi.mock('../../pi-agent/localPi.js', () => ({
@@ -570,7 +580,7 @@ describe('Pi package executable-code boundary', () => {
   it('does not disable an already-enabled npm Extension when another package is installed', async () => {
     const firstSource = 'npm:first-shared-extension';
     const secondSource = 'npm:second-shared-extension';
-    const npmRoot = path.join(runtime.userData, 'pi-package-home', 'npm');
+    const npmRoot = path.join(runtime.userData, '.pi', 'agent', 'npm');
     const nodeModulesRoot = path.join(npmRoot, 'node_modules');
     const firstRoot = path.join(nodeModulesRoot, 'first-shared-extension');
     const secondRoot = path.join(nodeModulesRoot, 'second-shared-extension');
@@ -628,7 +638,7 @@ describe('Pi package executable-code boundary', () => {
   it('does not reapprove a sibling whose scoped hoisted dependency changes during install', async () => {
     const firstSource = 'npm:@scope/stale-shared-extension';
     const secondSource = 'npm:new-shared-extension';
-    const npmRoot = path.join(runtime.userData, 'pi-package-home', 'npm');
+    const npmRoot = path.join(runtime.userData, '.pi', 'agent', 'npm');
     const nodeModulesRoot = path.join(npmRoot, 'node_modules');
     const firstRoot = path.join(nodeModulesRoot, '@scope', 'stale-shared-extension');
     const secondRoot = path.join(nodeModulesRoot, 'new-shared-extension');
@@ -701,7 +711,7 @@ describe('Pi package executable-code boundary', () => {
       expect.objectContaining({ source: secondSource, enabled: true }),
     ]));
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as {
       approvedExtensionSources: string[];
@@ -803,7 +813,7 @@ describe('Pi package executable-code boundary', () => {
 
   it('preserves npm hoisted dependencies in the isolated session snapshot', async () => {
     const source = 'npm:hoisted-extension';
-    const npmRoot = path.join(runtime.userData, 'pi-package-home', 'npm');
+    const npmRoot = path.join(runtime.userData, '.pi', 'agent', 'npm');
     const nodeModulesRoot = path.join(npmRoot, 'node_modules');
     const packageRoot = path.join(nodeModulesRoot, 'hoisted-extension');
     const dependencyRoot = path.join(nodeModulesRoot, 'hoisted-dependency');
@@ -970,7 +980,7 @@ describe('Pi package executable-code boundary', () => {
 
     await expect(fs.stat(snapshotRoot)).rejects.toMatchObject({ code: 'ENOENT' });
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as { approvedExtensionSources: string[]; approvedExtensionFingerprints: Record<string, string> };
     expect(state.approvedExtensionSources).toEqual([]);
@@ -981,7 +991,8 @@ describe('Pi package executable-code boundary', () => {
     const source = 'npm:managed-tree-extension';
     const packageRoot = path.join(
       runtime.userData,
-      'pi-package-home',
+      '.pi',
+      'agent',
       'npm',
       'node_modules',
       'managed-tree-extension',
@@ -1413,7 +1424,7 @@ describe('Pi package executable-code boundary', () => {
       ],
     });
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as { snapshotUnavailableRoots: Record<string, string> };
     expect(state.snapshotUnavailableRoots).toEqual({
@@ -1577,7 +1588,7 @@ describe('Pi package executable-code boundary', () => {
       ],
     });
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as { disabledSources: string[]; snapshotUnavailableRoots: Record<string, string> };
     expect(state.disabledSources).toEqual([]);
@@ -1661,7 +1672,7 @@ describe('Pi package executable-code boundary', () => {
       ],
     });
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as { disabledSources: string[] };
     expect(state.disabledSources).toEqual([]);
@@ -1723,7 +1734,7 @@ describe('Pi package executable-code boundary', () => {
         expect(recoveredList.packages[0]?.warning).toBeUndefined();
         await expect(store.listManagedPiPromptCommands()).resolves.not.toEqual([]);
         const state = JSON.parse(await fs.readFile(
-          path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+          path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
           'utf8',
         )) as { disabledSources: string[] };
         expect(state.disabledSources).toEqual([]);
@@ -1784,7 +1795,7 @@ describe('Pi package executable-code boundary', () => {
           packages: [{ source, enabled: true }],
         });
         const state = JSON.parse(await fs.readFile(
-          path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+          path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
           'utf8',
         )) as { snapshotUnavailableRoots: Record<string, string> };
         expect(state.snapshotUnavailableRoots).toEqual({});
@@ -1806,7 +1817,8 @@ describe('Pi package executable-code boundary', () => {
     const packageRoot = layout === 'npm'
       ? path.join(
           runtime.userData,
-          'pi-package-home',
+          '.pi',
+          'agent',
           'npm',
           'node_modules',
           'mode-preserving-extension',
@@ -1826,8 +1838,8 @@ describe('Pi package executable-code boundary', () => {
 
     const directories = layout === 'npm'
       ? [
-          path.join(runtime.userData, 'pi-package-home', 'npm'),
-          path.join(runtime.userData, 'pi-package-home', 'npm', 'node_modules'),
+          path.join(runtime.userData, '.pi', 'agent', 'npm'),
+          path.join(runtime.userData, '.pi', 'agent', 'npm', 'node_modules'),
           packageRoot,
           extensionDir,
         ]
@@ -1886,7 +1898,7 @@ describe('Pi package executable-code boundary', () => {
 
   it('preserves v1 disabled sources while migrating approval state and blocks lifecycle scripts', async () => {
     const { source } = await createPackage();
-    const stateDir = path.join(runtime.userData, 'pi-package-home');
+    const stateDir = path.join(runtime.userData, '.pi', 'agent');
     await fs.mkdir(stateDir, { recursive: true });
     await fs.writeFile(path.join(stateDir, 'cindy-package-state.json'), JSON.stringify({
       version: 1,
@@ -1930,7 +1942,7 @@ describe('Pi package executable-code boundary', () => {
     ['permission', 'EACCES'],
   ])('fails closed without replacing disabled state after a %s read failure', async (_label, code) => {
     const { source } = await createSkillOnlyPackage('npm:disabled-skill-package');
-    const stateDir = path.join(runtime.userData, 'pi-package-home');
+    const stateDir = path.join(runtime.userData, '.pi', 'agent');
     const stateFile = path.join(stateDir, 'cindy-package-state.json');
     const persistedState = `${JSON.stringify({
       version: 3,
@@ -1978,7 +1990,7 @@ describe('Pi package executable-code boundary', () => {
 
   it('fails closed and preserves a corrupt state file instead of treating it as empty', async () => {
     const { source } = await createSkillOnlyPackage('npm:corrupt-state-skill-package');
-    const stateDir = path.join(runtime.userData, 'pi-package-home');
+    const stateDir = path.join(runtime.userData, '.pi', 'agent');
     const stateFile = path.join(stateDir, 'cindy-package-state.json');
     const corruptState = '{"version":3,"disabledSources":[';
     await fs.mkdir(stateDir, { recursive: true });
@@ -2008,7 +2020,7 @@ describe('Pi package executable-code boundary', () => {
 
   it('keeps a valid disabled Skill package disabled with its state readable', async () => {
     const { source } = await createSkillOnlyPackage('npm:valid-disabled-skill-package');
-    const stateDir = path.join(runtime.userData, 'pi-package-home');
+    const stateDir = path.join(runtime.userData, '.pi', 'agent');
     await fs.mkdir(stateDir, { recursive: true });
     await fs.writeFile(path.join(stateDir, 'cindy-package-state.json'), JSON.stringify({
       version: 3,
@@ -2072,28 +2084,28 @@ describe('Pi package executable-code boundary', () => {
 
     await mutateAuthorized(store, { action: 'install', source });
     tokens.push(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-change-token'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-change-token'),
       'utf8',
     ));
     await mutateAuthorized(store, { action: 'update', source });
     tokens.push(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-change-token'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-change-token'),
       'utf8',
     ));
     await store.mutatePiPackage({ action: 'set-enabled', source, enabled: false });
     tokens.push(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-change-token'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-change-token'),
       'utf8',
     ));
     await mutateAuthorized(store, { action: 'remove', source });
     tokens.push(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-change-token'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-change-token'),
       'utf8',
     ));
 
     expect(lockRuntime.calls).toHaveLength(4);
     expect(new Set(lockRuntime.calls.map((call) => call.lockPath))).toEqual(new Set([
-      path.join(runtime.userData, 'pi-package-home.mutation.lock'),
+      path.join(runtime.userData, '.pi', 'agent.mutation.lock'),
     ]));
     expect(lockRuntime.calls.every((call) => (
       call.label === 'pi-package-mutation' && (call.waitMs ?? 0) > 120_000
@@ -2136,7 +2148,7 @@ describe('Pi package executable-code boundary', () => {
     await expect(store.mutatePiPackage({ action: 'set-enabled', source, enabled: false }))
       .rejects.toThrow(/busy or unavailable/);
     expect(runtime.spawns).toEqual([]);
-    await expect(fs.stat(path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json')))
+    await expect(fs.stat(path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json')))
       .rejects.toMatchObject({ code: 'ENOENT' });
   });
 
@@ -2161,7 +2173,7 @@ describe('Pi package executable-code boundary', () => {
     ]);
 
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as { disabledSources: string[] };
     expect(state.disabledSources).toEqual([first.source, second.source]);
@@ -2193,7 +2205,7 @@ describe('Pi package executable-code boundary', () => {
     })).rejects.toThrow(/not installed/);
 
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as { disabledSources: string[] };
     expect(state.disabledSources).toEqual([]);
@@ -2278,7 +2290,7 @@ describe('Pi package executable-code boundary', () => {
     expect(listener).toHaveBeenCalledTimes(1);
 
     const state = JSON.parse(await fs.readFile(
-      path.join(runtime.userData, 'pi-package-home', 'cindy-package-state.json'),
+      path.join(runtime.userData, '.pi', 'agent', 'cindy-package-state.json'),
       'utf8',
     )) as {
       disabledSources: string[];
@@ -2297,7 +2309,7 @@ describe('Pi package executable-code boundary', () => {
   it('revokes approval when Pi normalizes an absolute local package source', async () => {
     const { root } = await createPackage();
     const normalizedSource = path.relative(
-      path.join(runtime.userData, 'pi-package-home'),
+      path.join(runtime.userData, '.pi', 'agent'),
       root,
     );
     runtime.listOutput = `User packages:\n  ${normalizedSource}\n    ${root}\n`;

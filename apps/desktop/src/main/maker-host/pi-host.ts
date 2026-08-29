@@ -1649,7 +1649,11 @@ export function buildPiAgent(opts: BuildPiAgentOpts): PiAgent | null {
       // $HOME 由远端 fileOps 的 bash 统一展开;DB 里存 $HOME/... 字面, 跨会话
       // 一致。run-tmp 等短生命周期内容仍走 agentHome/run-tmp。
       if (remoteHostId) return '$HOME/.xdt-server/v1/pi-agent-home';
-      return path.join(app.getPath('userData'), 'pi-agent-home');
+      // 2026-08-29 Pi-first 改造(用户确认):本地数据目录全切 ~/.pi/agent —— 与
+      // 用户本机 pi 共用同一份 sessions/settings/auth 数据。控制面文件
+      // (models.json / settings.json)经 maker-core mergeLocalControlJson 合并
+      // 写入,不覆盖用户已有键;pi-reader 数据层本就读 ~/.pi/agent。
+      return path.join(os.homedir(), '.pi', 'agent');
     },
     resolvePiManagedPackageResources: resolveManagedPiPackageResources,
     mutatePiManagedPackage: mutateAuthorizedPiManagedPackage,

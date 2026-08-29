@@ -29,7 +29,7 @@
 - `pi-host.ts:1642-1650` resolvePiAgentHome 注入：本地 = userData/pi-agent-home
 - `index.ts:2106` per-session PI_CODING_AGENT_DIR = agentHome/run-tmp/<hex>
 - writeModelsJson：host 模型清单挂自建 `cindy` provider 写 <agentHome>/models.json，baseUrl=本地 anthropic-compat proxy
-- **关键冲突**：切到 ~/.pi/agent 后 writeModelsJson 会覆盖用户真实 models.json！必须先解决
+- **关键冲突(已澄清为非问题)**:writeModelsJson 的实参是 configHome = agentHome/run-tmp/<hex>(每会话隔离,PI_CODING_AGENT_DIR 指向它),models.json/settings.json 落在 run-tmp 内,从不写 ~/.pi/agent 根目录 —— 切 agentHome 到 ~/.pi/agent 不会覆盖用户真实 models.json
 
 ### pi 扩展包系统
 - `pi-package-store.ts:283` packageHome() = userData/pi-package-home；spawn env 设 PI_CODING_AGENT_DIR

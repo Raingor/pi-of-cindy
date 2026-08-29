@@ -54,12 +54,12 @@
 - [x] 一键安装：下载 pi release（复用 agent-binaries 下载逻辑）→ 安装到 ~/.local/bin/pi → 验证
 - [x] i18n 5 语言
 
-### Phase 5: 数据目录全切 ~/.pi/agent [pending]
-- [ ] `resolvePiAgentHome` 注入改为 ~/.pi/agent
-- [ ] 处理 models.json 冲突：不得覆盖用户真实 models.json（评估合并/改名策略）
-- [ ] pi-package-store packageHome 改 ~/.pi/agent，扩展包页显示本机扩展
-- [ ] 会话落到 ~/.pi/agent/sessions（与 Pi Sessions tab 数据对齐）
-- [ ] 真机验证：跑一个 pi 任务，确认数据落 ~/.pi/agent
+### Phase 5: 数据目录全切 ~/.pi/agent [done 2026-08-29]
+- [x] `resolvePiAgentHome` 注入改为 ~/.pi/agent
+- [x] 处理 models.json 冲突：不得覆盖用户真实 models.json（评估合并/改名策略）
+- [x] pi-package-store packageHome 改 ~/.pi/agent，扩展包页显示本机扩展
+- [x] 会话落到 ~/.pi/agent/sessions（与 Pi Sessions tab 数据对齐）
+- [ ] 真机验证：跑一个 pi 任务，确认数据落 ~/.pi/agent（未做，需要实机跑任务）
 
 ### Phase 6: 供应商替换为 pi-web-switch 模型 [pending]
 - [ ] main：读 ~/.pi/agent 的 settings/models/auth，内置目录来自 @earendil-works/pi-ai
@@ -69,7 +69,7 @@
 - [ ] enabledModels 与已移植的 EnabledModelsPanel 对齐
 
 ## 风险
-1. **覆盖用户 models.json 是破坏性操作** —— Phase 5 必须先解决
+1. ~~覆盖用户 models.json 是破坏性操作~~ 已澄清为非问题:writeModelsJson 实际写每会话隔离的 agentHome/run-tmp/<hex>/models.json(PI_CODING_AGENT_DIR=configHome),从不碰 ~/.pi/agent/models.json 本体
 2. pi-harness.md §6 上线门禁标注 resolvePiBinaryPath 不变量为"刻意如此" —— 用户已确认变更，改时更新代码注释说明新决策
 3. Full access 下本机 pi 可读真实凭证（~/.pi/agent/auth.json）—— 这是用户选择本机 pi 的固有语义
 4. 移除 tab 后深链（?tab=usage 等）要兜底到 general，不能白屏
