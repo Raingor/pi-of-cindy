@@ -271,28 +271,122 @@ export function registerPiAgentIpc(): void {
   });
 
   // ── Speed Test ──────────────────────────────────────────────────────────
-  ipcMain.handle(MAKER_INVOKE.PI_AGENT_TEST_PROVIDER, async (event, raw: unknown) => {
-    assertTrustedAppRendererEvent(event);
-    const args = requireObject(raw, 'payload');
-    const baseUrl = requireString(args.baseUrl, 'baseUrl');
-    const apiKey = optionalString(args.apiKey);
-    return testProviderConnection(baseUrl, apiKey);
-  });
-
   ipcMain.handle(MAKER_INVOKE.PI_AGENT_TEST_MODEL, async (event, raw: unknown) => {
     assertTrustedAppRendererEvent(event);
     const args = requireObject(raw, 'payload');
     const baseUrl = requireString(args.baseUrl, 'baseUrl');
     const modelId = requireString(args.modelId, 'modelId');
-    const apiKey = optionalString(args.apiKey);
+    const apiKey = optionalString(args.apiKey) ?? (args.providerId ? resolveProviderKey(requireString(args.providerId, 'providerId')) ?? undefined : undefined);
     return testModel(baseUrl, modelId, apiKey);
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_AGENT_TEST_PROVIDER, async (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const baseUrl = requireString(args.baseUrl, 'baseUrl');
+    const apiKey = optionalString(args.apiKey) ?? (args.providerId ? resolveProviderKey(requireString(args.providerId, 'providerId')) ?? undefined : undefined);
+    return testProviderConnection(baseUrl, apiKey);
+  });
+
+  // ── Providers(Settings 供应商区 pi 数据层)───────────────────────────────
+  // 密钥安全:list 只出打码值;setAuth 是唯一接收明文的通道(用户新输入)。
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_LIST, (event) => {
+    assertTrustedAppRendererEvent(event);
+    return listPiProviders();
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_SET_AUTH, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const providerId = requireString(args.providerId, 'providerId');
+    const key = requireString(args.key, 'key');
+    if (!setPiProviderAuth(providerId, key)) {
+      throwIpcError('PI_AGENT_DIR_NOT_FOUND', '~/.pi/agent auth.json write failed');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_REMOVE_AUTH, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const providerId = requireString(args.providerId, 'providerId');
+    if (!removePiProviderAuth(providerId)) {
+      throwIpcError('PI_AGENT_DIR_NOT_FOUND', '~/.pi/agent auth.json write failed');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_SAVE_MODEL, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const providerId = requireString(args.providerId, 'providerId');
+    const model = requireObject(args.model, 'model');
+    requireString(model.id, 'model.id');
+    if (!savePiProviderModel(providerId, model as unknown as Parameters<typeof savePiProviderModel>[1])) {
+      throwIpcError('PI_AGENT_DIR_NOT_FOUND', '~/.pi/agent models.json write failed');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_REMOVE_MODEL, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const providerId = requireString(args.providerId, 'providerId');
+    const modelId = requireString(args.modelId, 'modelId');
+    if (!removePiProviderModel(providerId, modelId)) {
+      throwIpcError('PI_AGENT_DIR_NOT_FOUND', '~/.pi/agent models.json write failed');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_ADD, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const id = requireString(args.id, 'id');
+    const config = requireObject(args.config, 'config');
+    if (!addPiCustomProvider(id, config as Parameters<typeof addPiCustomProvider>[1])) {
+      throwIpcError('INVALID_PARAMS', 'provider id already exists or models.json unavailable');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_UPDATE, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const id = requireString(args.id, 'id');
+    const patch = requireObject(args.patch, 'patch');
+    if (!updatePiCustomProvider(id, patch as Parameters<typeof updatePiCustomProvider>[1])) {
+      throwIpcError('NOT_FOUND', 'provider not found in models.json');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_RENAME, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const oldId = requireString(args.oldId, 'oldId');
+    const newId = requireString(args.newId, 'newId');
+    if (!renamePiCustomProvider(oldId, newId)) {
+      throwIpcError('INVALID_PARAMS', 'rename failed (missing source or target id exists)');
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_PROVIDERS_REMOVE, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const args = requireObject(raw, 'payload');
+    const id = requireString(args.id, 'id');
+    if (!removePiCustomProvider(id)) {
+      throwIpcError('PI_AGENT_DIR_NOT_FOUND', '~/.pi/agent models.json write failed');
+    }
+    return { success: true };
   });
 
   ipcMain.handle(MAKER_INVOKE.PI_AGENT_FETCH_MODELS, async (event, raw: unknown) => {
     assertTrustedAppRendererEvent(event);
     const args = requireObject(raw, 'payload');
     const baseUrl = requireString(args.baseUrl, 'baseUrl');
-    const apiKey = optionalString(args.apiKey);
+    const apiKey = optionalString(args.apiKey) ?? (args.providerId ? resolveProviderKey(requireString(args.providerId, 'providerId')) ?? undefined : undefined);
     return fetchProviderModels(baseUrl, apiKey);
   });
 

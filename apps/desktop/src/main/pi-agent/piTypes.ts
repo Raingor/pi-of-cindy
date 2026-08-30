@@ -304,6 +304,7 @@ export interface PiCustomProviderModel {
   input?: ('text' | 'image' | 'audio')[];
   contextWindow?: number;
   maxTokens?: number;
+  cost?: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
   enabled?: boolean;
 }
 
@@ -325,6 +326,15 @@ export interface PiConfig {
   auth: Record<string, { type: string; key?: string }>;
   modelsJson: PiModelsJson | null;
 }
+
+// ─── Provider Views (Settings 供应商区,Phase 6 pi-web-switch 数据层) ────────
+// 正本在 shared/piProviderTypes.ts(main 与 renderer 共用同一投影契约)。
+
+export type {
+  PiProviderModelView,
+  PiProviderView,
+  PiCustomProviderInput,
+} from '../../shared/piProviderTypes.js';
 
 // ─── Config Import/Export ──────────────────────────────────────────────────
 

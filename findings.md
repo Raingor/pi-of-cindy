@@ -70,3 +70,16 @@
 - pi-web-switch 直接文件 I/O，Cindy 用 IPC 分层
 - pi-web-switch 有自己的 i18n，Cindy 有自己的 i18n
 - pi-web-switch 用 Tailwind v4，Cindy 也用 Tailwind
+
+### Phase 6 关键事实（2026-08-30）
+- 内置目录来源：无需引入 @earendil-works/pi-ai npm 依赖——从本机 pi 安装位置
+  realpath 后逐级向上找 node_modules/@earendil-works/pi-ai/dist/providers/data/*.json
+  （本机 FlyEnv npm 全局安装验证通过）。localPi 探测缓存的是 symlink 路径，
+  必须 realpath 否则向上查找失败（开发中实锤的 bug）。
+- pi-web-switch 启停语义：模型行开关走 settings.enabledModels 引用（"pid/mid"），
+  不是 models.json 的 model.enabled 字段；创建供应商时勾选的模型一次性批量写入。
+- 密钥规则落地：list 投影打码、写路径语义化（setAuth/update 的 apiKey 只在用户
+  输入新明文时携带，undefined 保持原值），避免 pi-web-switch「整文件回传」导致
+  打码值覆盖真实密钥的问题。
+- check:i18n-glossary 会把翻译里的 ~/.pi/agent 判成小写 agent 违规（词边界不含 /，
+  路径不在 URL 白名单里）；翻译文案改说「pi 的数据目录」绕开。

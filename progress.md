@@ -65,3 +65,27 @@
   - 测试:pi-package-store-security.test 钉 os.homedir 到临时目录并更新路径断言(73 过)
   - 验证:desktop typecheck / test:unit:related 全过;maker-core 2 个真 pi 二进制
     integration 用例在本机超时/残留失败,为存量环境问题,与本次无关
+
+## 2026-08-30 第三轮（Phase 6：供应商区切 pi 数据层）
+- Phase 6 完成：Settings 供应商区整体切到 ~/.pi/agent 真实文件(pi-web-switch 数据层)
+  - main/pi-agent/piProviders.ts：内置目录从本机 pi 安装的 pi-ai dist/providers/data
+    读取(getCachedLocalPiPath → realpath 解析 symlink → 逐级向上找 node_modules，
+    兜底 ~/.pi/bin/pi-runtime 与 ~/.local/share/pi-node)；listPiProviders 合并语义
+    与 pi-web-switch 一致(models.json 同 id 带 apiKey=独立自定义供应商，不带=override
+    并入 builtin)；密钥投影只出打码值(maskProviderKey)
+  - 9 条新 IPC maker:pi-providers:*(语义化 CRUD，Renderer 不能整文件回写)；
+    testProvider/testModel/fetchModels 增加 providerId 参数由 main 解析已存密钥；
+    fetchProviderModels 升级为 pi-web-switch 完整版(Ollama/OpenRouter/启发式/HTML 检测)
+  - ProvidersSection 重写(2473 行 → 约 950 行)：保留双栏卡片与 EnabledModelsPanel；
+    左栏 builtin+custom 列表，右栏详情(打码密钥行/模型开关/添加删除)；9 种 API 格式
+    添加表单 + 端点拉取勾选 + 批量写 enabledModels；模型开关 = settings.enabledModels 引用
+  - shared/piProviderTypes.ts 为类型正本，main/renderer 共用；远程 allowlist 判定：
+    本页为 Desktop Settings 专属面，不进 REMOTE_INVOKE_ALLOWLIST
+  - i18n 5 语言新增 settings.providers.pi.*(75 行/语言，文本插入不重排原格式)；
+    ko 공급자→제공자(术语门禁)，翻译不裸写小写 agent 路径
+  - 测试：删除 3 个断言 Cindy store 行为的旧测试(行为已随数据层替换下架)；
+    新增 piProviders.test.ts(13 用例)+ providersSectionPi.test.tsx(4 用例，含
+    明文密钥不进 DOM 断言)
+  - 验证：desktop typecheck 通过；pnpm test:unit:related 435 过 0 失败；
+    check:i18n-glossary 通过
+  - 遗留：真机跑桌面端目检 Light/Dark 双模式；重命名入口 UI 未暴露(后端已就绪)

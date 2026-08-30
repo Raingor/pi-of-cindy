@@ -29,8 +29,8 @@
 
 ## 阶段
 
-### Phase 1: 隐藏 Settings UI 入口 [in_progress]
-- [ ] tabLabels.ts 移除：usage、voice-input、im-bot、import、ghosts、builtin-tools
+### Phase 1: 隐藏 Settings UI 入口 [done 2026-08-29]
+- [x] tabLabels.ts 移除：usage、voice-input、im-bot、import、ghosts、builtin-tools
 - [ ] SettingsView.tsx 移除对应 import + 渲染块
 - [ ] SettingsSidebarNav 图标条目（数据驱动，TAB_IDS 删了即隐藏，核对）
 - [ ] 保留组件与后端模块不删
@@ -61,12 +61,25 @@
 - [x] 会话落到 ~/.pi/agent/sessions（与 Pi Sessions tab 数据对齐）
 - [ ] 真机验证：跑一个 pi 任务，确认数据落 ~/.pi/agent（未做，需要实机跑任务）
 
-### Phase 6: 供应商替换为 pi-web-switch 模型 [pending]
-- [ ] main：读 ~/.pi/agent 的 settings/models/auth，内置目录来自 @earendil-works/pi-ai
-- [ ] ProvidersSection 重构：列表/详情/启停模型全部走 JSON 文件
-- [ ] 自定义供应商 9 种 API 格式（从 ProvidersModelsPage 移植）
-- [ ] auth.json 密钥管理（注意：明文存 ~/.pi/agent，与 Cindy safeStorage 不同，需提示）
-- [ ] enabledModels 与已移植的 EnabledModelsPanel 对齐
+### Phase 6: 供应商替换为 pi-web-switch 模型 [done 2026-08-30]
+- [x] main：新模块 pi-agent/piProviders.ts —— 内置目录从本机 pi 安装的
+      @earendil-works/pi-ai dist/providers/data 读取(realpath 解析 symlink 后逐级向上)，
+      语义化 CRUD 直接读写 ~/.pi/agent 的 models.json / auth.json / settings.json
+- [x] IPC：maker:pi-providers:* 9 条语义化 channel(list/set-auth/remove-auth/
+      save-model/remove-model/add/update/rename/remove)；list 只出打码 key，
+      明文只进写路径，Renderer 永不回写打码值(密钥规则，见 credentials-and-local-storage.md)
+- [x] ProvidersSection 重写：双栏保留，数据层整体切到 pi 文件(列表/详情/模型开关/
+      密钥管理/添加/删除)；Cindy provider 注册表与 safeStorage 体系退出本页
+- [x] 自定义供应商 9 种 API 格式(pi-web-switch 同款 API_TYPES)+ 端点拉取模型
+      (piReader fetchProviderModels 升级：Ollama /api/tags、OpenRouter 富元数据、
+      id 启发式、HTML 误配检测；testProvider/testModel/fetchModels 支持 providerId
+      由 main 侧解析已存密钥)
+- [x] auth.json 密钥管理：打码展示 + 设置/更换/移除 + 明文存储提示文案
+- [x] enabledModels：模型开关 = settings.enabledModels 引用增删，与 EnabledModelsPanel 同一数据
+- [x] 旧测试下架(3 个断言 Cindy store 行为的 ProvidersSection 测试删除)，
+      新增 providersSectionPi.test.tsx + piProviders.test.ts(13 用例)
+- [ ] 真机目检 Light/Dark 双模式(未做，需要实机跑桌面端)
+- [ ] renamePiCustomProvider 已实现并有 IPC，UI 未暴露重命名入口(可后续补)
 
 ## 风险
 1. ~~覆盖用户 models.json 是破坏性操作~~ 已澄清为非问题:writeModelsJson 实际写每会话隔离的 agentHome/run-tmp/<hex>/models.json(PI_CODING_AGENT_DIR=configHome),从不碰 ~/.pi/agent/models.json 本体

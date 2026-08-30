@@ -780,6 +780,17 @@ export const MAKER_INVOKE = {
   PI_AGENT_FETCH_MODELS: 'maker:pi-agent:fetch-models',
   PI_AGENT_EXPORT_CONFIG: 'maker:pi-agent:export-config',
   PI_AGENT_IMPORT_CONFIG: 'maker:pi-agent:import-config',
+  // ── Pi 供应商管理(Settings 供应商区 pi 数据层,Phase 6)──────────────────
+  // 语义化写操作:密钥只出打码值、明文只进不出,Renderer 不能整文件回写。
+  PI_PROVIDERS_LIST: 'maker:pi-providers:list',
+  PI_PROVIDERS_SET_AUTH: 'maker:pi-providers:set-auth',
+  PI_PROVIDERS_REMOVE_AUTH: 'maker:pi-providers:remove-auth',
+  PI_PROVIDERS_SAVE_MODEL: 'maker:pi-providers:save-model',
+  PI_PROVIDERS_REMOVE_MODEL: 'maker:pi-providers:remove-model',
+  PI_PROVIDERS_ADD: 'maker:pi-providers:add',
+  PI_PROVIDERS_UPDATE: 'maker:pi-providers:update',
+  PI_PROVIDERS_RENAME: 'maker:pi-providers:rename',
+  PI_PROVIDERS_REMOVE: 'maker:pi-providers:remove',
 } as const;
 
 /**

@@ -1743,6 +1743,81 @@
           "cancel": "キャンセル"
         }
       },
+      "pi": {
+        "empty": "プロバイダーがまだありません。下の「プロバイダーを追加」から最初のモデルソースを追加してください。",
+        "list": {
+          "customBadge": "カスタム",
+          "builtinBadge": "内蔵",
+          "overrideBadge": "拡張済み"
+        },
+        "apiTypes": {
+          "openaiCompletions": "Chat Completions（/chat/completions）",
+          "openaiResponses": "OpenAI Responses",
+          "openaiCodexResponses": "OpenAI Codex Responses",
+          "azureOpenaiResponses": "Azure OpenAI Responses",
+          "anthropicMessages": "Anthropic Messages",
+          "googleGenerativeAi": "Google Generative AI",
+          "googleVertex": "Google Vertex AI",
+          "bedrock": "AWS Bedrock",
+          "mistral": "Mistral"
+        },
+        "key": {
+          "title": "API キー",
+          "set": "キーを設定",
+          "replace": "キーを変更",
+          "remove": "削除",
+          "placeholder": "API キーを貼り付け",
+          "plaintextHint": "pi のデータディレクトリに平文で保存されます（本機の pi CLI と同じファイルを共有します）。",
+          "toast": {
+            "saved": "API キーを保存しました",
+            "removed": "API キーを削除しました",
+            "saveFailed": "API キーの保存に失敗しました。もう一度お試しください。"
+          }
+        },
+        "models": {
+          "title": "モデル",
+          "add": "モデルを追加",
+          "addTitle": "モデルを追加",
+          "empty": "モデルがまだありません。手動で追加するか、プロバイダーのエンドポイントから一覧を取得してください。",
+          "reasoning": "推論サポート",
+          "remove": "モデルを削除",
+          "toggleAria": "{{provider}} の {{model}} を切り替え",
+          "toggleFailed": "モデルの表示設定の更新に失敗しました。もう一度お試しください。",
+          "removeFailed": "モデルの削除に失敗しました。もう一度お試しください。",
+          "saveFailed": "モデルの保存に失敗しました。もう一度お試しください。",
+          "contextWindow": "コンテキスト {{tokens}}",
+          "maxTokens": "最大出力 {{tokens}}",
+          "idPlaceholder": "model-id",
+          "namePlaceholder": "表示名（任意）",
+          "contextPlaceholder": "コンテキスト長",
+          "maxPlaceholder": "最大出力トークン"
+        },
+        "add": {
+          "title": "プロバイダーを追加",
+          "namePlaceholder": "表示名",
+          "idPreview": "id: {{id}}",
+          "baseUrlPlaceholder": "ベース URL（https://…）",
+          "apiLabel": "API 形式",
+          "fetch": "モデル一覧を取得",
+          "fetching": "取得中…",
+          "fetchEmpty": "エンドポイントからモデルが返されませんでした。ベース URL を確認するか、後で手動でモデルを追加してください。",
+          "fetchFailed": "モデル一覧の取得に失敗しました。もう一度お試しください。",
+          "pickModels": "追加するモデルを選択（チェックしたモデルはすぐに有効になります）",
+          "create": "プロバイダーを追加",
+          "toast": {
+            "created": "プロバイダーを追加しました",
+            "createFailed": "プロバイダーの追加に失敗しました。もう一度お試しください。"
+          }
+        },
+        "detail": {
+          "edit": "編集",
+          "delete": "削除",
+          "toast": {
+            "updated": "プロバイダーを更新しました",
+            "updateFailed": "プロバイダーの更新に失敗しました。もう一度お試しください。"
+          }
+        }
+      },
       "addProvider": "プロバイダーを追加",
       "detail": {
         "singleAgentNote": "{{agent}} のみ対応",

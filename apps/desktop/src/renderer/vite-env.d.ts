@@ -6368,6 +6368,22 @@ interface ElectronAPI {
       exportConfig: () => Promise<unknown>;
       importConfig: (config: unknown) => Promise<unknown>;
     };
+    // ── Pi 供应商管理 (pi-web-switch 数据层,密钥只出打码值) ──
+    // 类型正本 src/shared/piProviderTypes.ts。
+    piProviders: {
+      list: () => Promise<import('../shared/piProviderTypes').PiProviderView[]>;
+      setAuth: (providerId: string, key: string) => Promise<unknown>;
+      removeAuth: (providerId: string) => Promise<unknown>;
+      saveModel: (
+        providerId: string,
+        model: import('../shared/piProviderTypes').PiProviderModelView,
+      ) => Promise<unknown>;
+      removeModel: (providerId: string, modelId: string) => Promise<unknown>;
+      add: (id: string, config: import('../shared/piProviderTypes').PiCustomProviderInput) => Promise<unknown>;
+      update: (id: string, patch: import('../shared/piProviderTypes').PiCustomProviderInput) => Promise<unknown>;
+      rename: (oldId: string, newId: string) => Promise<unknown>;
+      remove: (id: string) => Promise<unknown>;
+    };
   };
 }
 

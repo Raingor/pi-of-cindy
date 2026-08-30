@@ -1743,6 +1743,81 @@
           "cancel": "取消"
         }
       },
+      "pi": {
+        "empty": "還沒有供應商。點擊下方「新增供應商」接入第一個模型來源。",
+        "list": {
+          "customBadge": "自訂",
+          "builtinBadge": "內建",
+          "overrideBadge": "已擴充"
+        },
+        "apiTypes": {
+          "openaiCompletions": "Chat Completions（/chat/completions）",
+          "openaiResponses": "OpenAI Responses",
+          "openaiCodexResponses": "OpenAI Codex Responses",
+          "azureOpenaiResponses": "Azure OpenAI Responses",
+          "anthropicMessages": "Anthropic Messages",
+          "googleGenerativeAi": "Google Generative AI",
+          "googleVertex": "Google Vertex AI",
+          "bedrock": "AWS Bedrock",
+          "mistral": "Mistral"
+        },
+        "key": {
+          "title": "API 金鑰",
+          "set": "設定金鑰",
+          "replace": "更換金鑰",
+          "remove": "移除",
+          "placeholder": "貼上 API 金鑰",
+          "plaintextHint": "以明文儲存在 pi 的資料目錄中，與本機 pi CLI 共用同一份。",
+          "toast": {
+            "saved": "API 金鑰已儲存",
+            "removed": "API 金鑰已移除",
+            "saveFailed": "儲存 API 金鑰失敗，請重試"
+          }
+        },
+        "models": {
+          "title": "模型",
+          "add": "新增模型",
+          "addTitle": "新增模型",
+          "empty": "還沒有模型。可手動新增，或從供應商端點拉取模型清單。",
+          "reasoning": "支援推理",
+          "remove": "刪除模型",
+          "toggleAria": "切換 {{provider}} 的 {{model}}",
+          "toggleFailed": "更新模型可見性失敗，請重試",
+          "removeFailed": "刪除模型失敗，請重試",
+          "saveFailed": "儲存模型失敗，請重試",
+          "contextWindow": "上下文 {{tokens}}",
+          "maxTokens": "最大輸出 {{tokens}}",
+          "idPlaceholder": "model-id",
+          "namePlaceholder": "顯示名稱（可選）",
+          "contextPlaceholder": "上下文視窗",
+          "maxPlaceholder": "最大輸出（tokens）"
+        },
+        "add": {
+          "title": "新增供應商",
+          "namePlaceholder": "顯示名稱",
+          "idPreview": "id：{{id}}",
+          "baseUrlPlaceholder": "基礎 URL（https://…）",
+          "apiLabel": "API 格式",
+          "fetch": "拉取模型清單",
+          "fetching": "拉取中…",
+          "fetchEmpty": "端點沒有回傳模型。請檢查基礎 URL，或稍後手動新增模型。",
+          "fetchFailed": "拉取模型清單失敗，請重試",
+          "pickModels": "選擇要新增的模型（勾選的模型會立即啟用）",
+          "create": "新增供應商",
+          "toast": {
+            "created": "供應商已新增",
+            "createFailed": "新增供應商失敗，請重試"
+          }
+        },
+        "detail": {
+          "edit": "編輯",
+          "delete": "刪除",
+          "toast": {
+            "updated": "供應商已更新",
+            "updateFailed": "更新供應商失敗，請重試"
+          }
+        }
+      },
       "addProvider": "新增供應商",
       "detail": {
         "singleAgentNote": "僅支援 {{agent}}",
