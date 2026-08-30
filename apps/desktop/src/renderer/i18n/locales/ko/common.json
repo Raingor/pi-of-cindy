@@ -1809,6 +1809,17 @@
             "createFailed": "제공자 추가에 실패했습니다. 다시 시도해 주세요."
           }
         },
+        "import": {
+          "label": "텍스트에서 가져오기",
+          "placeholder": "예: myrelay baseurl: https://api.example.com/v1 key: sk-xxx 모델: vendor/model-a, vendor/model-b",
+          "empty": "이 텍스트에서 인식된 내용이 없습니다. 형식을 확인하거나 직접 입력해 주세요.",
+          "idInvalid": "이 이름으로는 유효한 id를 만들 수 없습니다. 다른 이름을 사용해 주세요.",
+          "mergeHint": "같은 이름의 사용자 지정 제공자 \"{{id}}\"가 이미 있습니다 — 저장하면 모델이 병합됩니다.",
+          "builtinHint": "내장 제공자 \"{{id}}\"와 같은 id입니다 — 저장하면 확장하거나 덮어씁니다.",
+          "modelIdPlaceholder": "모델 id 추가",
+          "addModelId": "추가",
+          "removeModelId": "모델 {{id}} 제거"
+        },
         "detail": {
           "edit": "편집",
           "delete": "삭제",

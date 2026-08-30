@@ -104,3 +104,15 @@
 - Phase 5 数据对齐佐证：Pi 任务 tab 9 项目 24 任务 = ~/.pi/agent/sessions 磁盘 24 个 .jsonl
 - 真机抓到并修复 1 个 bug：settings.providers.button.save key 不存在（按钮渲染裸 key），
   改用已存在的 settings.providers.custom.save；单测同步更新
+
+## 2026-08-31 用户反馈三连（1/2 完成）
+- 反馈 1 修复：Pi 测速页标题渲染裸 key —— 根因是组件移植时 key 少了 `settings.`
+  前缀（settings.piSpeedtest / settings.piSubagents 区块早已存在，含 tab_agents 等
+  额外 key）。改 4 个组件文件 67 处引用前缀，真机 HMR 确认测速页文案正常。
+  排查发现 Pi Subagents 页同样全缺（用户未报告），一并修复。
+- 反馈 2 完成：添加供应商表单加自由文本导入（pi-web-switch ImportProviderModal
+  同款语义）。新 lib renderer/lib/piProviderImport.ts（IMPORT_LABEL_RE 全角/半角
+  标签 + 无标签启发式 + deriveProviderId hostname 回落）+ 6 个单测；表单顶部粘贴
+  即解析预填（名称/地址/密钥/模型 id chips 可增删），同名自定义供应商保存合并
+  （模型去重、apiKey 仅在新输入时覆盖），与内置同 id 提示扩展/覆盖语义（数据层
+  合法）；导入+拉取的模型创建后批量写 enabledModels。真机全链路验证通过。

@@ -1809,6 +1809,17 @@
             "createFailed": "プロバイダーの追加に失敗しました。もう一度お試しください。"
           }
         },
+        "import": {
+          "label": "テキストから取り込み",
+          "placeholder": "例: myrelay baseurl: https://api.example.com/v1 key: sk-xxx モデル: vendor/model-a, vendor/model-b",
+          "empty": "このテキストから認識できる内容がありません。形式を確認するか、手動で入力してください。",
+          "idInvalid": "この名前から有効な id を生成できません。別の名前を試してください。",
+          "mergeHint": "同じ名前のカスタムプロバイダー「{{id}}」が既に存在します — 保存するとモデルが統合されます。",
+          "builtinHint": "内蔵プロバイダー「{{id}}」と同じ id です — 保存すると上書き・拡張されます。",
+          "modelIdPlaceholder": "モデル id を追加",
+          "addModelId": "追加",
+          "removeModelId": "モデル {{id}} を削除"
+        },
         "detail": {
           "edit": "編集",
           "delete": "削除",

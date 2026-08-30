@@ -1810,6 +1810,17 @@
             "createFailed": "Failed to add the provider. Please try again."
           }
         },
+        "import": {
+          "label": "Import from text",
+          "placeholder": "e.g. myrelay baseurl: https://api.example.com/v1 key: sk-xxx models: vendor/model-a, vendor/model-b",
+          "empty": "Nothing recognized in this text. Check the format, or fill the fields manually.",
+          "idInvalid": "Cannot derive a valid id from this name. Try another one.",
+          "mergeHint": "A custom provider \"{{id}}\" already exists — saving merges the models.",
+          "builtinHint": "Same id as the built-in provider \"{{id}}\" — saving extends or overrides it.",
+          "modelIdPlaceholder": "Add a model id",
+          "addModelId": "Add",
+          "removeModelId": "Remove model {{id}}"
+        },
         "detail": {
           "edit": "Edit",
           "delete": "Delete",

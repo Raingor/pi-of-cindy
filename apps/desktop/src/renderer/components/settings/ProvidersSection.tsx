@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { KeyRound, Loader2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { KeyRound, Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { extractIpcError } from '@/utils/ipcError';
@@ -25,6 +25,11 @@ import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
 import { toast } from '@/lib/toast';
 import { Switch } from '@/components/ui/switch';
 import { SettingsTextInput } from './SettingsTextInput';
+import {
+  deriveProviderId,
+  isValidHttpUrl,
+  parseProviderImport,
+} from '@/lib/piProviderImport';
 import { EnabledModelsPanel } from './EnabledModelsPanel';
 import type { PiProviderModelView, PiProviderView } from '../../../shared/piProviderTypes';
 
@@ -59,17 +64,6 @@ function apiTypeLabel(t: (key: string) => string, api: string | undefined): stri
   if (!api) return '';
   const key = API_TYPE_LABEL_KEY[api];
   return key ? t(key) : api;
-}
-
-/** id 只保留可读字符(pi 会把它原样显示在模型选择器徽标里)。 */
-function sanitizeProviderId(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\p{L}\p{N}-]/gu, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 /** IPC 错误 → 用户可见文案:命中统一错误协议时用服务端 message,否则回落 i18n。 */
@@ -869,9 +863,11 @@ interface FetchedModel {
 }
 
 function AddProviderForm({
+  existing,
   onCreated,
   onCancel,
 }: {
+  existing: PiProviderView[];
   onCreated: (id: string) => void;
   onCancel: () => void;
 }) {
@@ -881,13 +877,40 @@ function AddProviderForm({
   const [baseUrl, setBaseUrl] = useState('');
   const [api, setApi] = useState<string>('openai-completions');
   const [apiKey, setApiKey] = useState('');
+  const [importText, setImportText] = useState('');
+  const [parsedModelIds, setParsedModelIds] = useState<string[]>([]);
+  const [manualModelId, setManualModelId] = useState('');
   const [fetching, setFetching] = useState(false);
   const [fetched, setFetched] = useState<FetchedModel[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
 
-  const derivedId = useMemo(() => sanitizeProviderId(name), [name]);
-  const valid = derivedId.length > 0 && /^https?:\/\//.test(baseUrl.trim());
+  const derivedId = useMemo(() => deriveProviderId(name, baseUrl), [name, baseUrl]);
+  const mergeTarget = useMemo(
+    () => existing.find((p) => p.id === derivedId && p.type === 'custom') ?? null,
+    [existing, derivedId],
+  );
+  const builtinHit = useMemo(
+    () => existing.find((p) => p.id === derivedId && p.type === 'builtin') ?? null,
+    [existing, derivedId],
+  );
+  const parsedEmpty =
+    importText.trim() !== '' &&
+    !name.trim() &&
+    !baseUrl.trim() &&
+    !apiKey.trim() &&
+    parsedModelIds.length === 0;
+  const valid = derivedId.length > 0 && isValidHttpUrl(baseUrl.trim());
+
+  // 粘贴即解析:填名称/地址/密钥/模型 id,其余字段保持可编辑(pi-web-switch 同款)。
+  const handleImportText = (value: string) => {
+    setImportText(value);
+    const parsed = parseProviderImport(value);
+    setName(parsed.name);
+    setBaseUrl(parsed.baseUrl);
+    setApiKey(parsed.apiKey);
+    setParsedModelIds(parsed.modelIds);
+  };
 
   const fetchModels = async () => {
     setFetching(true);
@@ -915,7 +938,15 @@ function AddProviderForm({
   const create = async () => {
     setCreating(true);
     try {
-      const models: PiProviderModelView[] = (fetched ?? [])
+      // 手动/导入的模型 id 用保守默认(256K 上下文 / 32K 输出),
+      // 端点拉取的模型带真实元数据(pi-web-switch 同款语义)。
+      const parsedModels: PiProviderModelView[] = parsedModelIds.map((id) => ({
+        id,
+        name: id.split('/').pop() || id,
+        contextWindow: 262_144,
+        maxTokens: 32_768,
+      }));
+      const fetchedModels: PiProviderModelView[] = (fetched ?? [])
         .filter((m) => selected.has(m.id))
         .map((m) => ({
           id: m.id,
@@ -924,23 +955,33 @@ function AddProviderForm({
           ...(m.maxTokens ? { maxTokens: m.maxTokens } : {}),
           ...(m.reasoning ? { reasoning: true } : {}),
         }));
-      await window.electronAPI.maker.piProviders.add(derivedId, {
-        name: name.trim(),
-        baseUrl: baseUrl.trim(),
+      const existingModels = mergeTarget?.models ?? [];
+      const seen = new Set(existingModels.map((m) => m.id));
+      const newModels = [...parsedModels, ...fetchedModels].filter((m) => {
+        if (seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      });
+      const models = [...existingModels, ...newModels];
+      const patch = {
+        name: name.trim() || undefined,
+        baseUrl: baseUrl.trim() || undefined,
         api,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         models,
-      });
-      // 选中的模型批量写入 settings.enabledModels(单次写入,避免逐条竞态)。
-      if (models.length > 0) {
+      };
+      if (mergeTarget) await window.electronAPI.maker.piProviders.update(derivedId, patch);
+      else await window.electronAPI.maker.piProviders.add(derivedId, patch);
+      // 新增的模型批量写入 settings.enabledModels(单次写入,避免逐条竞态)。
+      if (newModels.length > 0) {
         const settings = (await window.electronAPI.maker.piAgent.readSettings()) as {
           enabledModels?: string[];
         } | null;
-        const refs = models.map((m) => `${derivedId}/${m.id}`);
-        const existing = settings?.enabledModels ?? [];
+        const refs = newModels.map((m) => `${derivedId}/${m.id}`);
+        const current = settings?.enabledModels ?? [];
         await window.electronAPI.maker.piAgent.writeSettings({
           ...settings,
-          enabledModels: [...existing, ...refs.filter((r) => !existing.includes(r))],
+          enabledModels: [...current, ...refs.filter((r) => !current.includes(r))],
         });
       }
       toast.success(t('settings.providers.pi.add.toast.created'));
@@ -954,19 +995,58 @@ function AddProviderForm({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* 自由文本导入(pi-web-switch 同款):粘贴即解析,解析结果落到下方可编辑字段 */}
       <div
         className="flex flex-col gap-2 border-t px-5 py-3"
         style={{ borderColor: 'var(--settings-theme-card-border)' }}
       >
         <span className="text-13 font-medium" style={{ color: 'var(--text-secondary)' }}>
-          {t('settings.providers.pi.add.title')}
+          {t('settings.providers.pi.import.label')}
         </span>
+        <textarea
+          value={importText}
+          onChange={(e) => handleImportText(e.target.value)}
+          rows={3}
+          placeholder={t('settings.providers.pi.import.placeholder')}
+          className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-12"
+          style={{
+            backgroundColor: 'var(--settings-theme-card-bg)',
+            borderColor: 'var(--settings-theme-card-border)',
+            color: 'var(--text-primary)',
+          }}
+        />
+        {parsedEmpty && (
+          <span className="text-12" style={{ color: 'var(--text-tertiary)' }}>
+            {t('settings.providers.pi.import.empty')}
+          </span>
+        )}
+      </div>
+
+      <div
+        className="flex flex-col gap-2 border-t px-5 py-3"
+        style={{ borderColor: 'var(--settings-theme-card-border)' }}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <SettingsTextInput size="sm" value={name} onChange={setName} placeholder={t('settings.providers.pi.add.namePlaceholder')} />
           <span className="font-mono text-12" style={{ color: 'var(--text-tertiary)' }}>
             {t('settings.providers.pi.add.idPreview', { id: derivedId || '—' })}
           </span>
         </div>
+        {name.trim() && !derivedId && (
+          <span className="text-12" style={{ color: 'var(--text-tertiary)' }}>
+            {t('settings.providers.pi.import.idInvalid')}
+          </span>
+        )}
+        {mergeTarget && (
+          <span className="text-12" style={{ color: 'var(--text-tertiary)' }}>
+            {t('settings.providers.pi.import.mergeHint', { id: derivedId })}
+          </span>
+        )}
+        {!mergeTarget && builtinHit && (
+          <span className="text-12" style={{ color: 'var(--text-tertiary)' }}>
+            {t('settings.providers.pi.import.builtinHint', { id: derivedId })}
+          </span>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <SettingsTextInput size="sm" value={baseUrl} onChange={setBaseUrl} placeholder={t('settings.providers.pi.add.baseUrlPlaceholder')} />
           <select
@@ -994,14 +1074,48 @@ function AddProviderForm({
             placeholder={t('settings.providers.pi.key.placeholder')}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SettingsTextInput
+            size="sm"
+            value={manualModelId}
+            onChange={setManualModelId}
+            placeholder={t('settings.providers.pi.import.modelIdPlaceholder')}
+            className="min-w-[180px]"
+          />
+          <PillButton
+            label={t('settings.providers.pi.import.addModelId')}
+            onClick={() => {
+              const id = manualModelId.trim();
+              if (!id || parsedModelIds.includes(id)) return;
+              setParsedModelIds([...parsedModelIds, id]);
+              setManualModelId('');
+            }}
+            disabled={!manualModelId.trim()}
+          />
           <PillButton
             label={t(fetching ? 'settings.providers.pi.add.fetching' : 'settings.providers.pi.add.fetch')}
             onClick={() => void fetchModels()}
-            disabled={fetching || !/^https?:\/\//.test(baseUrl.trim())}
+            disabled={fetching || !isValidHttpUrl(baseUrl.trim())}
           />
           {fetching && <Loader2 size={14} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />}
         </div>
+        {parsedModelIds.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {parsedModelIds.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setParsedModelIds(parsedModelIds.filter((m) => m !== id))}
+                className="flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-11"
+                style={{ backgroundColor: 'var(--surface-chip)', color: 'var(--text-secondary)' }}
+                aria-label={t('settings.providers.pi.import.removeModelId', { id })}
+              >
+                {id}
+                <X size={11} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {fetched && (
@@ -1286,6 +1400,7 @@ export function ProvidersSection() {
                   <PillButton label={t('settings.providers.button.cancel')} onClick={() => setShowAdd(false)} />
                 </div>
                 <AddProviderForm
+                  existing={list}
                   onCreated={(id) => {
                     setShowAdd(false);
                     setSelectedId(id);

@@ -1809,6 +1809,17 @@
             "createFailed": "添加供应商失败，请重试"
           }
         },
+        "import": {
+          "label": "从文本导入",
+          "placeholder": "例如：myrelay baseurl：https://api.example.com/v1 key：sk-xxx 模型：vendor/model-a, vendor/model-b",
+          "empty": "未从这段文本识别出内容。请检查格式，或直接手动填写。",
+          "idInvalid": "无法从名称生成有效 id，请换个名称。",
+          "mergeHint": "已存在同名自定义供应商「{{id}}」，保存会合并模型。",
+          "builtinHint": "与内置供应商「{{id}}」同 id，保存会扩展或覆盖该内置供应商。",
+          "modelIdPlaceholder": "添加模型 id",
+          "addModelId": "添加",
+          "removeModelId": "移除模型 {{id}}"
+        },
         "detail": {
           "edit": "编辑",
           "delete": "删除",
