@@ -170,7 +170,7 @@ describe('ProvidersSection(pi 数据层)', () => {
     fireEvent.click(screen.getByText('settings.providers.pi.key.replace'));
     const input = document.querySelector('input[type="password"]') as HTMLInputElement;
     fireEvent.change(input, { target: { value: PLAINTEXT_KEY } });
-    fireEvent.click(screen.getByText('settings.providers.button.save'));
+    fireEvent.click(screen.getByText('settings.providers.custom.save'));
     await waitFor(() => expect(setAuthSpy).toHaveBeenCalledWith('anthropic', PLAINTEXT_KEY));
     // 明文不应被回显到 DOM
     expect(document.body.textContent).not.toContain(PLAINTEXT_KEY);

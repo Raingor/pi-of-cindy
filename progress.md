@@ -89,3 +89,18 @@
   - 验证：desktop typecheck 通过；pnpm test:unit:related 435 过 0 失败；
     check:i18n-glossary 通过
   - 遗留：真机跑桌面端目检 Light/Dark 双模式；重命名入口 UI 未暴露(后端已就绪)
+
+## 2026-08-31 真机验证（dev 沙箱实跑，region=global, isolated dev）
+- 启动：pnpm restart:desktop:remote --region=global → DESKTOP_DEV_VERDICT=ready
+- 供应商区真机全回路通过（经 CDP 9222 驱动 + 截图目检）：
+  - 列表 45 个供应商 = 39 内置（读本机 pi 的 pi-ai 目录，模型计数真实）+ 6 个用户
+    models.json 自定义供应商；Ant Ling/Seekai 行密钥图标正确
+  - Seekai 密钥只显示打码值 sk-2txD…E0qw，DOM 无明文
+  - 模型开关：开 Anthropic Haiku → 磁盘 settings.json enabledModels 增引用；关 → 移除
+  - 添加供应商：9 种 API 格式齐全；建 ZZ Test Provider 落 models.json，UI 删除后消失
+  - 密钥回路：UI 设置假 key → auth.json 写入 anthropic 条目且 UI 只现 sk-fake…0000；
+    移除后条目删除，用户原有 3 条凭证完好
+- 双模式目检：Dark / Light 截图均正常（语义 token 正确翻转）；主题已还原深色
+- Phase 5 数据对齐佐证：Pi 任务 tab 9 项目 24 任务 = ~/.pi/agent/sessions 磁盘 24 个 .jsonl
+- 真机抓到并修复 1 个 bug：settings.providers.button.save key 不存在（按钮渲染裸 key），
+  改用已存在的 settings.providers.custom.save；单测同步更新

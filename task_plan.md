@@ -59,7 +59,9 @@
 - [x] 处理 models.json 冲突：不得覆盖用户真实 models.json（评估合并/改名策略）
 - [x] pi-package-store packageHome 改 ~/.pi/agent，扩展包页显示本机扩展
 - [x] 会话落到 ~/.pi/agent/sessions（与 Pi Sessions tab 数据对齐）
-- [ ] 真机验证：跑一个 pi 任务，确认数据落 ~/.pi/agent（未做，需要实机跑任务）
+- [x] 真机验证（2026-08-30，dev 沙箱实跑）：供应商区读写 ~/.pi/agent 全回路验证
+      （列表 45 = 39 内置 + 6 自定义、模型开关写 settings.json、添加/删除写 models.json、
+      密钥设置/移除写 auth.json 且 UI 只现打码值）；Pi 任务 tab 24 会话与磁盘一致
 
 ### Phase 6: 供应商替换为 pi-web-switch 模型 [done 2026-08-30]
 - [x] main：新模块 pi-agent/piProviders.ts —— 内置目录从本机 pi 安装的
@@ -78,7 +80,8 @@
 - [x] enabledModels：模型开关 = settings.enabledModels 引用增删，与 EnabledModelsPanel 同一数据
 - [x] 旧测试下架(3 个断言 Cindy store 行为的 ProvidersSection 测试删除)，
       新增 providersSectionPi.test.tsx + piProviders.test.ts(13 用例)
-- [ ] 真机目检 Light/Dark 双模式(未做，需要实机跑桌面端)
+- [x] 真机目检 Light/Dark 双模式（2026-08-30 截图通过；真机发现并修复缺失的
+      settings.providers.button.save key，改用已存在的 custom.save）
 - [ ] renamePiCustomProvider 已实现并有 IPC，UI 未暴露重命名入口(可后续补)
 
 ## 风险

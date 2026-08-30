@@ -714,7 +714,7 @@ function XdGatewayHeader({
             onChange={setDraft}
             placeholder={t('settings.providers.pi.key.placeholder')}
           />
-          <PillButton label={t('settings.providers.button.save')} onClick={() => void save()} disabled={saving || !draft.trim()} />
+          <PillButton label={t('settings.providers.custom.save')} onClick={() => void save()} disabled={saving || !draft.trim()} />
           <PillButton
             label={t('settings.providers.button.cancel')}
             onClick={() => {
@@ -851,7 +851,7 @@ function AddModelForm({
         </label>
       </div>
       <div className="flex items-center gap-2">
-        <PillButton label={t('settings.providers.button.save')} onClick={submit} disabled={!valid} />
+        <PillButton label={t('settings.providers.custom.save')} onClick={submit} disabled={!valid} />
         <PillButton label={t('settings.providers.button.cancel')} onClick={onCancel} />
       </div>
     </div>
@@ -1365,7 +1365,7 @@ export function ProvidersSection() {
                           </option>
                         ))}
                       </select>
-                      <PillButton label={t('settings.providers.button.save')} onClick={() => void saveEditMeta()} disabled={busy} />
+                      <PillButton label={t('settings.providers.custom.save')} onClick={() => void saveEditMeta()} disabled={busy} />
                       <PillButton label={t('settings.providers.button.cancel')} onClick={() => setEditingMeta(false)} />
                     </div>
                   )}
