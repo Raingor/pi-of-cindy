@@ -59,21 +59,14 @@ describe('ensureRemoteReadyForSessionStart Maker Memory flag (R1 P1)', () => {
   });
 });
 
-describe('codex remote drift uses the bridge-clamped memory flag (R2 P2)', () => {
-  it('routes both hasPendingRemoteMcpDrift call sites through the shared bridge-clamped opts', () => {
-    // desired 集合必须与 ensure 实际能注入的集合同源:旧 bridge 缺
-    // cindy_memory 时不能只看 manager 现值, 否则 drift 永不收敛, 每次
-    // live send 白跑一次完整 remote ensure。opts 单点构造在
-    // codexRemoteDriftOpts (内部走 remoteMakerMemoryEnabledForBridge)。
-    expect(source).toContain('function remoteMakerMemoryEnabledForBridge()');
-    expect(source).toContain('makerMemoryEnabled: remoteMakerMemoryEnabledForBridge()');
-    const driftCalls =
-      source.match(
-        /hasPendingRemoteMcpDrift\(\s*live\.remoteHostId\s*,\s*codexRemoteDriftOpts\(\)\s*,?\s*\)/g,
-      ) ?? [];
-    expect(driftCalls.length).toBe(2);
-    // drift 调用点不得残留裸 manager 现值。
-    expect(source).not.toContain('makerMemoryEnabled: maker.makerMemory?.isEnabled() ?? false');
+describe('codex remote drift gates after the pi-only harness change', () => {
+  it('no longer references codex bridge drift in register.ts', () => {
+    // pi-only 改造:codex HTTP bridge / drift 判定已随 CodexAgent 摘除,
+    // 远端 ensure 只服务 pi;stale-bridge 钳制谓词保留为恒 false 的形状。
+    expect(source).toContain('function activeBridgeMissingMemory()');
+    expect(source).not.toContain('hasPendingRemoteMcpDrift');
+    expect(source).not.toContain('codexRemoteDriftOpts');
+    expect(source).not.toContain('remoteMakerMemoryEnabledForBridge');
   });
 });
 

@@ -106,7 +106,7 @@ import {
 } from './cc-manager-install.js';
 import { removeRemoteMcpForwardPref } from './codex-remote-mcp.js';
 import { ensureDaemonRunning } from '../maker-host/cc-manager-client.js';
-import { getMakerIfReady, softCloseCcSessionsForHost } from '../maker-host/index.js';
+import { getMakerIfReady } from '../maker-host/index.js';
 import { withRehydrateCloseSuppressed } from '../maker-host/rehydrateCloseSuppression.js';
 
 const log = createLogger('remote-ssh/ipc');
@@ -1571,7 +1571,8 @@ export function registerRemoteSshIpc(): void {
         await softClosePiSessionsForHost(id, { onlySessionId: sessionId });
         await runPiManagerUpgrade(host, log);
       } else {
-        await softCloseCcSessionsForHost(id, { onlySessionId: sessionId });
+        // pi-only 改造:claude-code 远端会话已随 ClaudeCodeAgent 摘除,
+        // 无需 soft-close;cc-mgr daemon 升级本身保留(host 管理面)。
         await runCcMgrUpgrade(host);
       }
       // 主动起新 daemon — 用户点了升级 = 期望 "升级完就能用"。

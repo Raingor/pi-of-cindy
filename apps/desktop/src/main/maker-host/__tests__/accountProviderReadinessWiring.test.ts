@@ -97,9 +97,11 @@ describe('account provider readiness wiring', () => {
 
     expect(piProviders).toBeGreaterThanOrEqual(0);
     expect(registerArrays).toBeGreaterThan(piProviders);
-    expect(registration).toContain('claudeMcpProviders');
-    expect(registration).toContain('codexMcpProviders');
+    // pi-only 改造:claude/codex 的 mcpProviders 数组已随对应 agent 摘除,
+    // 只有 pi 数组注册进 custom-mcp-registry。
     expect(registration).toContain('piMcpProviders');
+    expect(registration).not.toContain('claudeMcpProviders');
+    expect(registration).not.toContain('codexMcpProviders');
     expect(initialRefresh).toBeGreaterThan(registerArrays);
   });
 

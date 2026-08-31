@@ -8,8 +8,6 @@ interface AccountProviderModelRefreshLogger {
 }
 
 export interface AccountProviderModelRefreshDeps {
-  restartCodex(): Promise<void>;
-  shutdownCodexEnvironment(): Promise<void>;
   loadXaiLkg(): Promise<boolean>;
   refreshProviderModels(
     trigger: ProviderModelAutoRefreshTrigger,
@@ -27,32 +25,17 @@ export interface AccountProviderModelRefreshDeps {
  * 刷新且纳入同一账号 barrier，防止切号后旧账号的迟到结果覆盖全局目录；各步骤保持
  * best-effort，失败会留日志，不会把可用的本地 DB 误判成初始化失败。
  */
+/**
+ * pi-only 改造(2026-08-31):原 codex app-server 重启 / codex MCP bridge shutdown
+ * 收口已随 CodexAgent 装配一并摘除,账号边界只剩 provider 模型发现,由
+ * discoverAccountProviderModels 承担。
+ */
 export async function resetAccountProviderRuntimes(
-  deps: Pick<
-    AccountProviderModelRefreshDeps,
-    'restartCodex' | 'shutdownCodexEnvironment' | 'log'
-  >,
+  deps: Pick<AccountProviderModelRefreshDeps, 'log'>,
   shouldContinue: () => boolean = () => true,
 ): Promise<void> {
+  void deps;
   if (!shouldContinue()) return;
-  let codexRestarted = false;
-  try {
-    await deps.restartCodex();
-    codexRestarted = true;
-  } catch (error) {
-    deps.log.warn('restartCodexAfterAuthModeChange on account switch failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  if (!shouldContinue() || !codexRestarted) return;
-  try {
-    await deps.shutdownCodexEnvironment();
-  } catch (error) {
-    deps.log.warn('shutdownCodexEnvironment on account switch failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
 
 export async function discoverAccountProviderModels(

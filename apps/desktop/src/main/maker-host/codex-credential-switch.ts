@@ -11,7 +11,11 @@ import {
   CODEX_GATEWAY_PROVIDER_ID,
   CODEX_OPENAI_COMPACT_PROVIDER_ID,
 } from './codex-gateway-config.js';
-import type { CodexProxyAuthInjection } from './codex-proxy-host.js';
+/**
+ * codex spawn 鉴权注入形态。pi-only 改造后 codex-proxy-host.ts 已删,
+ * 类型收编到本模块(runtimeSetModel 经此 import)。
+ */
+export type CodexProxyAuthInjection = 'oauth-bearer' | 'env-key' | 'provider-oauth';
 import { withRehydrateCloseSuppressed } from './rehydrateCloseSuppression.js';
 
 export interface ShouldCloseSessionForCredentialSwitchInput {

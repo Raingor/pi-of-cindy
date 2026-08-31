@@ -21,8 +21,7 @@ import { isModelVisible, visibleModelUnion } from '@cindy/model-providers';
 import { BRAND_NAME } from '@cindy/maker-shared/branding';
 
 import { createLogger } from '../logger.js';
-import { getMaker, restartCodexAfterAuthModeChange } from '../maker-host/index.js';
-import { shutdownCodexEnvironment } from '../mcp-integrations/codexEnvironment.js';
+import { getMaker } from '../maker-host/index.js';
 import { getDesktopProviderService } from '../maker-host/createDesktopProviderService.js';
 import { getModelVisibilityOverride } from '../maker-host/model-visibility-mirror.js';
 import { resolveFreshSourceBranch, WorktreeManager } from '../worktree/index.js';
@@ -190,35 +189,12 @@ function requestCodexMcpRefreshForSlackAvailability(enabled: boolean): void {
 }
 
 async function drainCodexMcpRefreshForSlackAvailability(): Promise<void> {
-  if (codexMcpRefreshRunning) return;
-  codexMcpRefreshRunning = true;
-  try {
-    while (codexMcpRefreshPending) {
-      codexMcpRefreshPending = false;
-      try {
-        await restartCodexAfterAuthModeChange();
-        await shutdownCodexEnvironment();
-        log.info('Codex MCP environment refreshed after Slack provider availability changed', {
-          enabled: latestSlackToolProviderEnabled,
-        });
-      } catch (err) {
-        codexMcpRefreshPending = true;
-        log.warn('Codex MCP refresh deferred after Slack provider availability changed', {
-          enabled: latestSlackToolProviderEnabled,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        break;
-      }
-    }
-  } finally {
-    codexMcpRefreshRunning = false;
-  }
-  if (codexMcpRefreshPending && codexMcpRefreshRetryTimer === null) {
-    codexMcpRefreshRetryTimer = setTimeout(() => {
-      codexMcpRefreshRetryTimer = null;
-      void drainCodexMcpRefreshForSlackAvailability();
-    }, CODEX_MCP_REFRESH_RETRY_MS);
-    codexMcpRefreshRetryTimer.unref?.();
+  // pi-only 改造:codex app-server / bridge 的 MCP 刷新链已随 CodexAgent 摘除,
+  // 无需重启动作;pi bridge 的 server 集合随 invalidatePiEnvironment 代际重建。
+  codexMcpRefreshPending = false;
+  if (codexMcpRefreshRetryTimer !== null) {
+    clearTimeout(codexMcpRefreshRetryTimer);
+    codexMcpRefreshRetryTimer = null;
   }
 }
 

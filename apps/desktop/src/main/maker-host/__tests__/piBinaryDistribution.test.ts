@@ -59,7 +59,8 @@ describe('Pi binary distribution contract', () => {
       'utf8',
     );
 
-    expect(binaryVersion).toContain("if (kind === 'pi') return getCachedLocalPiPath();");
+    // Phase A(pi-only step 1)后 binary-version IPC 只服务 pi,不再按 kind 分支。
+    expect(binaryVersion).toContain('return getCachedLocalPiPath();');
   });
 
   it('treats a missing local pi as non-fatal for startup', () => {

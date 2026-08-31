@@ -81,6 +81,29 @@ import { scanWorkspaceFileResources } from './shared/palette-scanner.js';
 import type { AutoReviewDelegate } from './shared/auto-review-decision.js';
 import type { ClaudeSubagentModelAccessResult } from './claude-code/subagent-model-access.js';
 
+/**
+ * 本机出站路径事实(pi-only 改造:原 codex/retry-escalation.ts 的类型内联)。
+ */
+export interface OutboundPathFact {
+  source: 'env' | 'system';
+  /**
+   * 四态的实际行为只有「走代理」与「直连」两种,但**原因**完全不同,而原因才是
+   * 诊断要说的话:direct = 确认没配;unsupported = 配了但形态用不了(TLS-to-proxy
+   * / SOCKS4);unknown = 判定没问出来、按直连兜底。
+   */
+  kind: 'proxy' | 'direct' | 'unsupported' | 'unknown';
+  /** 已脱敏的代理地址(scheme://host:port);kind='proxy' 时有值。 */
+  proxy?: string;
+  /** kind='unknown' 时的原因标识(resolve_timeout / resolve_failed / …)。 */
+  reason?: string;
+  upstream: string;
+  /**
+   * 判定时间戳。不进用户消息(对排查没有直接价值),但会进升级日志 —— 系统代理
+   * 判定带 TTL 缓存,读日志的人需要知道这条事实是刚测的还是缓存里的。
+   */
+  at?: number;
+}
+
 export interface AgentCapabilityAdditions {
   /** Extra models exposed by the host for this agent. Existing built-in ids are ignored. */
   availableModels?: readonly ModelDescriptor[];
@@ -940,9 +963,14 @@ export interface AgentDeps {
    *
    * 缺省 / undefined / 返回 null → 保留原有的通用排查文案,不降级任何行为。
    */
+  /**
+   * 本机出站路径事实(host 注入,来源是 desktop 的 outbound-proxy-resolver 快照)。
+   * pi-only 改造:原实现位于 codex/retry-escalation.ts(已随 CodexAgent 删除),
+   * 类型内联至此;字段暂无消费方,保留仅为 AgentDeps 形状兼容。
+   */
   getOutboundPathFact?: (
     ctx: { threadId?: string },
-  ) => import('./codex/retry-escalation.js').OutboundPathFact | null;
+  ) => OutboundPathFact | null;
 
   /**
    * Maker Memory 顶层单例 (host 注入). 当 runtimeConfig.makerMemoryEnabled === true 时,

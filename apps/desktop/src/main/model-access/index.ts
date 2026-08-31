@@ -5,12 +5,6 @@ import * as authManager from '../authManager.js';
 import { serverApiFetch, ServerApiError } from '../serverApiClient.js';
 import { getClientEndpoint } from '../clientEndpointsService.js';
 import { getProviderSecretStore } from '../secrets/providerSecretStore.js';
-import { getCodexProxyAuthInjectionState } from '../maker-host/codex-proxy-host.js';
-import {
-  prepareCodexForAuthModeChange,
-  finalizeCodexAfterAuthModeChange,
-  cancelCodexAuthModeChange,
-} from '../maker-host/index.js';
 import {
   getXdGatewayModels,
   markXdGatewayModelAccessUnknown,
@@ -91,41 +85,14 @@ function rotateCredentials(): Promise<CredentialsPayload> {
 }
 
 /**
- * 写 XD key(main 侧自动下发路径),带 codex env-key 重启副作用:
- * env-key spawn 的 codex app-server 把 gateway key 冻在子进程 env 里,写盘后
- * 必须重建才生效——与 renderer 手填走的 safe-storage IPC 同一套语义。
- * 非 env-key 形态零副作用(Claude 每 session 现读 key,天然跟随)。
+ * 写 XD key(main 侧自动下发路径)。pi-only 改造后没有 codex env-key 子进程要重建:
+ * 消费方(pi / 网关路由的 host 侧请求)每次请求现读 key,写盘即生效。历史 codex
+ * 重启副作用(env-key spawn 冻结 key)已随 CodexAgent 装配一并摘除。
  */
-async function writeXdKeyWithCodexSideEffect(key: string): Promise<boolean> {
-  const needRestart = getCodexProxyAuthInjectionState() === 'env-key';
-  if (!needRestart) {
-    const stored = getProviderSecretStore().set('xd', key);
-    if (stored) notifyXdProviderKeyChanged();
-    return stored;
-  }
-  try {
-    await prepareCodexForAuthModeChange();
-  } catch (err) {
-    log.warn('prepare codex before auto key write failed', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return false;
-  }
-  const ok = getProviderSecretStore().set('xd', key);
-  if (!ok) {
-    cancelCodexAuthModeChange();
-    return false;
-  }
-  notifyXdProviderKeyChanged();
-  try {
-    await finalizeCodexAfterAuthModeChange();
-  } catch (err) {
-    // key 已写盘(新值有效);codex 重建失败只记日志,下次 spawn 自然用新 key。
-    log.warn('finalize codex after auto key write failed', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-  return true;
+async function writeXdKey(key: string): Promise<boolean> {
+  const stored = getProviderSecretStore().set('xd', key);
+  if (stored) notifyXdProviderKeyChanged();
+  return stored;
 }
 
 let accountTier: ModelAccessAccountTier | null = null;
@@ -347,7 +314,7 @@ function getSync(): CredentialsSync {
       fetchCredentials,
       rotateCredentials,
       readXdKey: () => getProviderSecretStore().get('xd'),
-      writeXdKey: writeXdKeyWithCodexSideEffect,
+      writeXdKey,
       store: getModelAccessCredentialsStore(),
       onStatusChange: (status) => {
         if (['failed', 'disabled', 'unsupported', 'idle'].includes(status.state)) {

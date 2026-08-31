@@ -251,7 +251,6 @@ import {
   registerRsbNativePopupSurfaceIpc,
 } from './rsb-browser-bridge/native-popup-surfaces.js';
 import { disposeAndroidAdb } from './mcp-integrations/android.js';
-import { shutdownCodexEnvironment } from './mcp-integrations/codexEnvironment.js';
 import { shutdownPiEnvironment } from './mcp-integrations/piEnvironment.js';
 import { fetchRemoteMediaImageBytes } from './device-link/remoteMediaProtocol';
 import * as imageCacheStore from './imageCacheStore';
@@ -361,7 +360,11 @@ import {
   setEmbeddingSourceSuspended,
   type EmbeddingService,
 } from './embedding-host';
-import { readClaudeApiKey } from './maker-host/auth-adapters';
+import {
+  desktopClaudeAuthAdapter,
+  desktopCodexAuthAdapter,
+  readClaudeApiKey,
+} from './maker-host/auth-adapters';
 import { outboundFetch } from './maker-host/outbound-fetch';
 import { registerDevEmbeddingIpc } from './ipc/dev/embedding';
 import {
@@ -504,15 +507,9 @@ import {
   getMakerIfReady,
   resetMaker,
   shutdownLspServerPool,
-  prepareCodexForAuthModeChange,
-  cancelCodexAuthModeChange,
-  finalizeCodexAfterAuthModeChange,
-  readCodexRuntimeRoute,
-  broadcastClaudeAuthStateChanged,
   broadcastXaiAuthStateChanged,
   refreshProviderAccessAfterAuthChange,
   setProviderAccessRuntimeRefreshListener,
-  restartCodexAfterAuthModeChange,
   waitForInitialCustomMcpRefresh,
 } from './maker-host/index.js';
 import { createDynamicMaker } from './maker-host/dynamic-maker.js';
@@ -550,10 +547,6 @@ import {
   onClaudeSessionRouteChange,
   readClaudeSessionRoute,
 } from './maker-host/claude-session-route-registry.js';
-import {
-  disposeCodexProxy,
-  getCodexProxyAuthInjectionState,
-} from './maker-host/codex-proxy-host.js';
 import {
   disposeBrowserRuntime,
   registerBrowserBackendIpc,
@@ -4488,11 +4481,12 @@ const registerIpcHandlers = () => {
     return gitSafetyWire();
   });
 
-  // Codex runtime route GET —— 右下角用量 chip 读 app-server 当前 spawn 冻结的鉴权注入方式
-  // (oauth-bearer = 走订阅 / env-key = 走网关 / provider-oauth = proxy 注入供应商 OAuth)。
-  // 退役全局鉴权开关后已无 SET,只保留 GET;spawn 凭证形态由 provider 选择决定。
+  // Codex runtime route GET —— 右下角用量 chip 读取项。pi-only 改造后没有 codex
+  // app-server 的 spawn 冻结态可读,按当前 OAuth 登录态合成(连了 = oauth-bearer,
+  // 否则 env-key);renderer 后续阶段移除该 chip 时一并下线。
   ipcMain.handle(MAKER_IPC_INVOKE.CODEX_RUNTIME_ROUTE_GET, async () => {
-    return readCodexRuntimeRoute();
+    const hasOAuth = await desktopCodexAuthAdapter.hasCodexOAuthLogin().catch(() => false);
+    return { authInjection: hasOAuth ? 'oauth-bearer' : 'env-key' };
   });
 
   // cc 默认路由会话的生效计费路由 —— proxy transform 按请求观察进 registry(路由真值),
@@ -4515,6 +4509,27 @@ const registerIpcHandlers = () => {
 
   // ── Claude.ai 订阅 OAuth 登录(浏览器流程,凭证落系统 ~/.claude) ────────────────
   // 与鉴权模式开关正交:管理订阅凭证本身(像 Codex 的 OAuth 登录独立于 API 模式)。
+  // pi-only 改造:AUTH_STATE_CHANGED 的 codex/claude 装配分支已从 maker-host 摘除;
+  // 这里保留供应商设置页(OAuth 登录/登出)需要的最小广播 —— 读 adapter 现态推送。
+  const broadcastClaudeProviderAuthState = async (): Promise<void> => {
+    try {
+      const state = await desktopClaudeAuthAdapter.getState();
+      const payload = { agentKind: 'claude-code' as const, ...state };
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isDestroyed()) continue;
+        try {
+          win.webContents.send(MAKER_PUSH.AUTH_STATE_CHANGED, payload);
+        } catch {
+          /* no-op */
+        }
+      }
+    } catch (err) {
+      createLogger('claude-auth-broadcast').warn('broadcast claude auth state failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   // Anthropic 模型清单动态发现接线(2026-07-19 统一重构):
   //   - active-catalog 统一收口 capabilities 刷新 + revision 广播;
   //   - SDK supportedModels 捕获(maker-core 会话 init 后上报)是能力字段权威。
@@ -4533,7 +4548,7 @@ const registerIpcHandlers = () => {
       await clearAnthropicDiscoveredModels();
       // oauth 模式 per-model 路由依赖本地 proxy,确保 ready,再广播鉴权态让 Connections 行刷新。
       await ensureAnthropicCompatProxyReady();
-      await broadcastClaudeAuthStateChanged();
+      await broadcastClaudeProviderAuthState();
       // 订阅余量同步: 换号时清旧账号快照 + 拉新账号余量(内部指纹校验), chip 随 push 更新。
       syncClaudeSubscriptionUsageForAuthChange();
       // 模型清单动态发现:登录成功即后台拉 /v1/models(完成后经 active-catalog 广播刷新,
@@ -4557,7 +4572,7 @@ const registerIpcHandlers = () => {
         `claude oauth logout failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    await broadcastClaudeAuthStateChanged();
+    await broadcastClaudeProviderAuthState();
     // 订阅余量同步: 凭证已清, read() 会清快照并广播 null, chip 立即回占位态。
     syncClaudeSubscriptionUsageForAuthChange();
     // 模型清单动态发现:登出完成前清空清单 + 删磁盘缓存,并等待旧 SDK 写盘收尾。
@@ -4985,50 +5000,10 @@ const registerIpcHandlers = () => {
       : null;
   };
 
-  // 共用的 api_key 变更后, 若 Codex app-server 以 env-key 启动(无 OAuth,gateway key 冻入
-  // 子进程 env)则重建 —— settings 改/删了 key 进程感知不到, 必须重建才生效。oauth-bearer
-  // spawn 的 codex 由 proxy 按请求 live 读 gateway key(_readGatewayKey),改 key 无需重建。
-  // 严格 gated: 非 api_key / 非 env-key spawn 一律 no-op, 对 Claude 路径零影响 (Claude 每个
-  // session 现读 key, 天然跟随)。改 key → env-key codex 新进程用新 key; 删 key → 变未授权。
-  const shouldRestartCodexForApiKeyChange = (key: string): boolean =>
-    key === 'api_key' && getCodexProxyAuthInjectionState() === 'env-key';
-
-  const prepareApiKeyChangeMaybeRestartCodex = async (
-    key: string,
-  ): Promise<{ ok: true } | { ok: false; error: string }> => {
-    if (!shouldRestartCodexForApiKeyChange(key)) return { ok: true };
-    try {
-      await prepareCodexForAuthModeChange();
-      return { ok: true };
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      createLogger('codex-api-key-restart').warn('prepare before api_key change failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return { ok: false, error };
-    }
-  };
-
-  const finalizeApiKeyChangeMaybeRestartCodex = async (
-    key: string,
-  ): Promise<{ ok: true } | { ok: false; error: string }> => {
-    if (!shouldRestartCodexForApiKeyChange(key)) return { ok: true };
-    try {
-      await finalizeCodexAfterAuthModeChange();
-      return { ok: true };
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      createLogger('codex-api-key-restart').warn('restart after api_key change failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return { ok: false, error };
-    }
-  };
-
-  const cancelApiKeyChangeMaybeRestartCodex = (key: string): void => {
-    if (!shouldRestartCodexForApiKeyChange(key)) return;
-    cancelCodexAuthModeChange();
-  };
+  // pi-only 改造(2026-08-31):codex app-server 的 env-key 重启链已随 CodexAgent
+  // 装配一并摘除。api_key 变更不再有子进程要重建 —— 消费方(pi / 网关路由的 host
+  // 侧请求)每次请求现读 key,写盘即生效。safe-storage IPC 的 prepare/finalize
+  // 包裹随之移除,写盘语义保持原样。
 
   const notifyProviderKeyChanged = (providerId: string): void => {
     getGhostSetupChangeBus().emitAll({
@@ -5057,40 +5032,18 @@ const registerIpcHandlers = () => {
         if (!filepath) return false;
         if (!safeStorage.isEncryptionAvailable()) return false;
         const encrypted = safeStorage.encryptString(value);
-        const prepareResult = await prepareApiKeyChangeMaybeRestartCodex(key);
-        if (!prepareResult.ok) return false;
         const dir = path.dirname(filepath);
-        const hadPrevious = fs.existsSync(filepath);
-        const previousContent = hadPrevious ? fs.readFileSync(filepath, 'utf-8') : null;
-        let mutated = false;
-        let finalized = false;
         fs.mkdirSync(dir, { recursive: true });
-        try {
-          fs.writeFileSync(filepath, encrypted.toString('base64'), 'utf-8');
-          mutated = true;
-          const restartResult = await finalizeApiKeyChangeMaybeRestartCodex(key);
-          finalized = restartResult.ok;
-          if (restartResult.ok) {
-            // 手填 XD key 保存成功:来源标记翻 manual(endpoint 回落编译期常量,
-            // 与 model-access 自动下发的 endpoint 解耦,见 credentialsStore 注释)。
-            if (key === 'api_key') {
-              noteManualXdKeySaved();
-              notifyProviderKeyChanged('xd');
-            }
-            return true;
-          }
-          if (hadPrevious && previousContent !== null)
-            fs.writeFileSync(filepath, previousContent, 'utf-8');
-          else if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
-          return false;
-        } finally {
-          if (!finalized) {
-            if (!mutated) cancelApiKeyChangeMaybeRestartCodex(key);
-          }
+        fs.writeFileSync(filepath, encrypted.toString('base64'), 'utf-8');
+        // 手填 XD key 保存成功:来源标记翻 manual(endpoint 回落编译期常量,
+        // 与 model-access 自动下发的 endpoint 解耦,见 credentialsStore 注释)。
+        if (key === 'api_key') {
+          noteManualXdKeySaved();
+          notifyProviderKeyChanged('xd');
         }
+        return true;
       } catch (err) {
         console.error('[safe-storage-store]', err);
-        cancelApiKeyChangeMaybeRestartCodex(key);
         return false;
       }
     },
@@ -5147,12 +5100,6 @@ const registerIpcHandlers = () => {
         }
         const filepath = resolveSafeStorageFilepath(key);
         if (!filepath) return { success: true };
-        const prepareResult = await prepareApiKeyChangeMaybeRestartCodex(key);
-        if (!prepareResult.ok) {
-          return { success: false, error: 'codex_restart_failed' };
-        }
-        const hadPrevious = fs.existsSync(filepath);
-        const previousContent = hadPrevious ? fs.readFileSync(filepath, 'utf-8') : null;
         try {
           if (fs.existsSync(filepath)) {
             fs.unlinkSync(filepath);
@@ -5165,20 +5112,11 @@ const registerIpcHandlers = () => {
             (err as NodeJS.ErrnoException).code === 'ENOENT'
           )) {
             console.error('[safe-storage-remove]', err);
-            cancelApiKeyChangeMaybeRestartCodex(key);
             return {
               success: false,
               error: 'remove_failed',
             };
           }
-        }
-        const restartResult = await finalizeApiKeyChangeMaybeRestartCodex(key);
-        if (!restartResult.ok) {
-          if (hadPrevious && previousContent !== null) {
-            fs.mkdirSync(path.dirname(filepath), { recursive: true });
-            fs.writeFileSync(filepath, previousContent, 'utf-8');
-          }
-          return { success: false, error: 'codex_restart_failed' };
         }
         // 手填 XD key 被删除(断开):清来源标记,endpoint 回落编译期常量。
         if (key === 'api_key') {
@@ -5188,7 +5126,6 @@ const registerIpcHandlers = () => {
         return { success: true };
       } catch (err: unknown) {
         console.error('[safe-storage-remove]', err);
-        cancelApiKeyChangeMaybeRestartCodex(key);
         return {
           success: false,
           error: 'remove_failed',
@@ -8140,12 +8077,11 @@ app.on('ready', async () => {
               }
               // Cleanup is owed to this start() entry, not the process-wide boundary
               // flag. Same-owner Ghost repair holds beginAppSessionBoundary() across
-              // teardown + commit; if that flag gated reset/Pi shutdown, an in-flight
-              // A→B restartCodex would skip shutdownCodexEnvironment forever while
-              // discovery still marked the entry complete and adoptable.
+              // teardown + commit; discovery still marks the entry complete and
+              // adoptable (pi-only 改造:codex 重启/bridge shutdown 收口已摘除)。
               const entryStillLive = () => handle.isLive();
               // Catalog writes die with a real owner teardown (`invalidateAdoption`).
-              // Codex/Pi cleanup stays owed to this entry across a same-owner bump.
+              // Pi cleanup stays owed to this entry across a same-owner bump.
               const catalogMayWrite = () =>
                 handle.isLive() && accountProviderReadinessBarrier.isCurrentAdoptable();
               await refreshCustomProvidersIntoCatalog(catalogMayWrite);
@@ -8153,11 +8089,11 @@ app.on('ready', async () => {
               // instead). Bind reset/discovery/Pi teardown to this entry so a later
               // generation bump cannot skip A→B cleanup, and a replaced entry cannot
               // mark the next incarnation complete.
+              // pi-only 改造:codex 重启 / bridge shutdown 收口已随 CodexAgent 摘除,
+              // 保留入口维持调用面形状,行为退化为 no-op。
               if (entryStillLive()) {
                 await resetAccountProviderRuntimes(
                   {
-                    restartCodex: restartCodexAfterAuthModeChange,
-                    shutdownCodexEnvironment,
                     log: accountSwitchLog,
                   },
                   entryStillLive,
@@ -8678,7 +8614,6 @@ onQuit(
 onQuit('review-artifact-snapshots', cleanupActiveReviewArtifactSnapshots, 'async');
 onQuit('orca-idle-watcher', () => stopOrcaIdleWatcher(), 'sync');
 onQuit('im', () => stopImConnection('quit'), 'async');
-onQuit('codex-env', () => shutdownCodexEnvironment(), 'async');
 // 轮 27 MEDIUM-3:pi-env 挪到 post-async —— 若与 shutdown-maker 同 async 并发,
 // bridge 可能在 session close 的 disposeSessionRegistrations(unregisterSessionCtx/
 // Token)之前关闭, 产生「pi dispose session registration failed (non-fatal)」
@@ -8825,7 +8760,6 @@ onQuit('anthropic-compat-proxy', () => disposeAnthropicCompatProxy(), 'async');
 // browser + locked user-data-dir would otherwise survive quit and force a stale
 // SingletonLock recovery next launch). `stop` is idempotent / no-op if never started.
 onQuit('browser-runtime', () => disposeBrowserRuntime(), 'async');
-onQuit('codex-proxy', () => disposeCodexProxy(), 'async');
 // Remote file-service clients: 先于 pool 关闭, 挂断远端 daemon 的 exec channel。
 onQuit('remote-file-browser', () => disposeRemoteFileBrowser(), 'async');
 // Remote SSH pool: 主动断开所有活动连接, 防止 ssh2 子句柄阻塞 Node 进程退出。

@@ -877,7 +877,9 @@ describe('maker:event hot path ordering', () => {
     const codexDoneSource = wireSessionSource.slice(codexDoneIndex);
     expect(codexDoneSource).toContain('const sessionProvider = getSessionProvider(session.id);');
     expect(codexDoneSource).toContain('const isRemoteCodexSession = Boolean(session.remoteHostId);');
-    expect(codexDoneSource).toContain('const codexAuthInjection = isRemoteCodexSession ? null : getCodexProxyAuthInjection();');
+    expect(codexDoneSource).toContain(
+      'const codexAuthInjection: CodexProxyAuthInjection | null = null;',
+    );
     expect(wireSessionSource).toContain('!turnModelPromiseBySession.has(session.id)');
     expect(wireSessionSource).toContain('turnModelPromiseBySession.set(session.id, readSessionModelForUsage(session.id));');
     expect(codexDoneSource).toMatch(

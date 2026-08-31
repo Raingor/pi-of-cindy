@@ -123,16 +123,9 @@ import {
 } from '../session-title-rename/index.js';
 import { getBrowserAvailability, openBrowserForLogin } from '../mcp-integrations/browser.js';
 import {
-  getActiveCodexBridgeInstanceId,
-  getActiveCodexBridgeServerNames,
-  shutdownCodexEnvironment,
-} from '../mcp-integrations/codexEnvironment.js';
-import {
   invalidatePiEnvironment,
   shutdownPiEnvironment,
 } from '../mcp-integrations/piEnvironment.js';
-import { REMOTE_MEMORY_SERVER_NAME } from '../mcp-integrations/codexHttpBridge.js';
-import { getRemoteMcpBridgeToken } from '../mcp-integrations/remoteMcpBridgeToken.js';
 import {
   checkComputerDriverUpdate,
   cancelComputerDriverPermissionGrant,
@@ -336,15 +329,8 @@ import {
 import { prepareSharedProjectSkillLinks } from '../maker-host/shared-global-skills.js';
 import { ensurePiManagerInstalled } from '../maker-host/pi-manager-client.js';
 import {
-  setRemoteCodexLiveTurnChecker,
   setRemoteSessionStartEnsure,
-  getRemoteCcTurnSettledHandler,
-  getRemoteCcStaleQuery,
 } from '../maker-host/remote-session-start-ensure.js';
-import {
-  getCodexProxyAuthInjection,
-  getCodexProxyAuthInjectionState,
-} from '../maker-host/codex-proxy-host.js';
 import {
   readCollaborationSettings,
   readCollaborationSettingsState,
@@ -359,15 +345,9 @@ import {
 import { createAgentResourceSettingsIpc } from './agent-resource-settings-ipc.js';
 import { createGitSnapshotCoordinator } from '../maker-host/git-snapshot-host.js';
 import {
-  cancelCodexAuthModeChange,
-  ensureCodexMcpBridgeStartedForRemote,
-  finalizeCodexAfterAuthModeChange,
   getMaker,
   getMakerIfReady,
   getPluginRegistry,
-  prepareCodexForAuthModeChange,
-  restartCodexAfterAuthModeChange,
-  setBeforeLocalCodexSessionStartHook,
 } from '../maker-host/index.js';
 import {
   readMemorySettingsState,
@@ -462,14 +442,7 @@ import {
   resetTurnPersistState,
   saveTurnStartedAtForDeferred,
 } from '../messagePersistBroadcaster.js';
-import { ensureCcManagerInstalledOrInstall } from '../remote-ssh/cc-manager-install.js';
 import {
-  ensureRemoteCodexMcpBridge,
-  hasPendingRemoteMcpDrift,
-} from '../remote-ssh/codex-remote-mcp.js';
-import {
-  hasPendingAgentProxyReconcile,
-  reconcileCodexAgentProxyEnv,
   setAgentProxyLiveTurnChecker,
 } from '../remote-ssh/agent-proxy.js';
 import {
@@ -606,7 +579,6 @@ import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import { runAcceptedCallback } from './acceptedCallbackRunner.js';
 import { createElectronIpcHandlerRegistry } from './electronIpcRegistry.js';
-import { refreshCodexMcpEnvironment } from './codexMcpRefresh.js';
 import { broadcastSchedulerChanged } from './schedule.js';
 import { validateExtraDirs } from './extraDirsValidator.js';
 import {
@@ -876,6 +848,7 @@ import {
   CredentialModeSwitchBusyError,
   isCredentialModeSwitchBusyError,
   isLocalSessionBusy,
+  type CodexProxyAuthInjection,
 } from '../maker-host/codex-credential-switch.js';
 import {
   applyRuntimeSetModelChange,
@@ -1459,31 +1432,10 @@ function memorySettingsWire() {
  * 文本裸曝给 renderer(review P1 2026-07-23)。执行体见
  * runMemoryChangeWithCodexRestart。
  */
-/**
- * Maker Memory 开关翻转后的 codex bridge 失效 (review R1 P2)。cindy_memory
- * provider 的 isEnabled 在 bridge 启动时冻结 (codexEnvironment doStart 快照
- * provider 集合), 不重建的话老 bridge 缺/多 cindy_memory server — 远端 CC
- * 会出现 prompt 注入了 memory rules 但工具面没有 server 的失配, codex 远端
- * 漂移判定永不收敛。与 contacts / 全局插件开关同机制:best-effort shutdown,
- * 下一次使用 lazy 重建出与新开关一致的 bridge;远端失效与重注入由
- * shutdownCodexEnvironment 的既有 hook 链自愈。调用方须放在 applyRuntime
- * (prepare 已停 app-server / 延迟路径全员空闲) 满足「先停 app-server 再关
- * bridge」的顺序约束, 并用翻转守卫包住 (同值调用不白杀 bridge)。失败只记
- * warn — 设置已落盘, 旧 bridge 的失配窗口由下一次 bridge 重建收敛。
- */
 async function shutdownAgentMcpEnvironmentsBestEffort(reason: string): Promise<void> {
-  // Codex 与 Pi 各有一个懒启动的 MCP bridge 单例,server 集合在 doStart 时冻结。MCP /
-  // contacts / memory 开关变更后两者都要 invalidate,否则新会话仍连到旧 bridge:被禁用的
-  // 工具没被真正撤销、新启用的工具不可用(Pi 侧 codex review P1)。best-effort:失败只 warn,
-  // 下一次使用 lazy 重建出与新开关一致的 bridge。
-  try {
-    await shutdownCodexEnvironment();
-  } catch (err) {
-    log.warn(`shutdownCodexEnvironment on ${reason} failed — cached bridge still stale`, {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-  // Pi 用 generation lease：活动会话继续使用旧桥，新会话立即重建到新配置。
+  // pi-only 改造:codex MCP bridge 已随 CodexAgent 摘除。Pi 用 generation lease:
+  // 活动会话继续使用旧桥，新会话立即重建到新配置。
+  void reason;
   invalidatePiEnvironment();
 }
 
@@ -1496,17 +1448,12 @@ async function applyMemoryChangeWithCodexRestart<T extends object>(
   const gatedSessionIds = deferredCodexRestartHolder?.listGatedSessionIds() ?? [];
   return runMemoryChangeWithCodexRestart(
     {
-      prepare: async () => {
-        try {
-          await prepareCodexForAuthModeChange();
-        } catch (err) {
-          // busy 原样透传 —— 执行体靠它分流延迟路径;其余是真实故障,编码后上抛。
-          if (isCredentialModeSwitchBusyError(err)) throw err;
-          throwIpcError('INTERNAL', err instanceof Error ? err.message : String(err));
-        }
-      },
-      finalize: finalizeCodexAfterAuthModeChange,
-      cancel: cancelCodexAuthModeChange,
+      // pi-only 改造:codex shared app-server 重启链已随 CodexAgent 摘除。
+      // prepare 恒成功 ⇒ runMemoryChangeWithCodexRestart 恒走立即路径,
+      // persist + applyRuntime 原地执行,codexRestartDeferred 恒 false。
+      prepare: async () => {},
+      finalize: async () => {},
+      cancel: () => {},
       scheduleDeferredRestart: (reason, applyRuntime) => {
         deferredCodexRestartHolder?.schedule(reason, applyRuntime);
       },
@@ -5238,7 +5185,8 @@ export function wireSessionToIpc(session: ReturnType<Maker['getSession']>): void
         const sessionProvider = getSessionProvider(session.id);
         const isRemoteCodexSession = Boolean(session.remoteHostId);
         const isCustomProviderRoute = !isRemoteCodexSession && isUserProviderSession(session.id);
-        const codexAuthInjection = isRemoteCodexSession ? null : getCodexProxyAuthInjection();
+        // pi-only 改造:codex spawn 冻结态已随 codex-proxy-host 摘除,恒 null。
+        const codexAuthInjection: CodexProxyAuthInjection | null = null;
         const modelPromise =
           turnModelPromiseBySession.get(session.id) ?? readSessionModelForUsage(session.id);
         turnModelPromiseBySession.delete(session.id);
@@ -6812,32 +6760,11 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     // 内置 server 名对自定义 MCP 是保留名：撞名会在装配层顶替内置 server 并继承
     // 它在 MCP 审批策略里的信任，所以 CRUD 阶段就拒收。
     getReservedMcpIds: () => getBuiltinMcpServerNames(),
-    // Codex 的 MCP flags 冻在 codexEnvironment 的 cached spawn 配置里,清缓存 + dispose app-server,
-    // 让下个 codex 会话按新 MCP 配置重 spawn(与 slack 变更同款 best-effort;busy 会话软重启失败只告警)。
-    // 顺序：先 dispose app-server（含 busy 检查），成功后再关 bridge/cache。
-    // 若先关 bridge、后 dispose 失败（busy），running 会话的 mcp_servers URL 会指向已停的 bridge。
+    // pi-only 改造:codex app-server / bridge 的失效链已随 CodexAgent 摘除。
     invalidateCodex: async () => {
-      let codexRestarted = false;
-      try {
-        await restartCodexAfterAuthModeChange();
-        codexRestarted = true;
-      } catch (err) {
-        log.warn('restartCodexAfterAuthModeChange on custom mcp change failed', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-      if (codexRestarted) {
-        try {
-          await shutdownCodexEnvironment();
-        } catch (err) {
-          log.warn('shutdownCodexEnvironment on custom mcp change failed', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-      // Pi 的 MCP bridge 同样按首个会话冻结 server 集合:自定义 MCP 增删改后必须 invalidate,
+      // Pi 的 MCP bridge 按首个会话冻结 server 集合:自定义 MCP 增删改后必须 invalidate,
       // 否则新 Pi 会话仍暴露已删/已禁用的工具、拿不到新启用的工具(codex review P1)。
-      // 与 codex 分支独立(不依赖 codexRestarted),下一次 startSession lazy 重建。
+      // 下一次 startSession lazy 重建。
       invalidatePiEnvironment();
     },
   });
@@ -7760,29 +7687,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
    * 一致的新 bridge, 不构成缺失)。
    */
   function activeBridgeMissingMemory(): boolean {
-    const bridgeServers = getActiveCodexBridgeServerNames();
-    return bridgeServers !== null && !bridgeServers.includes(REMOTE_MEMORY_SERVER_NAME);
-  }
-
-  /** 远端会话视角的 Maker Memory 有效开关 = manager 现值 + stale-bridge 钳制。 */
-  function remoteMakerMemoryEnabledForBridge(): boolean {
-    return (maker.makerMemory?.isEnabled() ?? false) && !activeBridgeMissingMemory();
-  }
-
-  /**
-   * live-send 轻量漂移判定 (hasPendingRemoteMcpDrift) 的 opts。函数而非常量:
-   * 第二次判定发生在 ensure 之后, bridge 可能已 lazy 重建, 四个成分都要现读。
-   */
-  function codexRemoteDriftOpts() {
-    return {
-      collabEnabled: getPluginRegistry().isEnabled('collab'),
-      // desired 集合要跟 ensure 实际能注入的集合同源 (stale-bridge 钳制),
-      // 不能只看 manager 现值 — 否则旧 bridge 缺 cindy_memory 时 drift 永不
-      // 收敛, 每次 live send 白跑完整 ensure。
-      makerMemoryEnabled: remoteMakerMemoryEnabledForBridge(),
-      token: getRemoteMcpBridgeToken(),
-      bridgeInstanceId: getActiveCodexBridgeInstanceId(),
-    };
+    // pi-only 改造:codex HTTP bridge 已随 CodexAgent 摘除,不存在 stale bridge 窗口。
+    return false;
   }
 
   async function ensureRemoteReadyForSessionStart(params: {
@@ -7834,29 +7740,18 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     }
 
     await ensureRemoteHostReady(remoteHostIdToEnsure);
-    const ensureAgentKind: 'claude-code' | 'codex' | 'pi' | null =
-      session?.agentKind === 'codex' ||
-      session?.agentKind === 'claude-code' ||
+    // pi-only 改造:远端 claude-code(cc-mgr daemon 安装)与 codex(proxy 对账 +
+    // daemon MCP bootstrap)分支已随对应 agent 摘除,远端 preflight 只服务 pi。
+    const ensureAgentKind: 'pi' | null =
       session?.agentKind === 'pi'
-        ? session.agentKind
+        ? 'pi'
         : createOpts && typeof createOpts === 'object'
           ? (() => {
               const ak = (createOpts as { agentKind?: unknown }).agentKind;
-              return ak === 'codex' || ak === 'claude-code' || ak === 'pi' ? ak : null;
+              return ak === 'pi' ? 'pi' : null;
             })()
           : null;
     if (!ensureAgentKind) return;
-
-    // claude-code 远端走 cc-mgr.mjs daemon。首次 /context 也必须像 send 一样
-    // 触发 cc-manager 安装/升级, 否则 query/getContextUsage 可能因旧 bundle 不存在而失败。
-    if (ensureAgentKind === 'claude-code') {
-      const host = getRemoteSshPool().get(remoteHostIdToEnsure);
-      if (host?.getStatus() !== 'ready') {
-        throwIpcError('SSH_NOT_CONNECTED', `ssh host ${remoteHostIdToEnsure} not connected`);
-      }
-      await ensureCcManagerInstalledOrInstall({ host });
-      return;
-    }
 
     // pi 远端:走通用 silent install(probe 远端 pi 二进制,缺/版本不符则安装)。
     await ensureRemoteAgentInstalledOrInstall(remoteHostIdToEnsure, ensureAgentKind);
@@ -7905,46 +7800,6 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       }
     }
 
-    // codex 远端 daemon 的 MCP 注入 (cindy_orca / orca_worker_bridge 等经 SSH
-    // remote-forward 直连本机 HTTP bridge):转发 / config.toml / daemon env
-    // 就绪必须先于 transport 创建 (daemon discover/bootstrap)。best-effort —
-    // 失败时 session 按"远端无 MCP"放行,与历史行为一致;协同类工具此时不可用。
-    if (ensureAgentKind === 'codex') {
-      const host = getRemoteSshPool().get(remoteHostIdToEnsure);
-      if (host?.getStatus() === 'ready') {
-        // proxy 对账必须先于 MCP bootstrap:marker 漂移时 reconcile 会 pkill
-        // daemon, 若 MCP 先 bootstrap (带 token) 再被 pkill, transport
-        // startDaemon 重启的 daemon 只有 proxy env 没有 LIZI_MCP_TOKEN —
-        // 且 desiredFp===appliedFp 让 driftUnapplied 漏判, 协同 401 持续到
-        // 下次 token/代际变化 (codex-connector R20 P1)。先 reconcile 让
-        // 最后一次启动恒为携带双方的 MCP bootstrap;marker 一致时仅 1 次
-        // cat RTT 零副作用。
-        await reconcileCodexAgentProxyEnv(host);
-        const result = await ensureRemoteCodexMcpBridge(host, {
-          ensureBridgeStarted: ensureCodexMcpBridgeStartedForRemote,
-          // config 漂移生效要重启 daemon, 重启会断同 host 的 live turn:
-          // 有 turn 在跑时 config 照写但 bootstrap 推迟 (driftUnapplied 持久,
-          // turn-done 挂钩补刀)。
-          hasLiveTurnOnHost: codexRemoteHasLiveTurn,
-          // collab 全局禁用 (Tier 4) 时按清理路径剥远端受管段 — bridge
-          // 名单不反映开关 (codex-connector R20 P2)。
-          isCollabEnabled: () => getPluginRegistry().isEnabled('collab'),
-          // Maker Memory 全局开着时把 cindy_memory 一并注入远端 daemon config。
-          isMakerMemoryEnabled: () => maker.makerMemory?.isEnabled() ?? false,
-        });
-        if (
-          result.ok &&
-          result.daemonRebootstrapped &&
-          !codexRemoteHasLiveTurn(remoteHostIdToEnsure)
-        ) {
-          await detachIdleRemoteCodexSessionsOnHost(
-            remoteHostIdToEnsure,
-            'codex-mcp-daemon-rebootstrap',
-          );
-          return { remoteCodexDaemonRebootstrapped: true };
-        }
-      }
-    }
   }
 
   // 暴露给 maker-host 的 orca bridge deps:bridge rehydrate remote session 时
@@ -7952,23 +7807,6 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // (review: PR #778 codex-connector R17 P1)。
   setRemoteSessionStartEnsure(ensureRemoteReadyForSessionStart);
 
-  // codex 远端 daemon 的 live-turn 判定 (ensure 与 turn-done 挂钩共用):
-  // bootstrap 重启会断同 host 的 live turn, defer/补刀都以此为据。
-  // function 声明 (hoisted):const 箭头形态下, 任何早于本行执行的调用路径
-  // (如注册流程中被直线调用的 resume 分支) 都会 TDZ ReferenceError — 用
-  // 声明消除整类风险 (reviewer R27 指出;当前调用点虽均在初始化后, 不
-  // 留隐患)。
-  function codexRemoteHasLiveTurn(hostId: string): boolean {
-    return maker
-      .listActiveSessions()
-      .some(
-        (s) =>
-          s.remoteHostId === hostId &&
-          s.agentKind === 'codex' &&
-          (agentInputCoordinatorHolder?.hasActiveTurnForRewind(s.id) ?? false),
-      );
-  }
-  setRemoteCodexLiveTurnChecker(codexRemoteHasLiveTurn);
   // agent-proxy 的漂移应用 (重启 daemon / 迁移拆除隧道) 会打断该 host 上
   // **任一** agent 的在途流量 — 隧道是 codex 与 CC 共用的网络通路, gate
   // 必须两个通道都看 (R3 review P1), 不能沿用 MCP ensure 的 codex-only
@@ -7978,12 +7816,13 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // Settings 改代理时重建/停隧道打断其网络路径(旧注释「pi 走 responses-bridge
   // 不经代理隧道」已过时, 轮 42 起远端 pi 注入 proxy env)。
   function remoteAgentHasLiveTurn(hostId: string): boolean {
+    // pi-only 改造:远端隧道只剩 pi 会话在用。
     return maker
       .listActiveSessions()
       .some(
         (s) =>
           s.remoteHostId === hostId &&
-          (s.agentKind === 'codex' || s.agentKind === 'claude-code' || s.agentKind === 'pi') &&
+          s.agentKind === 'pi' &&
           (agentInputCoordinatorHolder?.hasActiveTurnForRewind(s.id) ?? false),
       );
   }
@@ -7992,81 +7831,11 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // 注(轮 28 LOW-3):pi 会话**不需要** detach —— MCP bridge 变更由
   // invalidatePiEnvironment 的 generation-lease 机制处理(活动会话继续用旧桥,
   // 新会话重建到新桥), 与 codex 的 detach 语义等价。
-  async function detachIdleRemoteCodexSessionsOnHost(
-    hostId: string,
-    reason: string,
-  ): Promise<void> {
-    const detachTasks: Array<Promise<void>> = [];
-    for (const s of maker.listActiveSessions()) {
-      if (s.remoteHostId !== hostId || s.agentKind !== 'codex') continue;
-      if (agentInputCoordinatorHolder?.hasActiveTurnForRewind(s.id) ?? false) continue;
-      detachTasks.push(
-        s.detach().catch((err) => {
-          log.warn('remote Codex session detach after daemon rebootstrap failed', {
-            sessionId: s.id,
-            hostId,
-            reason,
-            err: err instanceof Error ? err.message : String(err),
-          });
-        }),
-      );
-    }
-    await Promise.all(detachTasks);
-  }
-
-  // turn 结束后补一次远端 MCP ensure (best-effort):live turn 期间被推迟的
-  // daemon bootstrap (driftUnapplied 持久指纹, 见 codex-remote-mcp.ts) 在
-  // idle 时点必然补刀 — 不等用户下次操作 (Greptile: defer 需要可靠自愈
-  // 路径)。ensure 幂等, 无漂移时仅一次 config 读 + daemon 探活。经模块级
-  // holder 供各 turn 收口路径调用。远端 CC 走 holder 的 detach 补偿
-  // (bridge 重建 / 端口重绑已让 fresh 失效时重建 query)。
-  refreshRemoteCodexMcpOnTurnSettledHolder = (sessionId: string): void => {
-    const session = maker.getSession(sessionId);
-    const remoteHostId = session?.remoteHostId;
-    if (!remoteHostId) return;
-    const host = getRemoteSshPool().get(remoteHostId);
-    const hostReady = host?.getStatus() === 'ready';
-    // agent-proxy 的 live-turn defer 在这里补刀 — codex 与 CC 的 turn 收口
-    // 都算 (隧道是两个 agent 共用的通路, gate 也共用, R3 review P1)。只有
-    // 确有 pending (defer / 失败) 时才跑, 稳态下不为每次 turn 结束白付一次
-    // 远端 cat RTT。失败不阻断后续 (自身已重新记 pending)。
-    const reconcileIfPending =
-      hostReady && host && hasPendingAgentProxyReconcile(remoteHostId)
-        ? reconcileCodexAgentProxyEnv(host).catch((err) => {
-            log.warn('agent-proxy reconcile on turn settled failed', {
-              sessionId,
-              hostId: remoteHostId,
-              err: err instanceof Error ? err.message : String(err),
-            });
-          })
-        : Promise.resolve();
-    if (session.agentKind === 'codex') {
-      if (!hostReady || !host) return;
-      // 与 session-start 路径同序: 先 reconcile 再 MCP ensure (codex R20 P1)。
-      void reconcileIfPending
-        .then(() =>
-          ensureRemoteCodexMcpBridge(host, {
-            ensureBridgeStarted: ensureCodexMcpBridgeStartedForRemote,
-            hasLiveTurnOnHost: codexRemoteHasLiveTurn,
-            isCollabEnabled: () => getPluginRegistry().isEnabled('collab'),
-            isMakerMemoryEnabled: () => maker.makerMemory?.isEnabled() ?? false,
-          }),
-        )
-        .then(async (result) => {
-          if (result?.ok && result.daemonRebootstrapped && !codexRemoteHasLiveTurn(remoteHostId)) {
-            await detachIdleRemoteCodexSessionsOnHost(
-              remoteHostId,
-              'codex-mcp-turn-settled-rebootstrap',
-            );
-          }
-        });
-      return;
-    }
-    if (session.agentKind === 'claude-code') {
-      void reconcileIfPending;
-      getRemoteCcTurnSettledHandler()?.(sessionId);
-    }
-  };
+  // turn 结束后补一次远端 MCP ensure (best-effort)。pi-only 改造:codex daemon
+  // MCP ensure 与远端 CC query 失效补偿已随对应 agent 摘除;pi 的 MCP bridge
+  // 代际由 invalidatePiEnvironment(generation-lease)自愈,turn 收口无需补刀。
+  // holder 保留(多处 turn 收口路径调用),行为退化为 no-op。
+  refreshRemoteCodexMcpOnTurnSettledHolder = (_sessionId: string): void => {};
 
   const makerSessionRegistry = createElectronIpcHandlerRegistry();
   registerMakerSessionCreateHandler(makerSessionRegistry, {
@@ -9527,65 +9296,6 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
             targetLastUserSendAt:
               dbRow.userSendAt !== null ? new Date(dbRow.userSendAt).toISOString() : null,
           };
-        }
-        // idle-live send 前的轻量 MCP 漂移判定 (纯本地, 零远程 RTT):
-        // bridge shutdown strip / token 轮换 / bridge 重建 / 端口重绑后,
-        // live 直发路径原本不经任何 ensure, daemon 会带着死 URL / 空 env
-        // 跑到 turn-done 才恢复 (codex-connector R23 P1)。命中漂移才走完整
-        // remote ensure (含 lazy 重建 bridge), 无漂移零开销。
-        if (
-          live.remoteHostId &&
-          live.agentKind === 'codex' &&
-          hasPendingRemoteMcpDrift(live.remoteHostId, codexRemoteDriftOpts())
-        ) {
-          const ensureResult = await ensureRemoteReadyForSessionStart({ session: live });
-          // ensure 完整生效 ⇒ daemon 已 (重) bootstrap ⇒ 长命 transport
-          // (到旧 daemon socket 的 proxy channel) 已死 — 继续用 live 直发
-          // 会把首条消息送进失效 transport, 用户先撞一次 transport error
-          // 才能靠 ensureStarted 自愈 (codex-connector R25 P1)。与 cc stale
-          // 同构:detach 落 lazy-resume 直接重建。drift 未清 = 他处有 live
-          // turn 在 defer, daemon 未重启, transport 仍活, 保持直发。
-          if (ensureResult?.remoteCodexDaemonRebootstrapped) {
-            live = undefined;
-          } else {
-            const driftCleared = !hasPendingRemoteMcpDrift(
-              live.remoteHostId,
-              codexRemoteDriftOpts(),
-            );
-            if (driftCleared) {
-              try {
-                await live.detach();
-              } catch (err) {
-                log.warn(
-                  'sendToSession: detach after drift rebootstrap failed, falling through to lazy-resume',
-                  { targetSessionId, err: err instanceof Error ? err.message : String(err) },
-                );
-              }
-              live = undefined;
-            }
-          }
-        }
-        // 远端 CC 的 invalidate 竞态 (codex-connector R23 P2):invalidate
-        // (bridge 重建 / 端口重绑 / shutdown) 的 detach 是 fire-and-forget,
-        // session 在 detach 完成前仍 active — 此时直发会进带旧 MCP URL 的
-        // query。stale 命中时先同步 detach 再落 lazy-resume (forceFresh)。
-        if (
-          live !== undefined &&
-          live.remoteHostId &&
-          live.agentKind === 'claude-code' &&
-          getRemoteCcStaleQuery()?.(live.id) === true
-        ) {
-          try {
-            await live.detach();
-          } catch (err) {
-            log.warn(
-              'sendToSession: detach stale remote CC session failed, falling through to lazy-resume',
-              { targetSessionId, err: err instanceof Error ? err.message : String(err) },
-            );
-          }
-          // detach 后不得继续 live 直发 (session 已 closed) — 置空落入
-          // 下方 lazy-resume (bootstrap 重建 → factory forceFresh)。
-          live = undefined;
         }
       }
       if (live) {
@@ -13481,36 +13191,19 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
 
   // Memory 设置变更撞上 Codex busy 时的延迟软重启登记(见 deferredCodexRestart.ts)。
-  // 与 pendingCredentialSwitchService 共用 turn 结束 / 会话关闭边界接线;pending
-  // 期间本地 Codex live 会话的排队派发被上方 coordinator 的 hasPendingCredentialSwitch
-  // 谓词挡住,兑现后由 onApplied 逐个唤醒。
+  // pi-only 改造:codex shared app-server 已随 CodexAgent 摘除,重启链退化为 no-op ——
+  // service 与 turn 结束 / 会话关闭边界的既有接线保留,重启不再发生,登记即被立即
+  // 兑现路径覆盖清除。
   const deferredCodexRestartService = new DeferredCodexRestartService({
-    restart: restartCodexAfterAuthModeChange,
-    hasBusyLocalCodexSession: () =>
-      maker
-        .listActiveSessions()
-        .some(
-          (session) =>
-            session.agentKind === 'codex' &&
-            !session.remoteHostId &&
-            isLocalSessionBusy(session, isSessionInTurn),
-        ),
-    listLocalCodexSessionIds: () =>
-      maker
-        .listActiveSessions()
-        .filter((session) => session.agentKind === 'codex' && !session.remoteHostId)
-        .map((session) => session.id),
+    restart: async () => {},
+    hasBusyLocalCodexSession: () => false,
+    listLocalCodexSessionIds: () => [],
     onApplied: createDeferredRestartAppliedWake({
       wakeSession: (sessionId, reason) => inputCoordinator.wakeSession(sessionId, reason),
     }),
     logger: log,
   });
   deferredCodexRestartHolder = deferredCodexRestartService;
-  // 新本地 Codex 会话加入 shared host 前先尝试兑现 pending 的延迟重启,
-  // 让它直接在新状态的 fresh host 上起跑(maker-host onBeforeStart 接线)。
-  setBeforeLocalCodexSessionStartHook(() =>
-    deferredCodexRestartService.flushBeforeLocalCodexSessionStart(),
-  );
 
   const requireSessionId = (value: unknown): string => {
     if (typeof value !== 'string' || value.length === 0) {
@@ -15264,7 +14957,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
               getPendingCredentialSwitch: getPendingCredentialSwitchTarget,
               // 解析隐式来源的凭证家族,精确判定是否跨远端压缩身份边界(见
               // shouldCloseSessionForCredentialSwitch.codexAuthInjection)。
-              codexAuthInjection: getCodexProxyAuthInjectionState(),
+              codexAuthInjection: null,
               logger: log,
             })
           : { status: 'applied' as const };
@@ -16390,17 +16083,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (!GLOBAL_PLUGIN_IDS.has(id) && id !== 'browser') {
       return { codexMcpRefreshed: true };
     }
-    // Machine-wide tools keep their existing lifecycle. The preference is
-    // already durable at this point, so refresh best-effort; a busy turn must
-    // keep using the existing bridge and must not turn a successful save into
-    // an IPC failure. Renderer surfaces the deferred state explicitly.
-    return refreshCodexMcpEnvironment({
-      restartCodex: restartCodexAfterAuthModeChange,
-      shutdownCodexEnvironment,
-      onDeferred: () =>
-        deferredCodexRestartHolder?.schedule('Codex Browser capability routing changed'),
-      logger: log,
-    });
+    // Machine-wide tools keep their existing lifecycle. pi-only 改造:codex
+    // bridge / app-server 刷新链已随 CodexAgent 摘除,返回 refreshed=true。
+    return { codexMcpRefreshed: true };
   });
 
   ipcMain.handle(MAKER_INVOKE.PLUGINS_CLEAR_ENABLED, async (_e, id: unknown) => {
@@ -16414,13 +16099,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (!GLOBAL_PLUGIN_IDS.has(id) && id !== 'browser') {
       return { codexMcpRefreshed: true };
     }
-    return refreshCodexMcpEnvironment({
-      restartCodex: restartCodexAfterAuthModeChange,
-      shutdownCodexEnvironment,
-      onDeferred: () =>
-        deferredCodexRestartHolder?.schedule('Codex Browser capability routing changed'),
-      logger: log,
-    });
+    // pi-only 改造:codex bridge 刷新链已随 CodexAgent 摘除。
+    return { codexMcpRefreshed: true };
   });
 
   registerProjectPluginPolicyHandlers(createElectronIpcHandlerRegistry(), { getPluginRegistry });

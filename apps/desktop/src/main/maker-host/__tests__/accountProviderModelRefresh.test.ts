@@ -14,39 +14,13 @@ function deferred() {
   return { promise, resolve };
 }
 
+// pi-only 改造后 resetAccountProviderRuntimes 退化为 no-op(原 codex 重启 /
+// bridge shutdown 收口已随 CodexAgent 装配摘除),保留入口维持调用面形状。
 describe('resetAccountProviderRuntimes', () => {
-  it('stops before later destructive steps when the scope changes', async () => {
-    const shutdownCodexEnvironment = vi.fn(async () => {});
-    let allow = true;
-    await resetAccountProviderRuntimes(
-      {
-        restartCodex: async () => {
-          allow = false;
-        },
-        shutdownCodexEnvironment,
-        log: { warn: vi.fn() },
-      },
-      () => allow,
-    );
-    expect(shutdownCodexEnvironment).not.toHaveBeenCalled();
-  });
-
-  it('still shuts down Codex when only a transient boundary flips during restart', async () => {
-    const shutdownCodexEnvironment = vi.fn(async () => {});
-    let handleLive = true;
-    let boundaryPending = false;
-    await resetAccountProviderRuntimes(
-      {
-        restartCodex: async () => {
-          boundaryPending = true;
-        },
-        shutdownCodexEnvironment,
-        log: { warn: vi.fn() },
-      },
-      () => handleLive,
-    );
-    expect(boundaryPending).toBe(true);
-    expect(shutdownCodexEnvironment).toHaveBeenCalledOnce();
+  it('is a no-op that never throws after the pi-only harness change', async () => {
+    await expect(
+      resetAccountProviderRuntimes({ log: { warn: vi.fn() } }, () => true),
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -75,12 +49,6 @@ describe('refreshProviderModelsAfterAccountReady', () => {
     const backgroundRefresh = deferred();
     const events: string[] = [];
     const operation = refreshProviderModelsAfterAccountReady({
-      restartCodex: async () => {
-        events.push('restart');
-      },
-      shutdownCodexEnvironment: async () => {
-        events.push('shutdown');
-      },
       loadXaiLkg: async () => {
         events.push('xai-lkg');
         return true;
@@ -100,8 +68,6 @@ describe('refreshProviderModelsAfterAccountReady', () => {
     });
     await vi.waitFor(() =>
       expect(events).toEqual([
-        'restart',
-        'shutdown',
         'xai-lkg',
         'refresh:startup:xd,openai,xai',
         'refresh:startup:anthropic',
@@ -118,35 +84,10 @@ describe('refreshProviderModelsAfterAccountReady', () => {
     expect(settled).toBe(true);
   });
 
-  it('still discovers providers when Codex reset steps fail', async () => {
-    const warn = vi.fn();
-    const refreshProviderModels = vi.fn(async () => {});
-
-    await expect(
-      refreshProviderModelsAfterAccountReady({
-        restartCodex: async () => {
-          throw new Error('restart unavailable');
-        },
-        shutdownCodexEnvironment: vi.fn(async () => {}),
-        loadXaiLkg: vi.fn(async () => false),
-        refreshProviderModels,
-        log: { warn },
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(refreshProviderModels).toHaveBeenCalledWith('startup', ['xd', 'openai', 'xai']);
-    expect(refreshProviderModels).toHaveBeenCalledWith('startup', ['anthropic']);
-    expect(warn).toHaveBeenCalledWith('restartCodexAfterAuthModeChange on account switch failed', {
-      error: 'restart unavailable',
-    });
-  });
-
   it('keeps account readiness best-effort when discovery itself fails', async () => {
     const warn = vi.fn();
     await expect(
       refreshProviderModelsAfterAccountReady({
-        restartCodex: vi.fn(async () => {}),
-        shutdownCodexEnvironment: vi.fn(async () => {}),
         loadXaiLkg: vi.fn(async () => false),
         refreshProviderModels: async () => {
           throw new Error('discovery unavailable');
@@ -167,8 +108,6 @@ describe('refreshProviderModelsAfterAccountReady', () => {
     const releaseLkg = deferred();
     const events: string[] = [];
     const operation = refreshProviderModelsAfterAccountReady({
-      restartCodex: async () => {},
-      shutdownCodexEnvironment: async () => {},
       loadXaiLkg: async () => {
         events.push('lkg:start');
         await releaseLkg.promise;

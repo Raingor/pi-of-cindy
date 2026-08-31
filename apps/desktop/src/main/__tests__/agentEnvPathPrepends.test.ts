@@ -2,8 +2,9 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { AuthAdapter } from '../../../../../packages/maker-core/src/interfaces/auth-adapter';
+// pi-only 改造:codex env-builder 已随 CodexAgent 删除;buildClaudeEnv 仍被
+// claude 历史数据链路(conversion / local sessions)所在的 env 守卫面使用。
 import { buildClaudeEnv } from '../../../../../packages/maker-core/src/agents/claude-code/env-builder';
-import { buildCodexEnv } from '../../../../../packages/maker-core/src/agents/codex/env-builder';
 
 function makeAuth(authEnv: Record<string, string>): AuthAdapter {
   return {
@@ -47,26 +48,6 @@ function systemPath(): string {
 }
 
 describe('agent env PATH prepends', () => {
-  it('prepends bundled tools only in the Codex env object and preserves other env values', async () => {
-    const key = pathKey();
-    const originalPath = systemPath();
-    const toolDir = bundledToolDir();
-
-    await withProcessEnv({ [key]: originalPath, XDT_KEEP: 'keep' }, async () => {
-      const env = await buildCodexEnv(makeAuth({ CODEX_HOME: 'C:\\codex-home' }), {
-        behaviorFlags: { XDT_FLAG: '1' },
-        pathPrepends: [toolDir],
-      });
-
-      expect(process.env[key]).toBe(originalPath);
-      expect(env.XDT_KEEP).toBe('keep');
-      expect(env.XDT_FLAG).toBe('1');
-      expect(env.CODEX_HOME).toBe('C:\\codex-home');
-      expect(env[key]?.split(path.delimiter)[0]).toBe(toolDir);
-      expect(env[key]?.split(path.delimiter)[1]).toBe(originalPath);
-    });
-  });
-
   it('does not apply pathPrepends to Claude env assembly', async () => {
     const key = pathKey();
     const originalPath = systemPath();
