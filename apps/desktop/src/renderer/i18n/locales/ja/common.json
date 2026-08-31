@@ -862,52 +862,52 @@
         "chatAttachmentsClearConfirmDescription": "メッセージ添付ファイルのキャッシュディレクトリ内のファイルだけを削除し、メッセージデータベースは参照しません。履歴内の一部の添付ファイルを開けなくなる場合があり、この操作は元に戻せません。",
         "chatAttachmentsClearConfirmButton": "添付ファイルキャッシュを削除",
         "chatAttachmentsCleared": "メッセージ添付ファイルのキャッシュをクリーンアップしました",
-          "chatAttachmentsClearFailed": "メッセージ添付ファイルのキャッシュをクリーンアップできませんでした。もう一度お試しください。",
-          "dbSlimmingBackupDirectoryDialogTitle": "データベースのクリーンアップ用バックアップ先を選択",
-          "dbSlimmingLabel": "データベースのクリーンアップ",
-          "dbSlimmingDescription": "論理削除されたタスクと長期間アーカイブされたタスクのメッセージ履歴をスキャンします。確認後に Cindy を再起動し、データベースを開く前に履歴を削除して圧縮します。ディスク上の添付ファイルや生成メディアは削除しません。",
-          "dbSlimmingScanButton": "データベースをスキャン",
-          "dbSlimmingScanLoading": "データベースをスキャンしています…",
-          "dbSlimmingScanResultTitle": "データベースのスキャン結果",
-          "dbSlimmingExecutionLoading": "データベースのクリーンアップを準備しています。Cindy はまもなく再起動します…",
-          "dbSlimmingArchiveAgeLabel": "次の期間を超えてアーカイブされているタスクを整理",
-          "dbSlimmingArchiveAgeOption7Days": "7 日",
-          "dbSlimmingArchiveAgeOption1": "1 か月",
-          "dbSlimmingArchiveAgeOption3": "3 か月",
-          "dbSlimmingArchiveAgeOption6": "6 か月",
-          "dbSlimmingBackupLabel": "クリーンアップ前にデータベースをバックアップ",
-          "dbSlimmingBackupDefaultLocation": "データベースのフォルダ（最新のクリーンアップ用バックアップのみ保持）",
-          "dbSlimmingUseDefaultDirectoryButton": "既定のフォルダを使用",
-          "dbSlimmingChooseDirectoryButton": "バックアップ先を選択",
-          "dbSlimmingBackupDirectoryFailed": "バックアップ先を選択できませんでした。もう一度お試しください。",
-          "dbSlimmingScanFailed": "データベースをスキャンできませんでした。もう一度お試しください。",
-          "dbSlimmingScheduleFailed": "データベースのクリーンアップを予約できませんでした。再スキャンしてお試しください。",
-          "dbSlimmingBackupMissing": "最新のクリーンアップ用バックアップが見つかりません。",
-          "dbSlimmingBackupOpenFailed": "クリーンアップ用バックアップの場所を開けませんでした。もう一度お試しください。",
-          "dbSlimmingReportTasks": "論理削除タスク {{deleted}} 件、アーカイブ済みタスク {{archived}} 件を削除します",
-          "dbSlimmingReportMessages": "削除予定のメッセージ内容：{{count}} 件（約 {{size}}）",
-          "dbSlimmingReportSpace": "データベース {{database}}、必要な一時領域は最低 {{temporary}}、空き容量 {{free}}",
-          "dbSlimmingSpaceUnknown": "不明",
-          "dbSlimmingInsufficientSpace": "作業コピーを安全に作成してデータベースを圧縮するための空き容量がありません。",
-          "dbSlimmingConfirmButton": "データベースのクリーンアップを確認",
-          "dbSlimmingConfirmTitle": "再起動してデータベースをクリーンアップしますか？",
-          "dbSlimmingConfirmDescriptionWithBackup": "Cindy を正常に再起動し、次回起動時にデータベースを開く前にバックアップ、履歴削除、圧縮、整合性確認を行います。バックアップの書き込みと検証が完了するまでデータは削除しません。",
-          "dbSlimmingConfirmDescriptionWithoutBackup": "Cindy を正常に再起動し、次回起動時にデータベースを開く前に履歴を削除して圧縮します。今回はバックアップを作成しないため、削除した履歴は復元できません。",
-          "dbSlimmingRestartButton": "再起動してデータベースをクリーンアップ",
-          "dbSlimmingResultCompleted": "{{tasks}} 件のタスクから {{messages}} 件のメッセージを削除し、データベースを {{size}} 縮小しました。",
-          "dbSlimmingOpenBackupButton": "クリーンアップ用バックアップを開く",
-          "dbSlimmingToastCompleted": "データベースのクリーンアップが完了し、{{size}} 解放しました",
-          "dbSlimmingHistoryCleared": "履歴は削除されました",
-          "dbSlimmingFailure": {
-            "backup-failed": "データベースのバックアップを作成または保持できなかったため、履歴は削除していません。",
-            "cleanup-failed": "データベースのクリーンアップは完了しませんでした。元のデータベースは変更されていません。",
-            "database-in-use": "別のインスタンスがデータベースを使用しているため、クリーンアップを実行しませんでした。",
-            "insufficient-space": "空き容量が不足しているため、データベースのクリーンアップを実行しませんでした。",
-            "integrity-check-failed": "整合性確認に失敗したため、元のデータベースを復元しました。",
-            "replacement-failed": "圧縮後のデータベースを配置できなかったため、元のデータベースを復元しました。",
-            "recovery-failed": "データベースの復元に失敗しました。元データを保護するため、Cindy はデータベースを開いていません。",
-            "unknown": "データベースのクリーンアップは完了しませんでした。もう一度お試しください。"
-          },
+        "chatAttachmentsClearFailed": "メッセージ添付ファイルのキャッシュをクリーンアップできませんでした。もう一度お試しください。",
+        "dbSlimmingBackupDirectoryDialogTitle": "データベースのクリーンアップ用バックアップ先を選択",
+        "dbSlimmingLabel": "データベースのクリーンアップ",
+        "dbSlimmingDescription": "論理削除されたタスクと長期間アーカイブされたタスクのメッセージ履歴をスキャンします。確認後に Cindy を再起動し、データベースを開く前に履歴を削除して圧縮します。ディスク上の添付ファイルや生成メディアは削除しません。",
+        "dbSlimmingScanButton": "データベースをスキャン",
+        "dbSlimmingScanLoading": "データベースをスキャンしています…",
+        "dbSlimmingScanResultTitle": "データベースのスキャン結果",
+        "dbSlimmingExecutionLoading": "データベースのクリーンアップを準備しています。Cindy はまもなく再起動します…",
+        "dbSlimmingArchiveAgeLabel": "次の期間を超えてアーカイブされているタスクを整理",
+        "dbSlimmingArchiveAgeOption7Days": "7 日",
+        "dbSlimmingArchiveAgeOption1": "1 か月",
+        "dbSlimmingArchiveAgeOption3": "3 か月",
+        "dbSlimmingArchiveAgeOption6": "6 か月",
+        "dbSlimmingBackupLabel": "クリーンアップ前にデータベースをバックアップ",
+        "dbSlimmingBackupDefaultLocation": "データベースのフォルダ（最新のクリーンアップ用バックアップのみ保持）",
+        "dbSlimmingUseDefaultDirectoryButton": "既定のフォルダを使用",
+        "dbSlimmingChooseDirectoryButton": "バックアップ先を選択",
+        "dbSlimmingBackupDirectoryFailed": "バックアップ先を選択できませんでした。もう一度お試しください。",
+        "dbSlimmingScanFailed": "データベースをスキャンできませんでした。もう一度お試しください。",
+        "dbSlimmingScheduleFailed": "データベースのクリーンアップを予約できませんでした。再スキャンしてお試しください。",
+        "dbSlimmingBackupMissing": "最新のクリーンアップ用バックアップが見つかりません。",
+        "dbSlimmingBackupOpenFailed": "クリーンアップ用バックアップの場所を開けませんでした。もう一度お試しください。",
+        "dbSlimmingReportTasks": "論理削除タスク {{deleted}} 件、アーカイブ済みタスク {{archived}} 件を削除します",
+        "dbSlimmingReportMessages": "削除予定のメッセージ内容：{{count}} 件（約 {{size}}）",
+        "dbSlimmingReportSpace": "データベース {{database}}、必要な一時領域は最低 {{temporary}}、空き容量 {{free}}",
+        "dbSlimmingSpaceUnknown": "不明",
+        "dbSlimmingInsufficientSpace": "作業コピーを安全に作成してデータベースを圧縮するための空き容量がありません。",
+        "dbSlimmingConfirmButton": "データベースのクリーンアップを確認",
+        "dbSlimmingConfirmTitle": "再起動してデータベースをクリーンアップしますか？",
+        "dbSlimmingConfirmDescriptionWithBackup": "Cindy を正常に再起動し、次回起動時にデータベースを開く前にバックアップ、履歴削除、圧縮、整合性確認を行います。バックアップの書き込みと検証が完了するまでデータは削除しません。",
+        "dbSlimmingConfirmDescriptionWithoutBackup": "Cindy を正常に再起動し、次回起動時にデータベースを開く前に履歴を削除して圧縮します。今回はバックアップを作成しないため、削除した履歴は復元できません。",
+        "dbSlimmingRestartButton": "再起動してデータベースをクリーンアップ",
+        "dbSlimmingResultCompleted": "{{tasks}} 件のタスクから {{messages}} 件のメッセージを削除し、データベースを {{size}} 縮小しました。",
+        "dbSlimmingOpenBackupButton": "クリーンアップ用バックアップを開く",
+        "dbSlimmingToastCompleted": "データベースのクリーンアップが完了し、{{size}} 解放しました",
+        "dbSlimmingHistoryCleared": "履歴は削除されました",
+        "dbSlimmingFailure": {
+          "backup-failed": "データベースのバックアップを作成または保持できなかったため、履歴は削除していません。",
+          "cleanup-failed": "データベースのクリーンアップは完了しませんでした。元のデータベースは変更されていません。",
+          "database-in-use": "別のインスタンスがデータベースを使用しているため、クリーンアップを実行しませんでした。",
+          "insufficient-space": "空き容量が不足しているため、データベースのクリーンアップを実行しませんでした。",
+          "integrity-check-failed": "整合性確認に失敗したため、元のデータベースを復元しました。",
+          "replacement-failed": "圧縮後のデータベースを配置できなかったため、元のデータベースを復元しました。",
+          "recovery-failed": "データベースの復元に失敗しました。元データを保護するため、Cindy はデータベースを開いていません。",
+          "unknown": "データベースのクリーンアップは完了しませんでした。もう一度お試しください。"
+        },
         "cleanupLabel": "ディスククリーンアップ",
         "cleanupDescription": "どのセッションからも参照されていないメディアファイル、上限を超えたキャッシュ、不要になったフォルダをスキャンします。まず件数を表示し、確認後にのみ削除します。入力欄の下書きや送信待ちメッセージ内の画像は自動的に保護されます。",
         "scanButton": "スキャン",
@@ -1743,92 +1743,6 @@
           "cancel": "キャンセル"
         }
       },
-      "pi": {
-        "empty": "プロバイダーがまだありません。下の「プロバイダーを追加」から最初のモデルソースを追加してください。",
-        "list": {
-          "customBadge": "カスタム",
-          "builtinBadge": "内蔵",
-          "overrideBadge": "拡張済み"
-        },
-        "apiTypes": {
-          "openaiCompletions": "Chat Completions（/chat/completions）",
-          "openaiResponses": "OpenAI Responses",
-          "openaiCodexResponses": "OpenAI Codex Responses",
-          "azureOpenaiResponses": "Azure OpenAI Responses",
-          "anthropicMessages": "Anthropic Messages",
-          "googleGenerativeAi": "Google Generative AI",
-          "googleVertex": "Google Vertex AI",
-          "bedrock": "AWS Bedrock",
-          "mistral": "Mistral"
-        },
-        "key": {
-          "title": "API キー",
-          "set": "キーを設定",
-          "replace": "キーを変更",
-          "remove": "削除",
-          "placeholder": "API キーを貼り付け",
-          "plaintextHint": "pi のデータディレクトリに平文で保存されます（本機の pi CLI と同じファイルを共有します）。",
-          "toast": {
-            "saved": "API キーを保存しました",
-            "removed": "API キーを削除しました",
-            "saveFailed": "API キーの保存に失敗しました。もう一度お試しください。"
-          }
-        },
-        "models": {
-          "title": "モデル",
-          "add": "モデルを追加",
-          "addTitle": "モデルを追加",
-          "empty": "モデルがまだありません。手動で追加するか、プロバイダーのエンドポイントから一覧を取得してください。",
-          "reasoning": "推論サポート",
-          "remove": "モデルを削除",
-          "toggleAria": "{{provider}} の {{model}} を切り替え",
-          "toggleFailed": "モデルの表示設定の更新に失敗しました。もう一度お試しください。",
-          "removeFailed": "モデルの削除に失敗しました。もう一度お試しください。",
-          "saveFailed": "モデルの保存に失敗しました。もう一度お試しください。",
-          "contextWindow": "コンテキスト {{tokens}}",
-          "maxTokens": "最大出力 {{tokens}}",
-          "idPlaceholder": "model-id",
-          "namePlaceholder": "表示名（任意）",
-          "contextPlaceholder": "コンテキスト長",
-          "maxPlaceholder": "最大出力トークン"
-        },
-        "add": {
-          "title": "プロバイダーを追加",
-          "namePlaceholder": "表示名",
-          "idPreview": "id: {{id}}",
-          "baseUrlPlaceholder": "ベース URL（https://…）",
-          "apiLabel": "API 形式",
-          "fetch": "モデル一覧を取得",
-          "fetching": "取得中…",
-          "fetchEmpty": "エンドポイントからモデルが返されませんでした。ベース URL を確認するか、後で手動でモデルを追加してください。",
-          "fetchFailed": "モデル一覧の取得に失敗しました。もう一度お試しください。",
-          "pickModels": "追加するモデルを選択（チェックしたモデルはすぐに有効になります）",
-          "create": "プロバイダーを追加",
-          "toast": {
-            "created": "プロバイダーを追加しました",
-            "createFailed": "プロバイダーの追加に失敗しました。もう一度お試しください。"
-          }
-        },
-        "import": {
-          "label": "テキストから取り込み",
-          "placeholder": "例: myrelay baseurl: https://api.example.com/v1 key: sk-xxx モデル: vendor/model-a, vendor/model-b",
-          "empty": "このテキストから認識できる内容がありません。形式を確認するか、手動で入力してください。",
-          "idInvalid": "この名前から有効な id を生成できません。別の名前を試してください。",
-          "mergeHint": "同じ名前のカスタムプロバイダー「{{id}}」が既に存在します — 保存するとモデルが統合されます。",
-          "builtinHint": "内蔵プロバイダー「{{id}}」と同じ id です — 保存すると上書き・拡張されます。",
-          "modelIdPlaceholder": "モデル id を追加",
-          "addModelId": "追加",
-          "removeModelId": "モデル {{id}} を削除"
-        },
-        "detail": {
-          "edit": "編集",
-          "delete": "削除",
-          "toast": {
-            "updated": "プロバイダーを更新しました",
-            "updateFailed": "プロバイダーの更新に失敗しました。もう一度お試しください。"
-          }
-        }
-      },
       "addProvider": "プロバイダーを追加",
       "detail": {
         "singleAgentNote": "{{agent}} のみ対応",
@@ -1971,14 +1885,24 @@
           "qwen38-27b": {
             "blurb": "ローカルで動かせる最強クラスの密モデル。コーディングと長時間タスク向け。"
           },
-          "gpt-oss-20b": { "blurb": "OpenAI のオープン 20B。16GB 級マシンの定番。" },
-          "gemma4-e2b": { "blurb": "Gemma 4 の最小。軽いマシンでも動く。ビジョン付き。" },
-          "gemma4-e4b": { "blurb": "Google Gemma 4 の小型。日常使いでビジョン付き。" },
-          "gemma4-12b": { "blurb": "Gemma 4 の中型。日常会話とマルチモーダル向け。" },
+          "gpt-oss-20b": {
+            "blurb": "OpenAI のオープン 20B。16GB 級マシンの定番。"
+          },
+          "gemma4-e2b": {
+            "blurb": "Gemma 4 の最小。軽いマシンでも動く。ビジョン付き。"
+          },
+          "gemma4-e4b": {
+            "blurb": "Google Gemma 4 の小型。日常使いでビジョン付き。"
+          },
+          "gemma4-12b": {
+            "blurb": "Gemma 4 の中型。日常会話とマルチモーダル向け。"
+          },
           "gemma4-31b": {
             "blurb": "Gemma 4 の大型。会話とマルチモーダルがより強く、メモリもより食う。"
           },
-          "gemma4-26b": { "blurb": "Gemma 4 の中大型 MoE。有効パラメータは少なめ。" },
+          "gemma4-26b": {
+            "blurb": "Gemma 4 の中大型 MoE。有効パラメータは少なめ。"
+          },
           "ornith15-35b": {
             "blurb": "Ornith 1.5 の中型 MoE。ローカルのコーディングと Agent の控え。"
           },
@@ -3285,9 +3209,9 @@
       "tab_chains": "チェーン",
       "tab_history": "履歴",
       "noAgents": "エージェントが見つかりません",
-      "noAgentsDesc": "Subagent 定義ファイルがありません",
+      "noAgentsDesc": "pi のデータディレクトリに Subagent 定義がありません",
       "noChains": "チェーンが見つかりません",
-      "noChainsDesc": "chains/ フォルダにチェーン定義がありません",
+      "noChainsDesc": "pi のデータディレクトリにチェーン定義がありません",
       "noHistory": "実行履歴がありません",
       "noHistoryDesc": "エージェントの実行記録はまだありません",
       "edit": "編集",
@@ -8422,8 +8346,19 @@
       "showMore": "さらに {{count}} 件表示",
       "showLess": "折りたたむ",
       "artifactLabel": "成果物",
-      "formats": { "pdf": "PDF", "docx": "Word", "pptx": "PPT", "xlsx": "Excel" },
-      "summary": { "pages": "{{count}} ページ", "slides": "{{count}} 枚のスライド", "sheets": "{{count}} シート", "rows": "{{count}} 行", "bytes": "{{count}}" }
+      "formats": {
+        "pdf": "PDF",
+        "docx": "Word",
+        "pptx": "PPT",
+        "xlsx": "Excel"
+      },
+      "summary": {
+        "pages": "{{count}} ページ",
+        "slides": "{{count}} 枚のスライド",
+        "sheets": "{{count}} シート",
+        "rows": "{{count}} 行",
+        "bytes": "{{count}}"
+      }
     },
     "turnChanges": {
       "title": "{{count}} ファイルを変更",
@@ -9319,7 +9254,15 @@
           "5": "金曜日",
           "6": "土曜日"
         },
-        "short": { "0": "日", "1": "月", "2": "火", "3": "水", "4": "木", "5": "金", "6": "土" }
+        "short": {
+          "0": "日",
+          "1": "月",
+          "2": "火",
+          "3": "水",
+          "4": "木",
+          "5": "金",
+          "6": "土"
+        }
       },
       "time": {
         "last": "前回 {{value}}",

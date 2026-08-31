@@ -861,54 +861,54 @@
         "chatAttachmentsClearConfirmTitle": "清理消息附件缓存？",
         "chatAttachmentsClearConfirmDescription": "只会删除消息附件缓存目录中的文件，不会读取消息数据库。清理后，历史消息中的部分附件可能无法打开，且无法恢复。",
         "chatAttachmentsClearConfirmButton": "清理附件缓存",
-          "chatAttachmentsCleared": "消息附件缓存已清理",
-          "chatAttachmentsClearFailed": "无法清理消息附件缓存，请重试",
-          "dbSlimmingBackupDirectoryDialogTitle": "选择数据库清理备份目录",
-          "dbSlimmingLabel": "数据库清理",
-          "dbSlimmingDescription": "扫描软删除任务和长时间归档任务中的历史消息，确认后重启 Cindy，在数据库打开前清理并压缩。不会删除磁盘附件或生成媒体。",
-          "dbSlimmingScanButton": "扫描数据库",
-          "dbSlimmingScanLoading": "正在扫描数据库，请稍候…",
-          "dbSlimmingScanResultTitle": "数据库扫描结果",
-          "dbSlimmingExecutionLoading": "正在准备数据库清理，Cindy 即将重启…",
-          "dbSlimmingArchiveAgeLabel": "清理归档时间超过",
-          "dbSlimmingArchiveAgeOption7Days": "7 天",
-          "dbSlimmingArchiveAgeOption1": "1 个月",
-          "dbSlimmingArchiveAgeOption3": "3 个月",
-          "dbSlimmingArchiveAgeOption6": "6 个月",
-          "dbSlimmingBackupLabel": "清理前备份数据库",
-          "dbSlimmingBackupDefaultLocation": "数据库所在目录（只保留最近一次清理备份）",
-          "dbSlimmingUseDefaultDirectoryButton": "使用默认目录",
-          "dbSlimmingChooseDirectoryButton": "选择备份目录",
-          "dbSlimmingBackupDirectoryFailed": "无法选择备份目录，请重试",
-          "dbSlimmingScanFailed": "无法扫描数据库，请重试",
-          "dbSlimmingScheduleFailed": "无法安排数据库清理，请重新扫描后重试",
-          "dbSlimmingBackupMissing": "没有找到最近一次清理备份",
-          "dbSlimmingBackupOpenFailed": "无法打开清理备份位置，请重试",
-          "dbSlimmingReportTasks": "将清理软删除任务 {{deleted}} 个、归档任务 {{archived}} 个",
-          "dbSlimmingReportMessages": "预计清理 {{count}} 条消息内容（约 {{size}}）",
-          "dbSlimmingReportSpace": "数据库 {{database}}；临时空间至少需要 {{temporary}}；当前可用 {{free}}",
-          "dbSlimmingSpaceUnknown": "未知",
-          "dbSlimmingInsufficientSpace": "当前磁盘空间不足，无法安全创建工作副本并压缩数据库。",
-          "dbSlimmingConfirmButton": "确认数据库清理",
-          "dbSlimmingConfirmTitle": "重启并清理数据库？",
-          "dbSlimmingConfirmDescriptionWithBackup": "Cindy 将优雅重启，并在下次启动、数据库打开前完成备份、历史清理、压缩和完整性校验。备份写入并校验通过后才会清理数据。",
-          "dbSlimmingConfirmDescriptionWithoutBackup": "Cindy 将优雅重启，并在下次启动、数据库打开前清理和压缩。本次不创建备份，清除的历史内容无法恢复。",
-          "dbSlimmingRestartButton": "重启并清理数据库",
-          "dbSlimmingResultCompleted": "已清除 {{tasks}} 个任务中的 {{messages}} 条消息，数据库缩小 {{size}}。",
-          "dbSlimmingOpenBackupButton": "打开清理备份",
-          "dbSlimmingToastCompleted": "数据库清理完成，已释放 {{size}}",
-          "dbSlimmingHistoryCleared": "历史内容已清除",
-          "dbSlimmingFailure": {
-            "backup-failed": "未能创建或保留数据库备份，未清理历史内容。",
-            "cleanup-failed": "数据库清理未完成，原数据库保持不变。",
-            "database-in-use": "数据库正被其他实例使用，未执行清理。",
-            "insufficient-space": "磁盘空间不足，未执行数据库清理。",
-            "integrity-check-failed": "数据库完整性校验未通过，已恢复原数据库。",
-            "replacement-failed": "无法安装压缩后的数据库，已恢复原数据库。",
-            "recovery-failed": "数据库恢复失败，Cindy 已停止打开数据库以保护原始数据。",
-            "unknown": "数据库清理未完成，请重试。"
-          },
-          "cleanupLabel": "磁盘清理",
+        "chatAttachmentsCleared": "消息附件缓存已清理",
+        "chatAttachmentsClearFailed": "无法清理消息附件缓存，请重试",
+        "dbSlimmingBackupDirectoryDialogTitle": "选择数据库清理备份目录",
+        "dbSlimmingLabel": "数据库清理",
+        "dbSlimmingDescription": "扫描软删除任务和长时间归档任务中的历史消息，确认后重启 Cindy，在数据库打开前清理并压缩。不会删除磁盘附件或生成媒体。",
+        "dbSlimmingScanButton": "扫描数据库",
+        "dbSlimmingScanLoading": "正在扫描数据库，请稍候…",
+        "dbSlimmingScanResultTitle": "数据库扫描结果",
+        "dbSlimmingExecutionLoading": "正在准备数据库清理，Cindy 即将重启…",
+        "dbSlimmingArchiveAgeLabel": "清理归档时间超过",
+        "dbSlimmingArchiveAgeOption7Days": "7 天",
+        "dbSlimmingArchiveAgeOption1": "1 个月",
+        "dbSlimmingArchiveAgeOption3": "3 个月",
+        "dbSlimmingArchiveAgeOption6": "6 个月",
+        "dbSlimmingBackupLabel": "清理前备份数据库",
+        "dbSlimmingBackupDefaultLocation": "数据库所在目录（只保留最近一次清理备份）",
+        "dbSlimmingUseDefaultDirectoryButton": "使用默认目录",
+        "dbSlimmingChooseDirectoryButton": "选择备份目录",
+        "dbSlimmingBackupDirectoryFailed": "无法选择备份目录，请重试",
+        "dbSlimmingScanFailed": "无法扫描数据库，请重试",
+        "dbSlimmingScheduleFailed": "无法安排数据库清理，请重新扫描后重试",
+        "dbSlimmingBackupMissing": "没有找到最近一次清理备份",
+        "dbSlimmingBackupOpenFailed": "无法打开清理备份位置，请重试",
+        "dbSlimmingReportTasks": "将清理软删除任务 {{deleted}} 个、归档任务 {{archived}} 个",
+        "dbSlimmingReportMessages": "预计清理 {{count}} 条消息内容（约 {{size}}）",
+        "dbSlimmingReportSpace": "数据库 {{database}}；临时空间至少需要 {{temporary}}；当前可用 {{free}}",
+        "dbSlimmingSpaceUnknown": "未知",
+        "dbSlimmingInsufficientSpace": "当前磁盘空间不足，无法安全创建工作副本并压缩数据库。",
+        "dbSlimmingConfirmButton": "确认数据库清理",
+        "dbSlimmingConfirmTitle": "重启并清理数据库？",
+        "dbSlimmingConfirmDescriptionWithBackup": "Cindy 将优雅重启，并在下次启动、数据库打开前完成备份、历史清理、压缩和完整性校验。备份写入并校验通过后才会清理数据。",
+        "dbSlimmingConfirmDescriptionWithoutBackup": "Cindy 将优雅重启，并在下次启动、数据库打开前清理和压缩。本次不创建备份，清除的历史内容无法恢复。",
+        "dbSlimmingRestartButton": "重启并清理数据库",
+        "dbSlimmingResultCompleted": "已清除 {{tasks}} 个任务中的 {{messages}} 条消息，数据库缩小 {{size}}。",
+        "dbSlimmingOpenBackupButton": "打开清理备份",
+        "dbSlimmingToastCompleted": "数据库清理完成，已释放 {{size}}",
+        "dbSlimmingHistoryCleared": "历史内容已清除",
+        "dbSlimmingFailure": {
+          "backup-failed": "未能创建或保留数据库备份，未清理历史内容。",
+          "cleanup-failed": "数据库清理未完成，原数据库保持不变。",
+          "database-in-use": "数据库正被其他实例使用，未执行清理。",
+          "insufficient-space": "磁盘空间不足，未执行数据库清理。",
+          "integrity-check-failed": "数据库完整性校验未通过，已恢复原数据库。",
+          "replacement-failed": "无法安装压缩后的数据库，已恢复原数据库。",
+          "recovery-failed": "数据库恢复失败，Cindy 已停止打开数据库以保护原始数据。",
+          "unknown": "数据库清理未完成，请重试。"
+        },
+        "cleanupLabel": "磁盘清理",
         "cleanupDescription": "扫描没有被任何任务引用的媒体文件、超限缓存与废弃目录。先报数，确认后才删除；输入框草稿和排队消息里的图片会被自动保护。",
         "scanButton": "扫描",
         "scanFailed": "扫描失败",
@@ -1537,7 +1537,7 @@
           "codex": "Codex",
           "codexDesc": "Codex 使用 OpenAI Responses 协议。上游可选择原生 Responses，或由 Cindy 桥接 Chat Completions、Anthropic Messages。填该来源用于 Codex 的 baseURL、密钥与模型，留空则此来源不提供 Codex。",
           "pi": "Pi",
-          "piDesc": "Pi 是多协议 Harness：你的自定义或本机模型（Ollama、vLLM、自建端点）原生直连，不经 Cindy 的兼容 Proxy。先在下方选 API 类型，再填该来源给 Pi 用的 base URL、密钥与模型；留空则本来源不配置 Pi。"
+          "piDesc": "Pi 是多协议 harness：你的自定义或本机模型（Ollama、vLLM、自建端点）原生直连，不经 Cindy 的兼容 Proxy。先在下方选 API 类型，再填该来源给 Pi 用的 base URL、密钥与模型；留空则本来源不配置 Pi。"
         },
         "errors": {
           "nameRequired": "请填写显示名称",
@@ -1743,92 +1743,6 @@
           "cancel": "取消"
         }
       },
-      "pi": {
-        "empty": "还没有供应商。点击下方「添加供应商」接入第一个模型来源。",
-        "list": {
-          "customBadge": "自定义",
-          "builtinBadge": "内置",
-          "overrideBadge": "已扩展"
-        },
-        "apiTypes": {
-          "openaiCompletions": "Chat Completions（/chat/completions）",
-          "openaiResponses": "OpenAI Responses",
-          "openaiCodexResponses": "OpenAI Codex Responses",
-          "azureOpenaiResponses": "Azure OpenAI Responses",
-          "anthropicMessages": "Anthropic Messages",
-          "googleGenerativeAi": "Google Generative AI",
-          "googleVertex": "Google Vertex AI",
-          "bedrock": "AWS Bedrock",
-          "mistral": "Mistral"
-        },
-        "key": {
-          "title": "API 密钥",
-          "set": "设置密钥",
-          "replace": "更换密钥",
-          "remove": "移除",
-          "placeholder": "粘贴 API 密钥",
-          "plaintextHint": "以明文保存在 pi 的数据目录中，与本机 pi CLI 共用同一份。",
-          "toast": {
-            "saved": "API 密钥已保存",
-            "removed": "API 密钥已移除",
-            "saveFailed": "保存 API 密钥失败，请重试"
-          }
-        },
-        "models": {
-          "title": "模型",
-          "add": "添加模型",
-          "addTitle": "添加模型",
-          "empty": "还没有模型。可手动添加，或从供应商端点拉取模型列表。",
-          "reasoning": "支持推理",
-          "remove": "删除模型",
-          "toggleAria": "切换 {{provider}} 的 {{model}}",
-          "toggleFailed": "更新模型可见性失败，请重试",
-          "removeFailed": "删除模型失败，请重试",
-          "saveFailed": "保存模型失败，请重试",
-          "contextWindow": "上下文 {{tokens}}",
-          "maxTokens": "最大输出 {{tokens}}",
-          "idPlaceholder": "model-id",
-          "namePlaceholder": "显示名称（可选）",
-          "contextPlaceholder": "上下文窗口",
-          "maxPlaceholder": "最大输出（tokens）"
-        },
-        "add": {
-          "title": "添加供应商",
-          "namePlaceholder": "显示名称",
-          "idPreview": "id：{{id}}",
-          "baseUrlPlaceholder": "基础 URL（https://…）",
-          "apiLabel": "API 格式",
-          "fetch": "拉取模型列表",
-          "fetching": "拉取中…",
-          "fetchEmpty": "端点没有返回模型。请检查基础 URL，或稍后手动添加模型。",
-          "fetchFailed": "拉取模型列表失败，请重试",
-          "pickModels": "选择要添加的模型（勾选的模型会立即启用）",
-          "create": "添加供应商",
-          "toast": {
-            "created": "供应商已添加",
-            "createFailed": "添加供应商失败，请重试"
-          }
-        },
-        "import": {
-          "label": "从文本导入",
-          "placeholder": "例如：myrelay baseurl：https://api.example.com/v1 key：sk-xxx 模型：vendor/model-a, vendor/model-b",
-          "empty": "未从这段文本识别出内容。请检查格式，或直接手动填写。",
-          "idInvalid": "无法从名称生成有效 id，请换个名称。",
-          "mergeHint": "已存在同名自定义供应商「{{id}}」，保存会合并模型。",
-          "builtinHint": "与内置供应商「{{id}}」同 id，保存会扩展或覆盖该内置供应商。",
-          "modelIdPlaceholder": "添加模型 id",
-          "addModelId": "添加",
-          "removeModelId": "移除模型 {{id}}"
-        },
-        "detail": {
-          "edit": "编辑",
-          "delete": "删除",
-          "toast": {
-            "updated": "供应商已更新",
-            "updateFailed": "更新供应商失败，请重试"
-          }
-        }
-      },
       "addProvider": "添加供应商",
       "detail": {
         "singleAgentNote": "仅支持 {{agent}}",
@@ -1968,15 +1882,33 @@
         "invalidLibraryName": "请输入 Ollama 库名，或粘贴 huggingface.co 上的模型页链接",
         "advancedExactName": "高级：精确库名",
         "models": {
-          "qwen38-27b": { "blurb": "当前最强可本机跑的稠密模型，适合编程和长任务。" },
-          "gpt-oss-20b": { "blurb": "OpenAI 开源 20B，16GB 级机器上的对话和推理首选。" },
-          "gemma4-e2b": { "blurb": "Gemma 4 最小杯，轻量机器也能跑，带视觉。" },
-          "gemma4-e4b": { "blurb": "Google Gemma 4 小杯，轻量日常，带视觉。" },
-          "gemma4-12b": { "blurb": "Gemma 4 中杯，日常对话和多模态更稳。" },
-          "gemma4-31b": { "blurb": "Gemma 4 大杯，对话和多模态更强，也更吃内存。" },
-          "gemma4-26b": { "blurb": "Gemma 4 的 MoE 中大杯，激活参数更少，适合中高配。" },
-          "ornith15-35b": { "blurb": "Ornith 1.5 中杯 MoE，本机编程和 Agent 备选。" },
-          "glm-47-flash": { "blurb": "智谱新一代编程模型，30B MoE，适合写代码和 Agent。" }
+          "qwen38-27b": {
+            "blurb": "当前最强可本机跑的稠密模型，适合编程和长任务。"
+          },
+          "gpt-oss-20b": {
+            "blurb": "OpenAI 开源 20B，16GB 级机器上的对话和推理首选。"
+          },
+          "gemma4-e2b": {
+            "blurb": "Gemma 4 最小杯，轻量机器也能跑，带视觉。"
+          },
+          "gemma4-e4b": {
+            "blurb": "Google Gemma 4 小杯，轻量日常，带视觉。"
+          },
+          "gemma4-12b": {
+            "blurb": "Gemma 4 中杯，日常对话和多模态更稳。"
+          },
+          "gemma4-31b": {
+            "blurb": "Gemma 4 大杯，对话和多模态更强，也更吃内存。"
+          },
+          "gemma4-26b": {
+            "blurb": "Gemma 4 的 MoE 中大杯，激活参数更少，适合中高配。"
+          },
+          "ornith15-35b": {
+            "blurb": "Ornith 1.5 中杯 MoE，本机编程和 Agent 备选。"
+          },
+          "glm-47-flash": {
+            "blurb": "智谱新一代编程模型，30B MoE，适合写代码和 Agent。"
+          }
         },
         "onboardingTitle": "先安装 Ollama 运行环境",
         "onboardingBody": "安装 Ollama 后，即可在 Cindy 中下载和使用本机模型，无需打开 Ollama App。Ollama 是免费开源的第三方运行环境。",
@@ -3276,12 +3208,12 @@
       "tab_agents": "Agent",
       "tab_chains": "链",
       "tab_history": "历史",
-      "noAgents": "未找到 Agent",
-      "noAgentsDesc": "暂无 Subagent 定义文件",
+      "noAgents": "未找到 Subagent",
+      "noAgentsDesc": "pi 数据目录里还没有 Subagent 定义文件。",
       "noChains": "未找到链",
-      "noChainsDesc": "chains/ 下无链定义",
+      "noChainsDesc": "pi 数据目录里还没有链定义文件。",
       "noHistory": "无运行历史",
-      "noHistoryDesc": "暂无 Agent 运行记录",
+      "noHistoryDesc": "暂无 Subagent 运行记录",
       "edit": "编辑",
       "save": "保存",
       "saving": "保存中…",
@@ -8414,8 +8346,19 @@
       "showMore": "显示另外 {{count}} 个",
       "showLess": "收起",
       "artifactLabel": "成品",
-      "formats": { "pdf": "PDF", "docx": "Word", "pptx": "PPT", "xlsx": "Excel" },
-      "summary": { "pages": "{{count}} 页", "slides": "{{count}} 张幻灯片", "sheets": "{{count}} 个工作表", "rows": "{{count}} 行", "bytes": "{{count}}" }
+      "formats": {
+        "pdf": "PDF",
+        "docx": "Word",
+        "pptx": "PPT",
+        "xlsx": "Excel"
+      },
+      "summary": {
+        "pages": "{{count}} 页",
+        "slides": "{{count}} 张幻灯片",
+        "sheets": "{{count}} 个工作表",
+        "rows": "{{count}} 行",
+        "bytes": "{{count}}"
+      }
     },
     "turnChanges": {
       "title": "已更改 {{count}} 个文件",
@@ -9311,7 +9254,15 @@
           "5": "星期五",
           "6": "星期六"
         },
-        "short": { "0": "日", "1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六" }
+        "short": {
+          "0": "日",
+          "1": "一",
+          "2": "二",
+          "3": "三",
+          "4": "四",
+          "5": "五",
+          "6": "六"
+        }
       },
       "time": {
         "last": "上次 {{value}}",
@@ -10893,7 +10844,7 @@
     "split": {
       "leadLabel": "Lead ({{agent}})",
       "workerLabel": "Worker ({{agent}})",
-      "leadNotFound": "找不到 Orca Lead 任务",
+      "leadNotFound": "找不到 Orca lead 任务",
       "waitingForWorker": "等待 Worker",
       "closeAria": "关闭"
     }

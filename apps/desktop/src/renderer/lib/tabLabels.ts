@@ -49,10 +49,13 @@ export const TAB_IDS = [
   // Cindy 云端语音/机器人服务,不属于本机 Pi 工作台范围。
   'shortcuts',
   'agent-island',
+  'import',
   // 「第三方平台」(connections)已于 2026-07-15 下架:Slack 官方 MCP 随 cindy-slack
   // 意识化收尾(Google/Jira/GitHub/GitLab 此前已迁意识)。id 仍留在 SettingsTab
   // 类型与 TAB_LABEL_KEY 保留,供旧深链重定向到插件分区。
   'remote-control',
+  'ghosts',
+  'builtin-tools',
   'computer-use',
   // ── Pi Agent 工具集(pi-web-switch 移植) ──
   'pi-dashboard',

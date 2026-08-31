@@ -980,323 +980,80 @@ export async function searchPackages(query: string): Promise<PiPackageSearchResu
 }
 
 // ─── Provider Testing ──────────────────────────────────────────────────────
-// pi-web-switch 同款实现:URL 协议校验、$ENV 引用解析、Ollama(/api/tags)与
-// OpenRouter(/models 富元数据)分支、id 启发式元数据补全、HTML 误配检测。
-
-function resolveEnvKey(apiKey: string | undefined): string {
-  const key = apiKey ?? '';
-  if (key.startsWith('$')) return process.env[key.slice(1)] ?? '';
-  return key;
-}
-
-function parseHttpUrl(raw: string, suffix = ''): URL | null {
-  try {
-    const url = new URL(raw.replace(/\/+$/, '') + suffix);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    return url;
-  } catch {
-    return null;
-  }
-}
-
-function toNum(v: unknown): number | undefined {
-  if (typeof v === 'number') return v;
-  if (typeof v !== 'string') return undefined;
-  const m = v.match(/^([0-9]+)([KkMm]?)$/);
-  if (!m) return undefined;
-  const n = parseInt(m[1] ?? '0', 10);
-  const u = (m[2] ?? '').toUpperCase();
-  return u === 'K' ? n * 1000 : u === 'M' ? n * 1_000_000 : n;
-}
-
-// Heuristic reasoning/vision detection (server-side; mirrors the wizard's client guesses)
-const REASONING_RE = /(^|[/_\-])(r1|o1|o3|o4|z1|reasoner|reasoning|qwq|deepseek-r|think)([/_\-:]|$)/i;
-const VISION_RE = /(vision|[-_]vl\b|multimodal|gpt-4o|gpt-5|claude-(sonnet|opus)|gemini|llama-.*vision|qwen.*vl|glm-.*v\b)/i;
-const AUDIO_RE = /(audio|whisper|tts|speech)/i;
-
-function heuristicFlags(id: string): {
-  reasoning?: boolean;
-  vision?: boolean;
-  audio?: boolean;
-  contextWindow?: number;
-} {
-  const k = id.toLowerCase();
-  let contextWindow: number | undefined;
-  if (/deepseek[-_]v4[-_](flash|chat)(?:[-_:]|$)/i.test(k)) contextWindow = 1_048_576;
-  else if (/[-_](1m|1024k|1048576)\b/i.test(k)) contextWindow = 1_048_576;
-  else if (/[-_](256k)\b/i.test(k)) contextWindow = 262_144;
-  else if (/[-_](128k)\b/i.test(k)) contextWindow = 131_072;
-  else if (/[-_](64k)\b/i.test(k)) contextWindow = 65_536;
-  else if (/[-_](32k)\b/i.test(k)) contextWindow = 32_768;
-  else if (/[-_](16k)\b/i.test(k)) contextWindow = 16_384;
-  else if (/[-_](8k)\b/i.test(k)) contextWindow = 8192;
-  return {
-    reasoning: REASONING_RE.test(k),
-    vision: VISION_RE.test(k),
-    audio: AUDIO_RE.test(k),
-    contextWindow,
-  };
-}
-
-function isOpenRouter(baseUrl: string, host: string): boolean {
-  return (
-    host === 'openrouter.ai' ||
-    host.endsWith('.openrouter.ai') ||
-    baseUrl.includes('openrouter.ai')
-  );
-}
-
-async function fetchJson(url: URL, headers: Record<string, string>, timeoutMs = 15000): Promise<unknown> {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const text = await res.text();
-  const trimmed = text.trimStart();
-  const ctype = res.headers.get('content-type') ?? '';
-  if (trimmed.startsWith('<') || ctype.includes('text/html')) {
-    // HTML 回包几乎总是 baseUrl 配错(缺 /v1 前缀、站点根当 endpoint 等)
-    throw new Error(`endpoint returned HTML, not JSON (check base URL): ${url.toString()}`);
-  }
-  return JSON.parse(text) as unknown;
-}
-
-function makeHeaders(key: string, providerId?: string, host?: string): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (!key) return headers;
-  if (providerId === 'anthropic' || (host && host.endsWith('api.anthropic.com'))) {
-    headers['x-api-key'] = key;
-    headers['anthropic-version'] = '2023-06-01';
-  } else if (providerId === 'google' || (host && host.endsWith('generativelanguage.googleapis.com'))) {
-    // Google 用 query param 传 key,由调用方处理
-  } else {
-    headers['Authorization'] = `Bearer ${key}`;
-  }
-  return headers;
-}
 
 export async function testProviderConnection(baseUrl: string, apiKey?: string): Promise<PiProviderTestResult> {
-  const url = parseHttpUrl(baseUrl, '/models');
-  if (!url) return { success: false, message: 'invalid URL' };
-  const key = resolveEnvKey(apiKey);
-  const headers: Record<string, string> = {};
-  if (key) headers['Authorization'] = `Bearer ${key}`;
-
-  const started = Date.now();
   try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-    const latencyMs = Date.now() - started;
-    if (res.ok) return { success: true, status: res.status, latencyMs };
-    return { success: false, status: res.status, latencyMs, message: `HTTP ${res.status}` };
+    const start = Date.now();
+    const resp = await fetch(`${baseUrl}/models`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal: AbortSignal.timeout(10_000),
+    });
+    const latencyMs = Date.now() - start;
+
+    return {
+      success: resp.ok,
+      status: resp.status,
+      latencyMs,
+      message: resp.ok ? undefined : `HTTP ${resp.status}`,
+    };
   } catch (err) {
-    const latencyMs = Date.now() - started;
-    const e = err as { name?: string; message?: string };
-    const msg = e?.name === 'TimeoutError' ? 'timeout' : e?.message || String(err);
-    return { success: false, latencyMs, message: msg };
+    return { success: false, message: err instanceof Error ? err.message : String(err) };
   }
 }
 
 export async function testModel(baseUrl: string, modelId: string, apiKey?: string): Promise<PiProviderTestResult> {
-  const url = parseHttpUrl(baseUrl, '/chat/completions');
-  if (!url) return { success: false, message: 'invalid URL' };
-  const key = resolveEnvKey(apiKey);
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (key) headers['Authorization'] = `Bearer ${key}`;
-
-  const body = {
-    model: modelId,
-    messages: [{ role: 'user', content: 'Reply with a single word: ok' }],
-    max_tokens: 4,
-    temperature: 0,
-  };
-
-  const started = Date.now();
   try {
-    const res = await fetch(url, {
+    const start = Date.now();
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
-      headers,
-      body: JSON.stringify(body),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: 'user', content: 'Reply ok' }],
+        max_tokens: 4,
+      }),
       signal: AbortSignal.timeout(15_000),
     });
-    const latencyMs = Date.now() - started;
-    if (res.ok) {
-      const data = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string }; delta?: { content?: string } }>;
-        usage?: unknown;
-      };
-      const choice = data?.choices?.[0];
-      if (choice && (choice.message?.content || choice.delta?.content)) {
-        return { success: true, latencyMs };
-      }
-      if (data?.usage) return { success: true, latencyMs, message: 'response received (no content)' };
-      return { success: false, latencyMs, message: 'invalid response' };
+    const latencyMs = Date.now() - start;
+
+    if (!resp.ok) {
+      return { success: false, status: resp.status, latencyMs, message: `HTTP ${resp.status}` };
     }
-    try {
-      const d = (await res.json()) as { error?: { message?: string } };
-      return {
-        success: false,
-        status: res.status,
-        latencyMs,
-        message: d?.error?.message || `HTTP ${res.status}`,
-      };
-    } catch {
-      return { success: false, status: res.status, latencyMs, message: `HTTP ${res.status}` };
-    }
+
+    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: unknown };
+    const ok = data.choices?.[0]?.message?.content || data.usage;
+    return { success: !!ok, status: resp.status, latencyMs, message: ok ? undefined : 'Invalid response' };
   } catch (err) {
-    const latencyMs = Date.now() - started;
-    const msg = err instanceof Error ? err.message : String(err);
-    return { success: false, latencyMs, message: msg };
+    return { success: false, message: err instanceof Error ? err.message : String(err) };
   }
 }
 
 export async function fetchProviderModels(baseUrl: string, apiKey?: string): Promise<PiFetchModelsResult> {
-  const key = resolveEnvKey(apiKey);
-  let base: URL;
   try {
-    base = new URL(baseUrl.replace(/\/+$/, ''));
-  } catch {
-    return { models: [], error: 'invalid URL' };
-  }
-  if (base.protocol !== 'http:' && base.protocol !== 'https:') {
-    return { models: [], error: 'invalid URL' };
-  }
-  const host = base.hostname;
+    const resp = await fetch(`${baseUrl}/models`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal: AbortSignal.timeout(10_000),
+    });
 
-  try {
-    // ── Ollama:/api/tags(本地 11434)────────────────────────
-    if (host === 'localhost' && base.port === '11434') {
-      const tagsUrl = new URL('/api/tags', base);
-      const data = (await fetchJson(tagsUrl, {})) as { models?: Array<{ name?: string; model?: string } | string> };
-      const models: PiFetchedModel[] = [];
-      for (const m of data?.models ?? []) {
-        const id = typeof m === 'string' ? m : m?.name ?? m?.model ?? '';
-        if (!id) continue;
-        const flags = heuristicFlags(id);
-        models.push({
-          id,
-          reasoning: flags.reasoning,
-          vision: flags.vision,
-          audio: flags.audio,
-          contextWindow: flags.contextWindow,
-          source: 'ollama',
-        });
-      }
-      return { models };
+    if (!resp.ok) {
+      return { models: [], error: `HTTP ${resp.status}` };
     }
 
-    // ── OpenAI 兼容 /models(OpenRouter 富元数据 / Google query key)──
-    // 保留 baseUrl 路径前缀(如 /v1beta),不能用 new URL('/models', base)。
-    const modelsUrl = new URL(base.toString().replace(/\/+$/, '') + '/models');
-    const providerIdGuess = host.endsWith('generativelanguage.googleapis.com')
-      ? 'google'
-      : host.endsWith('api.anthropic.com')
-        ? 'anthropic'
-        : undefined;
-    if (providerIdGuess === 'google' && key) modelsUrl.searchParams.set('key', key);
-    const headers = makeHeaders(key, providerIdGuess, host);
-    const isOR = isOpenRouter(baseUrl, host);
-    const data = (await fetchJson(modelsUrl, headers, isOR ? 20000 : 15000)) as unknown;
+    const data = await resp.json() as { data?: Array<{ id: string }>; models?: Array<{ id: string }> };
+    const rawModels = data.data ?? data.models ?? [];
 
-    const seen = new Set<string>();
-    const models: PiFetchedModel[] = [];
-    const pushModel = (m: PiFetchedModel) => {
-      const v = (m.id ?? '').trim();
-      if (!v || seen.has(v)) return;
-      seen.add(v);
-      const flags = heuristicFlags(v);
-      m.reasoning = m.reasoning ?? flags.reasoning;
-      m.vision = m.vision ?? flags.vision;
-      m.audio = m.audio ?? flags.audio;
-      m.contextWindow = m.contextWindow ?? flags.contextWindow;
-      models.push(m);
-    };
-
-    const modsOf = (item: Record<string, unknown>): unknown =>
-      (item.architecture as Record<string, unknown> | undefined)?.input_modalities ??
-      item.input_modalities ??
-      item.modalities;
-    const visionOf = (item: Record<string, unknown>): boolean | undefined => {
-      const capabilities = item.capabilities as Record<string, unknown> | undefined;
-      if (typeof capabilities?.vision === 'boolean') return capabilities.vision;
-      if (item.supports_vision === true || item.vision === true) return true;
-      const mods = modsOf(item);
-      if (Array.isArray(mods)) return mods.includes('image');
-      const modality = (item.architecture as Record<string, unknown> | undefined)?.modality;
-      if (typeof modality === 'string') return (modality.split('->')[0] ?? '').includes('image');
-      return undefined;
-    };
-    const audioOf = (item: Record<string, unknown>): boolean | undefined => {
-      const mods = modsOf(item);
-      if (Array.isArray(mods)) return mods.includes('audio');
-      return undefined;
-    };
-    const reasoningOf = (item: Record<string, unknown>): boolean | undefined =>
-      item.reasoning === true || item.supports_reasoning === true ? true : undefined;
-    const parseCost = (pricing: unknown): PiFetchedModel['cost'] | undefined => {
-      if (!pricing || typeof pricing !== 'object') return undefined;
-      const p = pricing as Record<string, unknown>;
-      // OpenRouter 每 token 计价 ×1e6 = $/M
-      const toDollar = (v: unknown) =>
-        typeof v === 'string'
-          ? parseFloat(v) * 1_000_000
-          : typeof v === 'number'
-            ? v * 1_000_000
-            : undefined;
-      const input = toDollar(p.prompt ?? p.input);
-      const output = toDollar(p.completion ?? p.output);
-      const cacheRead = toDollar(p.cache_read ?? p.cacheRead);
-      const cacheWrite = toDollar(p.cache_write ?? p.cacheWrite);
-      if (input === undefined && output === undefined) return undefined;
-      return { input: input ?? 0, output: output ?? 0, cacheRead, cacheWrite };
-    };
-
-    const parseItem = (item: unknown) => {
-      if (typeof item === 'string') {
-        pushModel({ id: item, source: isOR ? 'openrouter' : 'openai' });
-        return;
-      }
-      if (!item || typeof item !== 'object') return;
-      const rec = item as Record<string, unknown>;
-      const rawId = rec.id ?? rec.model ?? rec.name ?? '';
-      const id = typeof rawId === 'string' ? rawId.replace(/^models\//, '') : '';
-      if (!id) return;
-      const name = typeof rec.name === 'string' && rec.name !== id ? rec.name : undefined;
-      const cw =
-        toNum(rec.context_length) ??
-        toNum(rec.max_context) ??
-        toNum(rec.context_window) ??
-        toNum(rec.inputTokenLimit) ??
-        undefined;
-      const mt =
-        toNum(rec.max_output_tokens) ??
-        toNum((rec.top_provider as Record<string, unknown> | undefined)?.max_completion_tokens) ??
-        toNum(rec.max_completion_tokens) ??
-        toNum(rec.outputTokenLimit) ??
-        undefined;
-      pushModel({
-        id,
-        name,
-        contextWindow: cw,
-        maxTokens: mt,
-        reasoning: reasoningOf(rec),
-        vision: visionOf(rec),
-        audio: audioOf(rec),
-        cost: isOR ? parseCost(rec.pricing) : undefined,
-        source: isOR ? 'openrouter' : 'openai',
-      });
-    };
-
-    if (Array.isArray(data)) {
-      data.forEach(parseItem);
-    } else if (data && typeof data === 'object') {
-      const rec = data as Record<string, unknown>;
-      const arr = rec.data ?? rec.models ?? rec.models_list ?? null;
-      if (Array.isArray(arr)) arr.forEach(parseItem);
-    }
+    const models: PiFetchedModel[] = rawModels.map((m) => ({
+      id: m.id,
+      name: m.id,
+      source: 'openai' as const,
+    }));
 
     return { models };
   } catch (err) {
-    const e = err as { name?: string; message?: string };
-    const msg = e?.name === 'TimeoutError' ? 'timeout' : e?.message || String(err);
-    return { models: [], error: msg };
+    return { models: [], error: err instanceof Error ? err.message : String(err) };
   }
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSyncExternalStore } from 'react';
 import { ArrowLeft, ChevronRight, Puzzle } from 'lucide-react';
@@ -15,6 +15,7 @@ import { SubagentModelSection } from './SubagentModelSection';
 import { AuxiliaryModelSection } from './AuxiliaryModelSection';
 import { VisionBridgeSection } from './VisionBridgeSection';
 import { ProvidersSection } from './ProvidersSection';
+import { McpServersSection } from './McpServersSection';
 import { RemoteControlSection } from './RemoteControlSection';
 import { NotificationSection } from './NotificationSection';
 import { WindowBehaviorSection } from './WindowBehaviorSection';
@@ -33,6 +34,7 @@ import { StreamFadeSection } from './StreamFadeSection';
 import { TipsSection } from './TipsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { GitSafetySection } from './GitSafetySection';
+import { SessionImportSection } from './SessionImportSection';
 import { HelpSection } from './HelpSection';
 import { HelpAssistantPanel } from './HelpAssistantPanel';
 import { AgentResourceSection } from './AgentResourceSection';
@@ -46,9 +48,11 @@ import { PiMemorySection } from './pi-memory/PiMemorySection';
 import { PiSubagentsSection } from './pi-subagents/PiSubagentsSection';
 import { PiSpeedTestSection } from './pi-speedtest/PiSpeedTestSection';
 import { CollaborationSection } from './CollaborationSection';
+import { BuiltinToolsSection } from './BuiltinToolsSection';
 import { ContactsSection } from './contacts/ContactsSection';
 import { ComputerUseSection } from './ComputerUseSection';
 import { useAuth } from '@/contexts/AuthContext';
+import { SettingsCatalogPanel } from './SettingsCatalogPanel';
 import { getLastWorkingDir, subscribeToLastWorkingDir } from '@/state/lastWorkingDir';
 
 const DEFAULT_SETTINGS_MENU_WIDTH = 260;
@@ -86,8 +90,6 @@ export function SettingsView() {
       return 'general';
     }
     if (raw === 'agent-island' && !isMac) return 'general';
-    // 已下架 tab(usage / voice-input / im-bot / import / ghosts / builtin-tools 等)
-    // 的旧深链在这里自然回落到 general。
     return isSettingsTab(raw) ? raw : 'general';
   }, [isMac, rawTab]);
   const piExtensionsPanelOpen =
@@ -192,6 +194,11 @@ export function SettingsView() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [searchParams]);
 
+  // 旧「工具密钥」「第三方平台」深链落到设置里的插件分区,不再离开设置。
+  if (shouldRedirectLegacyPluginTabs) {
+    return <Navigate to="/settings?tab=ghosts" replace />;
+  }
+
   return (
     <div
       className="h-full w-full overflow-hidden bg-[var(--settings-bg)]"
@@ -232,12 +239,20 @@ export function SettingsView() {
         </aside>
 
         {/* Content column — capped and centered in the remaining space.
+            Most tabs scroll as a page; Session Import and Plugins use a fixed-height
+            workspace so only their inner lists scroll.
             right padding mirrors sidebar's 24px left inset.
             右侧贴 46px 标题栏起排，不跟随左侧页头高度下移。
-            scrollbar-gutter:stable —— 所有分区都预留同一滚动条槽位。 */}
+            scrollbar-gutter:stable —— 所有分区都预留同一滚动条槽位；即使
+            Session Import 自身不滚动，也要保持与普通滚动页相同的内容宽度。 */}
         <div
           ref={contentScrollRef}
-          className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pl-4 pr-6 [scrollbar-gutter:stable]"
+          className={cn(
+            'flex h-full min-h-0 min-w-0 flex-1 flex-col pl-4 pr-6 [scrollbar-gutter:stable]',
+            activeTab === 'import' || activeTab === 'ghosts'
+              ? 'overflow-hidden'
+              : 'overflow-y-auto',
+          )}
         >
           {/* key={activeTab}:切分区时 wrapper 重挂跑 150ms 淡入(面板内容本就
               按 activeTab 条件卸载重挂,key 不额外丢状态;滚动容器在外层不重挂)。 */}
@@ -473,6 +488,33 @@ export function SettingsView() {
               >
                 <section aria-label={t('settings.sections.remoteControl')}>
                   <RemoteControlSection />
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'ghosts' && (
+              <div
+                role="tabpanel"
+                id="settings-panel-ghosts"
+                aria-labelledby="settings-tab-ghosts"
+                className="h-full min-h-0"
+              >
+                <SettingsCatalogPanel />
+              </div>
+            )}
+
+            {activeTab === 'builtin-tools' && (
+              <div
+                role="tabpanel"
+                id="settings-panel-builtin-tools"
+                aria-labelledby="settings-tab-builtin-tools"
+              >
+                <section className="pb-[18px]" aria-label={t('settings.builtinTools.title')}>
+                  <BuiltinToolsSection workingDir={workingDir ?? undefined} />
+                </section>
+                {/* 外部(自定义)MCP 与内置工具同页管理:内置在上、外部在下,组成「工具」页。 */}
+                <section className="pb-[18px]" aria-label={t('settings.sections.mcpServers')}>
+                  <McpServersSection />
                 </section>
               </div>
             )}

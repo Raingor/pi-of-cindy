@@ -247,11 +247,7 @@ export type IpcErrorCode =
   | 'PI_AGENT_FILE_CORRUPT' // JSON/JSONL 文件解析失败
   | 'PI_AGENT_SESSION_LOCKED' // 会话文件正被 pi 进程写入,不允许删除
   | 'PI_AGENT_MEMORY_BUSY' // memory 整合已在进行中(全局并发 1)
-  | 'PI_AGENT_IMPORT_FAILED' // 配置导入合并失败(格式/版本不兼容)
-  // 本机 pi 一键安装(piInstaller):下载/落盘/校验三段失败码
-  | 'PI_INSTALL_DOWNLOAD_FAILED'
-  | 'PI_INSTALL_LAYOUT_FAILED'
-  | 'PI_INSTALL_VERIFY_FAILED';
+  | 'PI_AGENT_IMPORT_FAILED'; // 配置导入合并失败(格式/版本不兼容)
 
 export interface IpcError {
   code: IpcErrorCode;
@@ -455,9 +451,6 @@ const IPC_ERROR_CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'PI_AGENT_SESSION_LOCKED',
   'PI_AGENT_MEMORY_BUSY',
   'PI_AGENT_IMPORT_FAILED',
-  'PI_INSTALL_DOWNLOAD_FAILED',
-  'PI_INSTALL_LAYOUT_FAILED',
-  'PI_INSTALL_VERIFY_FAILED',
 ]);
 
 export function isIpcErrorCode(code: unknown): code is IpcErrorCode {

@@ -7035,11 +7035,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:computer:update-driver', opts),
       onUpdateProgress: fanOutComputerDriverUpdateProgress,
     },
-    // ── 本机 pi 探测(Pi-first 改造) ──────────────────────────────────────
-    piLocal: {
-      getStatus: () => ipcRenderer.invoke('maker:pi-local:status'),
-      install: () => ipcRenderer.invoke('maker:pi-local:install'),
-    },
     // ── Pi Agent 数据层 (pi-web-switch 移植) ──────────────────────────────
     piAgent: {
       installStatus: (): Promise<{ installed: boolean }> =>
@@ -7121,26 +7116,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       exportConfig: () => ipcRenderer.invoke('maker:pi-agent:export-config'),
       importConfig: (config: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:import-config', config),
-    },
-    // ── Pi 供应商管理(Settings 供应商区 pi 数据层)────────────────────────
-    // list 只回打码密钥;明文 key 仅经 setAuth / add / update 的写参数进入 main。
-    piProviders: {
-      list: () => ipcRenderer.invoke('maker:pi-providers:list'),
-      setAuth: (providerId: string, key: string) =>
-        ipcRenderer.invoke('maker:pi-providers:set-auth', { providerId, key }),
-      removeAuth: (providerId: string) =>
-        ipcRenderer.invoke('maker:pi-providers:remove-auth', { providerId }),
-      saveModel: (providerId: string, model: unknown) =>
-        ipcRenderer.invoke('maker:pi-providers:save-model', { providerId, model }),
-      removeModel: (providerId: string, modelId: string) =>
-        ipcRenderer.invoke('maker:pi-providers:remove-model', { providerId, modelId }),
-      add: (id: string, config: unknown) =>
-        ipcRenderer.invoke('maker:pi-providers:add', { id, config }),
-      update: (id: string, patch: unknown) =>
-        ipcRenderer.invoke('maker:pi-providers:update', { id, patch }),
-      rename: (oldId: string, newId: string) =>
-        ipcRenderer.invoke('maker:pi-providers:rename', { oldId, newId }),
-      remove: (id: string) => ipcRenderer.invoke('maker:pi-providers:remove', { id }),
     },
   },
 

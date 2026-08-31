@@ -1744,92 +1744,6 @@
           "cancel": "Cancel"
         }
       },
-      "pi": {
-        "empty": "No providers yet. Use \"Add provider\" below to add your first model source.",
-        "list": {
-          "customBadge": "Custom",
-          "builtinBadge": "Built-in",
-          "overrideBadge": "Extended"
-        },
-        "apiTypes": {
-          "openaiCompletions": "Chat Completions (/chat/completions)",
-          "openaiResponses": "OpenAI Responses",
-          "openaiCodexResponses": "OpenAI Codex Responses",
-          "azureOpenaiResponses": "Azure OpenAI Responses",
-          "anthropicMessages": "Anthropic Messages",
-          "googleGenerativeAi": "Google Generative AI",
-          "googleVertex": "Google Vertex AI",
-          "bedrock": "AWS Bedrock",
-          "mistral": "Mistral"
-        },
-        "key": {
-          "title": "API key",
-          "set": "Set key",
-          "replace": "Replace key",
-          "remove": "Remove",
-          "placeholder": "Paste API key",
-          "plaintextHint": "Stored in plain text in ~/.pi/agent (pi's own storage) — the same file the pi CLI reads.",
-          "toast": {
-            "saved": "API key saved",
-            "removed": "API key removed",
-            "saveFailed": "Failed to save the API key. Please try again."
-          }
-        },
-        "models": {
-          "title": "Models",
-          "add": "Add model",
-          "addTitle": "Add a model",
-          "empty": "No models yet. Add one manually or pull the list from the provider's endpoint.",
-          "reasoning": "Reasoning",
-          "remove": "Remove model",
-          "toggleAria": "Toggle {{model}} from {{provider}}",
-          "toggleFailed": "Failed to update model visibility. Please try again.",
-          "removeFailed": "Failed to remove the model. Please try again.",
-          "saveFailed": "Failed to save the model. Please try again.",
-          "contextWindow": "Context {{tokens}}",
-          "maxTokens": "Max output {{tokens}}",
-          "idPlaceholder": "model-id",
-          "namePlaceholder": "Display name (optional)",
-          "contextPlaceholder": "Context window",
-          "maxPlaceholder": "Max output tokens"
-        },
-        "add": {
-          "title": "Add provider",
-          "namePlaceholder": "Display name",
-          "idPreview": "id: {{id}}",
-          "baseUrlPlaceholder": "Base URL (https://…)",
-          "apiLabel": "API format",
-          "fetch": "Pull model list",
-          "fetching": "Pulling…",
-          "fetchEmpty": "The endpoint returned no models. Check the Base URL, or add models manually later.",
-          "fetchFailed": "Failed to pull the model list. Please try again.",
-          "pickModels": "Select models to add (checked models are enabled immediately)",
-          "create": "Add provider",
-          "toast": {
-            "created": "Provider added",
-            "createFailed": "Failed to add the provider. Please try again."
-          }
-        },
-        "import": {
-          "label": "Import from text",
-          "placeholder": "e.g. myrelay baseurl: https://api.example.com/v1 key: sk-xxx models: vendor/model-a, vendor/model-b",
-          "empty": "Nothing recognized in this text. Check the format, or fill the fields manually.",
-          "idInvalid": "Cannot derive a valid id from this name. Try another one.",
-          "mergeHint": "A custom provider \"{{id}}\" already exists — saving merges the models.",
-          "builtinHint": "Same id as the built-in provider \"{{id}}\" — saving extends or overrides it.",
-          "modelIdPlaceholder": "Add a model id",
-          "addModelId": "Add",
-          "removeModelId": "Remove model {{id}}"
-        },
-        "detail": {
-          "edit": "Edit",
-          "delete": "Delete",
-          "toast": {
-            "updated": "Provider updated",
-            "updateFailed": "Failed to update the provider. Please try again."
-          }
-        }
-      },
       "addProvider": "Add provider",
       "detail": {
         "singleAgentNote": "{{agent}} only",
@@ -5896,10 +5810,10 @@
       "subtitle": "Stacked by model"
     },
     "byAgent": {
-      "title": "By Agent / Harness",
+      "title": "By Agent / harness",
       "subtitle": "Last 30 days",
       "col": {
-        "agent": "Agent / Harness",
+        "agent": "Agent / harness",
         "total": "Tokens (30d)",
         "share": "Share",
         "today": "Today",
@@ -10918,7 +10832,7 @@
     "split": {
       "leadLabel": "Lead ({{agent}})",
       "workerLabel": "Worker ({{agent}})",
-      "leadNotFound": "Orca Lead session not found",
+      "leadNotFound": "Orca lead session not found",
       "waitingForWorker": "Waiting for worker",
       "closeAria": "Close"
     }
