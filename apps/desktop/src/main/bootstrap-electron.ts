@@ -61,12 +61,8 @@ import {
   waitForTurnChangeSetPersistence,
 } from './turn-change-set/store.js';
 
-// Official Linux binaries total hundreds of MB. Keep one shared deadline for
-// both downloads, but allow normal consumer connections to finish while the
-// splash displays real byte progress.
-const LINUX_AGENT_INSTALL_STARTUP_DEADLINE_MS = 5 * 60_000;
-// Pi 是可选能力。首启可以给它一小段时间从 CDN 准备，但网络异常时不能让
-// 整个 Cindy 一直停在启动页；到期后取消本次下载并禁用本次 Pi。
+// Pi 是可选能力。首启可以给本机探测一小段时间，但网络/环境异常时不能让
+// 整个 Cindy 一直停在启动页；到期后按未安装处理并禁用本次 Pi。
 const PI_AGENT_INSTALL_STARTUP_DEADLINE_MS = 60_000;
 
 /** Preserve actionable saved-account failures across Electron serialization. */
@@ -209,13 +205,6 @@ import {
   isMacOSUpdateRelaunch,
   readUpdateRelaunchScheduleBusy,
 } from './updateRelaunchSafety';
-import {
-  prepare as binaryPrepare,
-  peekNeedsDownload as binaryPeekNeedsDownload,
-  broadcastResetForStep as binaryBroadcastResetForStep,
-  type AgentBinaryKind,
-  type PrepareResult,
-} from './agent-binaries';
 import { probeLocalPi } from './pi-agent/localPi';
 import { RendererBootGuard } from './renderer-boot-guard';
 import yaml from 'js-yaml';
@@ -5687,115 +5676,17 @@ const registerIpcHandlers = () => {
   // Environment check IPC handler — 顺序检查 claude → codex → pi 三个 vendor binary。
   // 提前 peekNeedsDownload 决定 (x/y) 标签：两个及以上需要下载时给 step/totalSteps，
   // 否则不带标签（splash 显示单一 "唤醒 Cindy 中..." 文案）。
-  // pi 是可选实验 agent:清单无资产 / 下载失败都不算环境检查失败(失败不广播
-  // failed payload),本次不注册 pi。
+  // 2026-08-31 只保留 pi harness(用户指令):splash 不再下载 claude/codex 二进制,
+  // 环境检查只剩 bundled ripgrep(必需)与本机 pi 探测(可选,失败不阻塞启动)。
   ipcMain.handle('check-environment', async () => {
     // splash 首个 invoke = renderer 存活的强信号(与 renderer:log 双保险)。
     rendererBootGuard?.markAlive();
     const platform = process.platform as 'darwin' | 'win32' | 'linux';
-    // Packaged Linux may install both CLIs during one startup check. Share a
-    // single deadline so sequential fallback installs cannot each consume the
-    // full timeout.
-    const linuxInstallSignal =
-      platform === 'linux' && app.isPackaged
-        ? AbortSignal.timeout(LINUX_AGENT_INSTALL_STARTUP_DEADLINE_MS)
-        : undefined;
 
-    // ── Phase 0: peek 各 vendor 是否需要下载（决定 (x/y) 标签）────────────────
-    // 2026-08-29 Pi-first 改造:pi 不再走下载链,只探测本机,不参与下载步骤标签。
-    const needySteps: AgentBinaryKind[] = [];
-    for (const kind of ['claude-code', 'codex'] as const) {
-      try {
-        if (await binaryPeekNeedsDownload(kind)) needySteps.push(kind);
-      } catch {
-        /* 保守: peek 失败按 false 处理，进入 prepare 内部错误流程 */
-      }
-    }
-    const isMultiDownload = needySteps.length >= 2;
-    const totalSteps = Math.min(needySteps.length, 3) as 2 | 3;
-    const stepOptsFor = (kind: AgentBinaryKind): { step?: 1 | 2 | 3; totalSteps?: 2 | 3 } =>
-      isMultiDownload && needySteps.includes(kind)
-        ? { step: (needySteps.indexOf(kind) + 1) as 1 | 2 | 3, totalSteps }
-        : {};
-    // 上一段真的发生过下载、且当前段也要下载时,先广播 reset payload 让 splash
-    // 进度条瞬间归零(不走 transition 动画),随后当前段从 0% 开始正常累加。
-    const resetBeforeSegment = (kind: AgentBinaryKind, anyPreviousDownloaded: boolean): void => {
-      const stepOpts = stepOptsFor(kind);
-      if (anyPreviousDownloaded && stepOpts.step && stepOpts.totalSteps) {
-        binaryBroadcastResetForStep(kind, stepOpts.step, stepOpts.totalSteps);
-      }
-    };
-
-    // ── Phase 1: claude 段 ───────────────────────────────────────────────────
-    let claudeRes: PrepareResult;
-    try {
-      claudeRes = await binaryPrepare('claude-code', {
-        ...stepOptsFor('claude-code'),
-        signal: linuxInstallSignal,
-      });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return {
-        claudeCode: { status: 'failed' as const, error: message },
-        codex: { status: 'skipped' as const },
-        pi: { status: 'skipped' as const },
-        allPassed: false,
-        platform,
-      };
-    }
-
-    if (!claudeRes.ready || !claudeRes.path) {
-      return {
-        claudeCode: {
-          status: 'failed' as const,
-          error: claudeRes.error ?? 'Claude Code binary not available',
-        },
-        codex: { status: 'skipped' as const },
-        pi: { status: 'skipped' as const },
-        allPassed: false,
-        platform,
-      };
-    }
-
-    // setClaudeCodePath 已退役 —— agent-binaries.prepare() 成功时已写 lastReadyPath cache;
-    // 任何需要 claude binary 路径的地方一律走 getReadyBinaryPath('claude-code')。
-
-    // ── Phase 2: codex 段 ────────────────────────────────────────────────────
-    resetBeforeSegment('codex', claudeRes.downloaded === true);
-
-    let codexRes: PrepareResult;
-    try {
-      codexRes = await binaryPrepare('codex', {
-        ...stepOptsFor('codex'),
-        signal: linuxInstallSignal,
-      });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return {
-        claudeCode: { status: 'passed' as const, path: claudeRes.path },
-        codex: { status: 'failed' as const, error: message },
-        pi: { status: 'skipped' as const },
-        allPassed: false,
-        platform,
-      };
-    }
-
-    if (!codexRes.ready || !codexRes.path) {
-      return {
-        claudeCode: { status: 'passed' as const, path: claudeRes.path },
-        codex: { status: 'failed' as const, error: codexRes.error ?? 'Codex binary not available' },
-        pi: { status: 'skipped' as const },
-        allPassed: false,
-        platform,
-      };
-    }
-
-    // ── Phase 2.5: bundled ripgrep(必需,codex spawn env 与 file-browser 搜索的
-    // 硬依赖)──────────────────────────────────────────────────────────────
+    // ── bundled ripgrep(必需;file-browser 搜索的硬依赖)─────────────────────
     // 探测已惰性化(import 不再触发,issue #1956),启动期 fail-fast 落在 splash
-    // 这里:缺失时与 claude/codex binary 缺失同一体验(splash failed + 可重试,
-    // dev 补跑 pnpm install:ripgrep 后重试即过),而不是 import 期硬崩、也不是
-    // maker:* IPC 静默不注册的降级启动。memoize 后此处探测近零成本。
+    // 这里:缺失时 splash failed + 可重试(dev 补跑 pnpm install:ripgrep 后重试即过),
+    // 而不是 import 期硬崩、也不是 maker:* IPC 静默不注册的降级启动。
     try {
       ensureBundledRipgrepReady();
     } catch (err: unknown) {
@@ -5804,8 +5695,6 @@ const registerIpcHandlers = () => {
       // (补装指引在 message 里);与下方 pi 失败的 console.warn 同一既有惯例。
       console.error('[bootstrap-electron] bundled ripgrep check failed:', message);
       return {
-        claudeCode: { status: 'passed' as const, path: claudeRes.path },
-        codex: { status: 'passed' as const, path: codexRes.path },
         pi: { status: 'skipped' as const },
         ripgrep: { status: 'failed' as const, error: message },
         allPassed: false,
@@ -5813,14 +5702,12 @@ const registerIpcHandlers = () => {
       };
     }
 
-    // ── Phase 3: pi 段（可选,失败不阻塞启动）──────────────────────────────────
-    // 2026-08-29 Pi-first 改造(用户确认):不再经 CDN 下载捆绑 pi,只探测本机安装的
-    // pi(标准位置 + PATH,见 pi-agent/localPi.ts)。探测失败仅禁用本次 pi 能力,
-    // Claude Code / Codex 与 Cindy 本身照常可用;缺失由登录页/设置引导安装。
-    // 探测有内建 per-spawn 超时;这里再加整体上限(沿用原 pi 启动预算),超时按未安装处理。
-    resetBeforeSegment('pi', claudeRes.downloaded === true || codexRes.downloaded === true);
-
-    let piInfo: { status: 'passed' | 'failed'; path?: string; error?: string };
+    // ── 本机 pi 探测(可选,失败不阻塞启动)────────────────────────────────────
+    // 2026-08-29 Pi-first 改造(用户确认):不经 CDN 下载捆绑 pi,只探测本机安装的
+    // pi(标准位置 + PATH,见 pi-agent/localPi.ts)。探测失败仅禁用本次 pi 能力;
+    // 缺失由登录页/设置引导安装。探测有内建 per-spawn 超时;这里再加整体上限
+    // (沿用原 pi 启动预算),超时按未安装处理。
+    let piInfo: { status: 'passed' | 'failed' | 'skipped'; path?: string; error?: string };
     try {
       const localPi = await Promise.race([
         probeLocalPi({ force: true }),
@@ -5851,8 +5738,6 @@ const registerIpcHandlers = () => {
     await registerMakerIpcsAfterSplash();
 
     return {
-      claudeCode: { status: 'passed' as const, path: claudeRes.path },
-      codex: { status: 'passed' as const, path: codexRes.path },
       pi: piInfo,
       ripgrep: { status: 'passed' as const },
       allPassed: true,

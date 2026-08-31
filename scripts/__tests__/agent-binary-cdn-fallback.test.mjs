@@ -53,7 +53,7 @@ beforeEach(() => {
   routes = new Map();
 });
 
-function tmpBinPath(name = 'claude') {
+function tmpBinPath(name = 'rg') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdn-fb-test-'));
   return path.join(dir, name);
 }
@@ -74,7 +74,7 @@ function manifest(field, overrides = {}) {
   return {
     [field]: {
       version: VERSION,
-      file: `claude-code/${VERSION}/darwin-arm64/claude.gz`,
+      file: `ripgrep/${VERSION}/darwin-arm64/rg.gz`,
       sha256: GZ_SHA,
       size: GZ.length,
       binarySha256: BIN_SHA,
@@ -84,11 +84,11 @@ function manifest(field, overrides = {}) {
 }
 
 test('downloadFromCdn: 成功兜底——gunzip 后 binPath 内容正确，sha 全校验', async () => {
-  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('claudeCode')));
-  routes.set(`/claude-code/${VERSION}/darwin-arm64/claude.gz`, serveGz());
+  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('ripgrep')));
+  routes.set(`/ripgrep/${VERSION}/darwin-arm64/rg.gz`, serveGz());
 
   const binPath = tmpBinPath();
-  const r = await downloadFromCdn({ kind: 'claude', version: VERSION, platformKey: 'darwin-arm64', binPath });
+  const r = await downloadFromCdn({ kind: 'ripgrep', version: VERSION, platformKey: 'darwin-arm64', binPath });
 
   assert.equal(r.gzVerified, true);
   assert.equal(r.binaryVerified, true);
@@ -100,11 +100,11 @@ test('downloadFromCdn: 成功兜底——gunzip 后 binPath 内容正确，sha �
 
 test('downloadFromCdn: manifest version 不匹配 pin → 跳过 sha 校验仍成功', async () => {
   // canary 拿得到但 version 不符；stable 404 → tryGetManifestAsset 返回 null
-  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('claudeCode', { version: '9.9.9' })));
-  routes.set(`/claude-code/${VERSION}/darwin-arm64/claude.gz`, serveGz());
+  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('ripgrep', { version: '9.9.9' })));
+  routes.set(`/ripgrep/${VERSION}/darwin-arm64/rg.gz`, serveGz());
 
   const binPath = tmpBinPath();
-  const r = await downloadFromCdn({ kind: 'claude', version: VERSION, platformKey: 'darwin-arm64', binPath });
+  const r = await downloadFromCdn({ kind: 'ripgrep', version: VERSION, platformKey: 'darwin-arm64', binPath });
 
   assert.equal(r.gzVerified, false);
   assert.equal(r.binaryVerified, false);
@@ -112,24 +112,24 @@ test('downloadFromCdn: manifest version 不匹配 pin → 跳过 sha 校验仍�
 });
 
 test('downloadFromCdn: .gz sha256 mismatch → 抛错且不落地', async () => {
-  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('claudeCode', { sha256: 'deadbeef'.repeat(8) })));
-  routes.set(`/claude-code/${VERSION}/darwin-arm64/claude.gz`, serveGz());
+  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('ripgrep', { sha256: 'deadbeef'.repeat(8) })));
+  routes.set(`/ripgrep/${VERSION}/darwin-arm64/rg.gz`, serveGz());
 
   const binPath = tmpBinPath();
   await assert.rejects(
-    () => downloadFromCdn({ kind: 'claude', version: VERSION, platformKey: 'darwin-arm64', binPath }),
+    () => downloadFromCdn({ kind: 'ripgrep', version: VERSION, platformKey: 'darwin-arm64', binPath }),
     /\.gz sha256 mismatch/,
   );
   assert.equal(fs.existsSync(binPath), false);
 });
 
 test('downloadFromCdn: 二进制 binarySha256 mismatch → 抛错', async () => {
-  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('claudeCode', { binarySha256: 'cafe'.repeat(16) })));
-  routes.set(`/claude-code/${VERSION}/darwin-arm64/claude.gz`, serveGz());
+  routes.set('/manifest-darwin-arm64-canary.json', serveJson(manifest('ripgrep', { binarySha256: 'cafe'.repeat(16) })));
+  routes.set(`/ripgrep/${VERSION}/darwin-arm64/rg.gz`, serveGz());
 
   const binPath = tmpBinPath();
   await assert.rejects(
-    () => downloadFromCdn({ kind: 'claude', version: VERSION, platformKey: 'darwin-arm64', binPath }),
+    () => downloadFromCdn({ kind: 'ripgrep', version: VERSION, platformKey: 'darwin-arm64', binPath }),
     /binary sha256 mismatch/,
   );
   assert.equal(fs.existsSync(binPath), false);
@@ -138,17 +138,17 @@ test('downloadFromCdn: 二进制 binarySha256 mismatch → 抛错', async () => 
 test('downloadFromCdn: win32 平台拼出 .exe.gz URL', async () => {
   let hitPath = null;
   routes.set('/manifest-win32-x64-canary.json', serveJson({
-    codex: { version: VERSION, file: 'x', sha256: GZ_SHA, size: GZ.length, binarySha256: BIN_SHA },
+    ripgrep: { version: VERSION, file: 'x', sha256: GZ_SHA, size: GZ.length, binarySha256: BIN_SHA },
   }));
-  routes.set(`/codex/${VERSION}/win32-x64/codex.exe.gz`, (req, res) => {
+  routes.set(`/ripgrep/${VERSION}/win32-x64/rg.exe.gz`, (req, res) => {
     hitPath = req.url.split('?')[0];
     res.writeHead(200);
     res.end(GZ);
   });
 
-  const binPath = tmpBinPath('codex.exe');
-  const r = await downloadFromCdn({ kind: 'codex', version: VERSION, platformKey: 'win32-x64', binPath });
-  assert.equal(hitPath, `/codex/${VERSION}/win32-x64/codex.exe.gz`);
+  const binPath = tmpBinPath('rg.exe');
+  const r = await downloadFromCdn({ kind: 'ripgrep', version: VERSION, platformKey: 'win32-x64', binPath });
+  assert.equal(hitPath, `/ripgrep/${VERSION}/win32-x64/rg.exe.gz`);
   assert.equal(r.binaryVerified, true);
 });
 

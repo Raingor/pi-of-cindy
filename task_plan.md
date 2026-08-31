@@ -95,3 +95,30 @@
 | 错误 | 尝试 | 解决方案 |
 |------|------|---------|
 | (暂无) | | |
+
+## 第三轮：只保留 Pi harness（用户指令 2026-08-31）
+
+### 已拍板决策
+- 存量 CC/Codex 会话：保留历史可看，继续对话走既有 agent-switch 链路转 pi（未收到答复，按推荐项执行）
+- CC/Codex 本机 CLI 历史导入后端：暂保留（Settings 入口上轮已隐藏）
+- 移除深度：彻底删 agent 类与入口；wire 协议按 append-only —— 停发旧值、parser 继续接受旧值
+- 远程 SSH：pi 已有 maker-pi-manager daemon，删 CC/Codex 远端链不损能力
+
+### 三个隐藏耦合点（删了就炸）
+1. maker-host/index.ts:726-735 claude/codex binary 硬守卫
+2. shared/agentKindConversion.ts normalizeDbAgentKind 非法值回落 'cc'
+3. deviceLinkContract.ts AGENT_NOT_AUTHENTICATED_RE 错误模板（老 mobile 按它解析）
+
+### 阶段
+- [ ] Phase A：停止 claude/codex 二进制下载与硬守卫（agent-binaries CONFIG、bootstrap prepare、
+      maker-host 守卫、ensure-agent-binaries、package.json scripts、tools/claude+codex pin、
+      binary-version 白名单、splash payload）
+- [ ] Phase B：删 maker-core agents/claude-code + agents/codex 及专项测试、barrel、
+      maker-host 装配（:944/:1231/:1684/:2062/_codexAgent/AUTH 分支）；AgentKind 收缩为 'pi'，
+      新增 legacy 值类型给 DB 读路径
+- [ ] Phase C：UI 入口收口（newMakerDraft 默认 pi、ModelSelector 引擎 tab、SidebarFilter、
+      CreateWorkerPopover/workerCreationPrefs、useVendorAuthGate codex 分支、SubagentModelSection、
+      auxiliary-model 迁 pi、scheduleForm/hook-control 默认 pi、mobile NEW_SESSION_AGENT_OPTIONS）
+- [ ] Phase D：协议兼容（deviceLinkContract 停发旧值、parser 不动；list-available-agents 随注册表自然 pi-only）
+- [ ] Phase E：存量 cc/codex 会话救生通道（显示 legacy 徽标；继续→引导一键转 pi；
+      ensure 不崩路径）

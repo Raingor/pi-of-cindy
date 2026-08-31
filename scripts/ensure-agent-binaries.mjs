@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * ensure-agent-binaries — 按需下载 Desktop runtime 二进制
- * （claude / codex / ripgrep / pi）。
+ * （ripgrep / pi）。2026-08-31 只保留 pi harness 后不再准备 claude / codex。
  *
  * 这些二进制不再进 git/LFS（见 .gitattributes / .gitignore）。本脚本在 dev 启动、
  * 打包、发版时按"当前/目标平台 + tools/<kind>/latest.json 里 pin 的版本"从上游按需
@@ -30,8 +30,6 @@ const MIN_EXPECTED_BYTES = 1024;
 // kind → 本地落点 + 提供 ensurePlatform/readPinnedVersion 的下载模块
 // dirDist: 产物是"目录 + 主执行文件"（非单文件），sibling-worktree 单文件复用不适用
 const KINDS = {
-  claude: { binDir: 'claude-code-bin', base: 'claude', module: '../tools/claude/update.mjs' },
-  codex: { binDir: 'codex-bin', base: 'codex', module: '../tools/codex/update.mjs' },
   ripgrep: { binDir: 'ripgrep-bin', base: 'rg', module: '../tools/ripgrep/update.mjs' },
   pi: { binDir: 'pi-bin', base: 'pi', module: '../tools/pi/update.mjs', dirDist: true },
 };

@@ -16,9 +16,6 @@ import { execFile } from 'node:child_process';
 
 import { createLogger } from '../logger.js';
 import {
-  getReadyBinaryPath,
-  getCachedBinaryStatus,
-  isVettedAgentBinaryPath,
   type AgentBinaryKind,
 } from '../agent-binaries/index.js';
 import { getCachedLocalPiPath } from '../pi-agent/localPi.js';
@@ -38,16 +35,13 @@ export interface AgentBinaryVersionResult {
 const versionCache = new Map<string, string>();
 
 function isAgentBinaryKind(value: unknown): value is AgentBinaryKind {
-  return value === 'claude-code' || value === 'codex' || value === 'pi';
+  // 2026-08-31 只保留 pi harness:binary-version IPC 只服务 pi。
+  return value === 'pi';
 }
 
 function resolveBinaryPath(kind: AgentBinaryKind): string | null {
-  const ready = getReadyBinaryPath(kind);
-  if (ready) return ready;
-  // 2026-08-29 Pi-first 改造:pi 不再走受管下载链,只报告本机安装的 pi。
-  if (kind === 'pi') return getCachedLocalPiPath();
-  const cached = getCachedBinaryStatus(kind);
-  return cached.binaryReady && cached.binaryPath ? cached.binaryPath : null;
+  // pi 不走受管下载链,只报告本机安装的 pi(见 pi-agent/localPi.ts)。
+  return getCachedLocalPiPath();
 }
 
 function spawnVersion(binaryPath: string): Promise<string> {
@@ -80,17 +74,13 @@ export function registerMakerBinaryVersionIpc(): void {
     MAKER_INVOKE.AGENT_BINARY_VERSION,
     async (_e, agentKind: unknown): Promise<AgentBinaryVersionResult> => {
       if (!isAgentBinaryKind(agentKind)) {
-        throwIpcError('INVALID_PARAMS', 'agentKind required (claude-code | codex | pi)');
+        throwIpcError('INVALID_PARAMS', 'agentKind required (pi)');
       }
 
       const binaryPath = resolveBinaryPath(agentKind);
-      // 执行前复核路径确为受管二进制(CodeQL js/command-line-injection 防御纵深)。
       // pi 例外:2026-08-29 起只报告本机安装的 pi(见 pi-agent/localPi.ts),
       // 「受管来源校验」对系统路径不适用,缓存里的探测路径即唯一来源。
-      if (
-        !binaryPath ||
-        (agentKind !== 'pi' && !isVettedAgentBinaryPath(agentKind, binaryPath))
-      ) {
+      if (!binaryPath) {
         return { kind: agentKind, binaryPath: null, version: null, error: 'binary_not_ready' };
       }
 

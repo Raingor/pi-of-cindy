@@ -37,8 +37,7 @@ function getCdnBase() {
 
 // kind → CDN 路径前缀 / 二进制基名 / manifest 顶层字段
 const KIND_CDN = {
-  claude: { pathPrefix: 'claude-code', base: 'claude', manifestField: 'claudeCode' },
-  codex: { pathPrefix: 'codex', base: 'codex', manifestField: 'codex' },
+  // 2026-08-31 只保留 pi harness:claude / codex 条目随 pin 一并移除
   ripgrep: { pathPrefix: 'ripgrep', base: 'rg', manifestField: 'ripgrep' },
 };
 

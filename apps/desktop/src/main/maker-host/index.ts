@@ -50,7 +50,6 @@ import { MAKER_PUSH } from '../maker-ipc/channels.js';
 import { tapWindowBroadcast } from '../device-link/broadcast-tap.js';
 import { remoteInvoke } from '../device-link/index.js';
 import { WorktreePool } from '../worktree/index.js';
-import { getReadyBinaryPath, getCachedBinaryStatus } from '../agent-binaries/index.js';
 import { activeOwnerScopeKey, isAppSessionBoundaryPending } from '../appSessionState.js';
 import { getIOSSimulatorPluginAccessDecision } from '../cindy-brain/index.js';
 import {
@@ -64,6 +63,7 @@ import {
   readCodexHistoryHasProductPrompt,
   writeCodexHistoryHasProductPrompt,
 } from './session-storage.js';
+import { getReadyBinaryPath, getCachedBinaryStatus } from '../agent-binaries/index.js';
 import { desktopMakerLogger } from './logger-adapter.js';
 import { outboundFetch } from './outbound-fetch.js';
 import { readCustomProviderKey } from '../secrets/providerSecretStore.js';
@@ -719,28 +719,19 @@ function broadcastVisionBridgeEvent(
 
 export function getMaker(): Maker {
   if (!_maker) {
-    // splash 已经 prepare 过, 这里只是同步读 cache 路径; 任一缺失说明 bootstrap
-    // 顺序错了, 早抛比 session.start 时再炸更清晰。
-    // splash 已经 prepare 过, 这里只是同步读 cache 路径; 任一缺失说明 bootstrap
-    // 顺序错了, 早抛比 session.start 时再炸更清晰。
-    const claudePath = getReadyBinaryPath('claude-code');
-    if (!claudePath) {
-      throw new Error(
-        'getMaker: Claude binary not provisioned (bootstrap must run agent-binaries.prepare("claude-code") before getMaker)',
-      );
-    }
-    const codexPath = getCachedBinaryStatus('codex').binaryPath;
-    if (!codexPath) {
-      throw new Error(
-        'getMaker: Codex binary not provisioned (bootstrap must run agent-binaries.prepare("codex") before getMaker)',
-      );
-    }
-    // bundled ripgrep 检查与上面 claude/codex 二进制同层:真正的启动期 fail-fast
-    // 在 splash check-environment(Phase 2.5,缺 rg 时 splash 进失败态可重试);
-    // 这里是防御性断言 —— 走到本函数说明 bootstrap 已完成环境检查,缺 rg 即顺序
-    // 错误,早抛比 spawn 时再炸清晰(throw 会被 bootstrap 的 register catch 兜住
-    // 并留 ERROR 日志,与 claude/codex 缺失的处理一致)。
+    // 2026-08-31 只保留 pi harness:claude/codex 二进制守卫随下载链一并移除;
+    // pi 不再经下载链(splash 只探测本机),getMaker 不再对 agent 二进制做同步守卫。
+    // claude/codex agent 构造暂以空 binaryPath 容错(下载链已停,路径必然缺失),
+    // 待 pi-only 改造下一阶段整体摘除这两个 agent 的装配。
+    // bundled ripgrep 检查保留:真正的启动期 fail-fast 在 splash check-environment
+    // (缺 rg 时 splash 进失败态可重试);这里是防御性断言 —— 走到本函数说明
+    // bootstrap 已完成环境检查,缺 rg 即顺序错误,早抛比 spawn 时再炸清晰
+    // (throw 会被 bootstrap 的 register catch 兜住并留 ERROR 日志)。
     ensureBundledRipgrepReady();
+
+    // claude/codex 路径只做 best-effort 读取(见上),不再作为构造前置条件。
+    const claudePath = getReadyBinaryPath('claude-code');
+    const codexPath = getCachedBinaryStatus('codex').binaryPath;
 
     // 图片送进模型前的 last-mile resize (省 vision token)。host 注入 logger
     // 让 sharp 失败 / 超时 / LRU 淘汰等告警进项目日志, 而不是默默丢黑洞。
@@ -944,7 +935,7 @@ export function getMaker(): Maker {
     const claudeAgent = new ClaudeCodeAgent({
       auth: desktopClaudeAuthAdapter,
       runtimeConfig: buildDesktopClaudeRuntimeConfig(getClaudeEndpoint),
-      binaryPath: claudePath,
+      binaryPath: claudePath ?? '',
       logger: desktopMakerLogger,
       turnChangeCapture: {
         beforeKnownFileWrite: captureKnownFileBefore,
@@ -1231,7 +1222,7 @@ export function getMaker(): Maker {
     const codexAgent = new CodexAgent({
       auth: desktopCodexAuthAdapter,
       runtimeConfig: desktopCodexRuntimeConfig,
-      binaryPath: codexPath,
+      binaryPath: codexPath ?? '',
       logger: desktopMakerLogger,
       disableCodexPluginRuntime: true,
       registerLocalCodexAppServerProcess: ({ pid, role }) => registerCodexProcessRole(pid, role),

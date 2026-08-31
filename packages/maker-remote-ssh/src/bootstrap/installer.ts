@@ -16,8 +16,6 @@
  */
 
 import type { RemoteHost } from '../RemoteHost.js';
-import claudeLatest from '../../../../tools/claude/latest.json';
-import codexLatest from '../../../../tools/codex/latest.json';
 import piLatest from '../../../../tools/pi/latest.json';
 import {
   BOOTSTRAP_SH,
@@ -31,8 +29,10 @@ export { REMOTE_SERVER_SCHEMA_VERSION };
 
 export type RemoteAgentKind = 'claude-code' | 'codex' | 'pi';
 
-export const PINNED_CLAUDE_CODE_VERSION = claudeLatest.version;
-export const PINNED_CODEX_RELEASE_VERSION = codexLatest.version;
+// 2026-08-31 只保留 pi harness:tools/claude、tools/codex pin 已删,版本冻结在
+// 移除时的最后 pin 值(远端 claude/codex 安装链属 pi-only 改造待移除范围)。
+export const PINNED_CLAUDE_CODE_VERSION = '2.1.247';
+export const PINNED_CODEX_RELEASE_VERSION = '0.145.0';
 export const PINNED_PI_VERSION = piLatest.version;
 
 export interface ProbeResult {

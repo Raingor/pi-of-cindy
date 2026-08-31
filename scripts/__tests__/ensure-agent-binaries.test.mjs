@@ -24,11 +24,10 @@ import { verifyDirDistManifest, writeDirDistManifest } from '../../tools/shared/
 
 test('directory distributions never use the single-binary CDN fallback', () => {
   assert.equal(supportsCdnFallback('pi'), false);
-  assert.equal(supportsCdnFallback('codex'), true);
 });
 
-test('dev startup prepares every supported runtime, including Pi', () => {
-  assert.deepEqual(SUPPORTED_BINARY_KINDS, ['claude', 'codex', 'ripgrep', 'pi']);
+test('dev startup prepares every supported runtime (pi-only harness since 2026-08-31)', () => {
+  assert.deepEqual(SUPPORTED_BINARY_KINDS, ['ripgrep', 'pi']);
 
   const devGuard = fs.readFileSync(
     new URL('../ensure-dev-runtime-assets.mjs', import.meta.url),
