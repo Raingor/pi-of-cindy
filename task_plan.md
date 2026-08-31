@@ -138,6 +138,9 @@
 - [x] 停发旧值由注册表收缩实现（agents map 只剩 pi → list-available-agents/switch intent
       自然 pi-only）；mobile 端 parser 未动
 
+> 余项正本已抽到 `PI-ONLY-REMAINING-WORK.md`（2026-09-01），本文件以下余项仅作
+> 历史记录，更新以余项文档为准。
+
 ### Phase E（部分完成，余项已探明锚点）
 - [x] 存量 cc/codex 会话保留在列表（DB 未动），可筛选可查看
 - [x] 救生通道验证：composer 模型选择器（注册表驱动）对 legacy 会话选 pi 模型
