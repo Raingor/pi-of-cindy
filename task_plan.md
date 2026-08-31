@@ -132,3 +132,20 @@
 - [ ] Phase C2（登记）：辅助 one-shot 链（textOneshotPinOptions / oneShotCandidates /
       auxiliary-model-settings）迁 pi——需要给 provider 目录建 pi 路由描述符，
       当前 best-effort 降级（候选空，兜底跳过，不崩）
+
+### Phase D 增记（2026-08-31，经构造自然满足）
+- [x] deviceLinkContract 枚举与 AGENT_NOT_AUTHENTICATED_RE 保持三值（append-only，parser 不动）
+- [x] 停发旧值由注册表收缩实现（agents map 只剩 pi → list-available-agents/switch intent
+      自然 pi-only）；mobile 端 parser 未动
+
+### Phase E（部分完成，余项已探明锚点）
+- [x] 存量 cc/codex 会话保留在列表（DB 未动），可筛选可查看
+- [x] 救生通道验证：composer 模型选择器（注册表驱动）对 legacy 会话选 pi 模型
+      → 既有 agent-switch 链（sessionAgentSwitchHandler）转换续跑，无需新代码
+- [ ] 余项 1：send 到 legacy 会话未切换时报 `Agent 'claude-code' is not registered`
+      （maker.ts:1317 裸 Error）——需在 CCAgentSessionView.tsx:2856/:3099 两个 catch
+      把该错误映射成引导文案（提示用模型选择器切 pi 续跑），或走统一 IPC 错误协议
+- [ ] 余项 2：辅助 one-shot 链迁 pi（Phase C2，见上）
+- [ ] 余项 3：auth-adapters 的 claude/codex 段、deferredCodexRestart/codex-credential-switch
+      的惰化结构、SessionImport 后端——待其消费方（供应商区 auth IPC、voice-input、
+      历史导入）retarget 后再删
