@@ -15,9 +15,8 @@ import type { RemoteSession } from './types';
 export type NewSessionAgentKind = 'claude-code' | 'codex' | 'pi';
 export type NewSessionWorkspaceKind = 'project' | 'dialogue';
 
+// 2026-08-31 pi-only:新建入口只出 pi(被控端注册表过滤仍生效,见下)。
 export const NEW_SESSION_AGENT_OPTIONS: readonly { kind: NewSessionAgentKind; label: string }[] = [
-  { kind: 'claude-code', label: 'Claude' },
-  { kind: 'codex', label: 'Codex' },
   { kind: 'pi', label: 'Pi' },
 ];
 
@@ -32,8 +31,8 @@ export function availableNewSessionAgentOptions(
 ): readonly { kind: NewSessionAgentKind; label: string }[] {
   if (!available) return NEW_SESSION_AGENT_OPTIONS;
   const filtered = NEW_SESSION_AGENT_OPTIONS.filter((option) => available.has(option.kind));
-  // 防御:被控端异常返回空集时不至于把入口清空到无法创建(至少保留 Claude)。
-  return filtered.length > 0 ? filtered : NEW_SESSION_AGENT_OPTIONS.filter((o) => o.kind === 'claude-code');
+  // 防御:被控端异常返回空集时不至于把入口清空到无法创建(pi-only 后回落 pi)。
+  return filtered.length > 0 ? filtered : NEW_SESSION_AGENT_OPTIONS;
 }
 
 export interface NewSessionDraft {
@@ -137,10 +136,10 @@ export function pickNewSessionDefaultDevice(input: {
 }
 
 export const DEFAULT_NEW_SESSION_DRAFT: NewSessionDraft = {
-  agentKind: 'claude-code',
+  agentKind: 'pi',
   workspaceKind: 'project',
   workingDir: '',
-  model: 'claude-sonnet-4-6',
+  model: 'gpt-5.4',
   providerId: null,
   effort: 'medium',
   // Claude 保留 Auto-review 种子默认；用户上次在新建页选过的档走

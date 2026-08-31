@@ -89,7 +89,7 @@ export interface CollabDraft {
 }
 
 export interface NewMakerDraft {
-  /** 当前选中的 vendor。默认 'cc',用户切换后写回 + 持久化。 */
+  /** 当前选中的 vendor。2026-08-31 pi-only 后默认 'pi',用户切换后写回 + 持久化。 */
   vendor: MakerVendor;
   /** 选中的 workingDir;初次 null,Project 行内 + 会预填到此。 */
   workingDir: string | null;
@@ -213,7 +213,7 @@ const DEFAULT_WORKTREE_ENABLED = false;
 
 function makeDefault(): NewMakerDraft {
   return {
-    vendor: 'cc',
+    vendor: 'pi',
     workingDir: null,
     remoteHostId: null,
     deviceLinkDeviceId: null,
@@ -904,7 +904,7 @@ export function fallbackUnavailableVendor(availableVendors: ReadonlySet<MakerVen
   rebaseStoredDefaultTuplePreference();
   const currentVendor = currentDraft.vendor;
   if (availableVendors.has(currentVendor)) return false;
-  const fallback = (['cc', 'codex', 'pi'] as const).find((vendor) =>
+  const fallback = (['pi', 'cc', 'codex'] as const).find((vendor) =>
     availableVendors.has(vendor),
   );
   if (!fallback) return false;

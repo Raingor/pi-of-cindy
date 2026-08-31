@@ -66,6 +66,8 @@ export interface ResolvedHookSessionConfig {
   providerId: string | null;
 }
 
+// 2026-08-31 pi-only:旧任务行仍可能存 'claude-code'/'codex',合法集保留三值;
+// 新落库默认与回落优先 pi(见下方 fallback 序)。
 const AGENT_KINDS = new Set(['claude-code', 'codex', 'pi']);
 
 /**

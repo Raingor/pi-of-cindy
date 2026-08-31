@@ -122,3 +122,13 @@
 - [ ] Phase D：协议兼容（deviceLinkContract 停发旧值、parser 不动；list-available-agents 随注册表自然 pi-only）
 - [ ] Phase E：存量 cc/codex 会话救生通道（显示 legacy 徽标；继续→引导一键转 pi；
       ensure 不崩路径）
+
+### Phase C 增记（2026-08-31）
+- [x] newMakerDraft 默认 vendor 'cc'→'pi'、回落序 pi 优先
+- [x] CreateWorkerPopover / workerCreationPrefs 默认引擎 codex→pi
+- [x] scheduleForm：新定时任务与历史行回落均 pi（模型留空=host 解析 pi 当前默认）
+- [x] mobile NEW_SESSION_AGENT_OPTIONS 只出 pi、默认 draft pi 化
+- [x] ModelSelector 引擎 tab 注册表驱动，map pi-only 后自动收敛（无需改码）
+- [ ] Phase C2（登记）：辅助 one-shot 链（textOneshotPinOptions / oneShotCandidates /
+      auxiliary-model-settings）迁 pi——需要给 provider 目录建 pi 路由描述符，
+      当前 best-effort 降级（候选空，兜底跳过，不崩）

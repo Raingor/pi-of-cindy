@@ -29,7 +29,7 @@ export interface WorkerCreationPrefs {
 }
 
 export const DEFAULT_WORKER_CREATION_PREFS: WorkerCreationPrefs = {
-  lastAgent: 'codex',
+  lastAgent: 'pi',
   codex: { model: 'codex/gpt-5.5', effort: 'high', fast: false, providerId: null },
   'claude-code': { model: 'claude-opus-4-7', effort: 'high', fast: false, providerId: null },
   // pi worker 默认模型与 orcaWorkerCreationService.resolveWorkerConfig 的 pi 分支一致。

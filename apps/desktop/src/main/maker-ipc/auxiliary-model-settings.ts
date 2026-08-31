@@ -33,6 +33,10 @@ import { MAKER_INVOKE } from './channels.js';
 const log = createLogger('maker-ipc/auxiliary-model-settings');
 
 function toWireOption(option: TextOneshotPinOption, available: boolean): AuxiliaryModelOption {
+  // 2026-08-31 pi-only 改造注:one-shot 执行链(textOneshotPinOptions /
+  // oneShotCandidates)仍钉 codex/claude-code 路由,迁移 pi 需要给 provider
+  // 目录建 pi 路由描述符——登记为 Phase C2,当前 agent 未注册时该链 best-effort
+  // 降级(候选为空,帮助/摘要兜底跳过),不崩。
   if (option.agentKind !== 'codex' && option.agentKind !== 'claude-code') {
     throw new Error(`unsupported auxiliary model agent: ${option.agentKind}`);
   }

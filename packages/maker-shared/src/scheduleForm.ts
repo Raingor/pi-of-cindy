@@ -142,8 +142,9 @@ export function createMobileScheduleDraft(
       cronExpr: DEFAULT_CRON,
       timezone: DEFAULT_TIMEZONE,
       intervalMinutes: '',
-      agentKind: 'claude-code',
-      model: DEFAULT_CLAUDE_MODEL,
+      // 2026-08-31 pi-only:新定时任务默认 pi(模型留空 = host 解析 pi 当前默认)
+      agentKind: 'pi',
+      model: '',
       providerId: '',
       effort: '',
       fastMode: false,
@@ -168,8 +169,9 @@ export function createMobileScheduleDraft(
     timezone: schedule.timezone?.trim() || DEFAULT_TIMEZONE,
     intervalMinutes: intervalMsToSupportedMinutes(schedule.intervalMs),
     ...(typeof schedule.intervalMs === 'number' ? { sourceIntervalMs: schedule.intervalMs } : {}),
-    agentKind: schedule.agentKind ?? 'claude-code',
-    model: schedule.model ?? defaultModelFor(schedule.agentKind ?? 'claude-code'),
+    // 2026-08-31 pi-only:历史行存 cc/codex 的也回落到 pi(引擎已不存在,pi 模型留空)
+    agentKind: 'pi',
+    model: schedule.model ?? defaultModelFor('pi'),
     providerId: schedule.providerId ?? '',
     effort: schedule.effort ?? '',
     fastMode: !!schedule.fastMode,

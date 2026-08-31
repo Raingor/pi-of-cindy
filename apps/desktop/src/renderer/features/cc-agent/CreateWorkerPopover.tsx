@@ -100,10 +100,11 @@ export function CreateWorkerPopover({
   const navigate = useNavigate();
   const [role, setRole] = useState('developer');
   const [customRole, setCustomRole] = useState('');
-  const [agent, setAgent] = useState<'claude-code' | 'codex' | 'pi'>('codex');
-  const [model, setModel] = useState(DEFAULT_WORKER_CREATION_PREFS.codex.model);
-  const [effort, setEffort] = useState<Effort>(DEFAULT_WORKER_CREATION_PREFS.codex.effort);
-  const [fast, setFast] = useState(DEFAULT_WORKER_CREATION_PREFS.codex.fast);
+  // 2026-08-31 pi-only:默认引擎 pi
+  const [agent, setAgent] = useState<'claude-code' | 'codex' | 'pi'>('pi');
+  const [model, setModel] = useState(DEFAULT_WORKER_CREATION_PREFS.pi.model);
+  const [effort, setEffort] = useState<Effort>(DEFAULT_WORKER_CREATION_PREFS.pi.effort);
+  const [fast, setFast] = useState(DEFAULT_WORKER_CREATION_PREFS.pi.fast);
   // 显式选定的模型来源(标准面板供应商分段);null = 未显式。device-link 远程创建
   // 面板退化为被控端纯列表(无来源维度),恒为 null。
   const [providerSource, setProviderSource] = useState<string | null>(null);
