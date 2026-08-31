@@ -18,6 +18,7 @@ import {
   fetchProviderModels,
   getUsageByRange,
   importPiConfig,
+  isPiCliInstalled,
   listSessions,
   listTrash,
   optimizeMemory,
@@ -38,9 +39,15 @@ import {
   writeHermesMemoryConfig,
   writeSettings,
 } from '../pi-agent/piReader.js';
+import {
+  readPiCliExtensions,
+  readPiCliProviders,
+  runPiCliPackageCommand,
+} from '../pi-agent/piCliPanel.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
   optionalString,
+  requireEnum,
   requireNonNegativeInt,
   requireObject,
   requireString,
@@ -51,6 +58,50 @@ import { MAKER_INVOKE } from './channels.js';
 const log = createLogger('maker-ipc/pi-agent');
 
 export function registerPiAgentIpc(): void {
+  // ── Installation probe ──────────────────────────────────────────────────
+  // 登录后的安装提示只需要一个布尔;不回目录路径,避免把用户 home 路径交给 Renderer。
+  ipcMain.handle(MAKER_INVOKE.PI_AGENT_INSTALL_STATUS, (event) => {
+    assertTrustedAppRendererEvent(event);
+    return { installed: isPiCliInstalled() };
+  });
+
+  // ── Local Pi CLI panel ──────────────────────────────────────────────────
+  // providers 的 apiKey / apiKeys 真值不出主进程:这里回的是剥密视图。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_LIST_PROVIDERS, (event) => {
+    assertTrustedAppRendererEvent(event);
+    return readPiCliProviders();
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_LIST_EXTENSIONS, (event) => {
+    assertTrustedAppRendererEvent(event);
+    return readPiCliExtensions();
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_PACKAGE_MUTATE, async (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const action = requireEnum(payload.action, ['install', 'remove'] as const, 'action');
+    const source = requireString(payload.source, 'source');
+    // source 直接进 argv(spawn 无 shell),但仍要挡住空白与超长输入。
+    if (source.length > 512 || /\s/.test(source)) {
+      throwIpcError('INVALID_PARAMS', 'invalid package source');
+    }
+    try {
+      await runPiCliPackageCommand(action, source);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_BINARY_UNAVAILABLE') {
+        throwIpcError('PI_AGENT_DIR_NOT_FOUND', 'Pi binary is not available in Cindy');
+      }
+      if (message === 'PI_CLI_DIR_MISSING') {
+        throwIpcError('PI_AGENT_DIR_NOT_FOUND', '~/.pi/agent directory not found');
+      }
+      log.warn('pi cli package mutation failed', { action });
+      throwIpcError('PI_AGENT_IMPORT_FAILED', message.slice(0, 500));
+    }
+  });
+
   // ── Settings ────────────────────────────────────────────────────────────
   ipcMain.handle(MAKER_INVOKE.PI_AGENT_READ_SETTINGS, (event) => {
     assertTrustedAppRendererEvent(event);

@@ -13,9 +13,8 @@
  * 是重复叙事(同 InheritedSubscriptionNotice 的 openProviders)。
  */
 
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, Gift } from 'lucide-react';
+import { Gift } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { usePromotionalGrantNotice } from '@/hooks/usePromotionalGrantNotice';
@@ -36,7 +35,6 @@ export function PromotionalGrantNotice({
   enabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const notice = usePromotionalGrantNotice(enabled);
 
   if (!notice.visible || !notice.grant) return null;
@@ -82,27 +80,13 @@ export function PromotionalGrantNotice({
             date: expiresAtLabel,
           })}
         </span>
+        {/* 「打开计费」入口随计费页一起下架:赠额本身仍如实告知,但没有可跳的页面。 */}
         <div className="mt-1.5 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              notice.acknowledge();
-              navigate('/settings?tab=billing');
-            }}
-            className={cn(
-              'flex items-center gap-0.5 rounded-[8px] px-2 py-1 -ml-2',
-              'text-13 font-medium text-[var(--text-primary)]',
-              'transition-colors hover:bg-[var(--model-item-hover)] active:scale-[0.98]',
-            )}
-          >
-            {t('onboarding.promotionalGrant.openBilling')}
-            <ChevronRight size={14} className="shrink-0 text-[var(--text-tertiary)]" />
-          </button>
           <button
             type="button"
             onClick={notice.acknowledge}
             className={cn(
-              'rounded-[8px] px-2 py-1 text-13 font-normal text-[var(--text-secondary)]',
+              'rounded-[8px] px-2 py-1 -ml-2 text-13 font-normal text-[var(--text-secondary)]',
               'transition-colors hover:bg-[var(--model-item-hover)] active:scale-[0.98]',
             )}
           >

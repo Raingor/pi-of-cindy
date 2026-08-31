@@ -1462,7 +1462,6 @@
         "copyKeySuccess": "Cindy AI key copied",
         "copyKeyFailed": "Copy failed, please try again later",
         "asset": {
-          "viewUsage": "View usage",
           "syncFailed": "Credential sync failed, so the balance is unavailable right now. Your saved model settings are unaffected."
         }
       },
@@ -2860,6 +2859,65 @@
       },
       "capThreads": "Cap Toolchain Parallelism",
       "capThreadsHint": "Injects environment variables such as VITEST_MAX_FORKS and MAKEFLAGS so a single test or build command can't take every CPU core. Variables you set yourself are never overridden."
+    },
+    "piCliProviders": {
+      "title": "Local Pi providers",
+      "description": "Reads the provider and model config from your local Pi CLI. This view is read-only — add or edit through the Pi CLI. Keys never leave the main process; only a mask is shown here.",
+      "refresh": "Reload",
+      "loading": "Reading providers…",
+      "loadFailed": "Could not read providers. Try again.",
+      "parseFailed": "Could not parse the provider config. Check your Pi CLI models.json.",
+      "notInstalled": "Pi CLI not found. Install it and run it once for providers to appear here.",
+      "empty": "Your local Pi CLI has no providers configured yet.",
+      "railLabel": "Local providers",
+      "selectHint": "Pick a provider on the left to see its details.",
+      "badgeLocal": "Local Pi CLI",
+      "baseUrl": "Base URL",
+      "noBaseUrl": "No endpoint set",
+      "apiType": "API type",
+      "apiKey": "API key",
+      "keyConfigured": "Key configured",
+      "keyActive": "Active",
+      "keyCount": "{{count}} keys",
+      "keyEmpty": "This provider has no key configured yet.",
+      "keyMaskedNote": "Keys stay in the main process; this view always shows a mask.",
+      "models": "Models",
+      "modelCount": "{{enabled}} / {{total}} models available",
+      "noModels": "This provider has no models yet.",
+      "model": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "reasoning": "Reasoning",
+        "imageInput": "Image input",
+        "audioInput": "Audio input",
+        "free": "Free"
+      }
+    },
+    "piCliExtensions": {
+      "title": "Local Pi extensions",
+      "description": "Manage the extensions installed in your local Pi CLI. Install and uninstall run Pi CLI commands directly, exactly as they would in a terminal.",
+      "refresh": "Reload",
+      "loading": "Reading extensions…",
+      "loadFailed": "Could not read extensions. Try again.",
+      "notInstalled": "Pi CLI not found. Install it and run it once for extensions to appear here.",
+      "empty": "Your local Pi CLI has no extensions installed.",
+      "sourcePlaceholder": "npm:package-name, or a local path",
+      "install": "Install",
+      "remove": "Uninstall",
+      "removeAria": "Uninstall {{name}}",
+      "removeConfirmTitle": "Uninstall this extension?",
+      "removeConfirmBody": "This runs the Pi CLI uninstall for {{name}} and updates your local Pi config.",
+      "installSuccess": "Installed {{name}}",
+      "installFailed": "Could not install {{name}}",
+      "removeSuccess": "Uninstalled {{name}}",
+      "removeFailed": "Could not uninstall {{name}}"
+    },
+    "piInstall": {
+      "dialogTitle": "Pi CLI not found",
+      "dialogBody": "The Pi panels in Settings read the Pi CLI's local data directory. That directory is missing, so install the Pi CLI and run it once before the panels have anything to show. Cindy itself and your existing tasks are unaffected.",
+      "dialogConfirm": "View install guide",
+      "dialogCancel": "Not now",
+      "dialogDontShowAgain": "Don't show again"
     },
     "piPackages": {
       "title": "Pi extensions",
@@ -5335,7 +5393,6 @@
     "expandControlledNotice": "Expand remote control notice: {{label}}",
     "versionMismatch": "Version mismatch with the other device; some features may be limited"
   },
-
   "accountDeletion": {
     "entryButton": "Delete account",
     "entryAria": "Delete the current account",
@@ -7007,8 +7064,7 @@
         "badge": "Paid",
         "unlock": "Pay to unlock",
         "title": "Pay to Unlock This Model",
-        "description": "Subscribe to a paid plan or top up your balance to use this model.",
-        "action": "View Billing Options"
+        "description": "Subscribe to a paid plan or top up your balance to use this model."
       },
       "hidden": "Hidden",
       "modelListAria": "Model list",
@@ -7473,7 +7529,6 @@
     "promotionalGrant": {
       "title": "Cindy AI is ready",
       "desc": "A promotional balance of {{amount}} has been added and is valid until {{date}}. You can add funds any time after it runs out or expires.",
-      "openBilling": "View usage",
       "acknowledge": "Got it"
     }
   },

@@ -744,6 +744,16 @@ export const MAKER_INVOKE = {
   // ── Pi Agent 数据层 (pi-web-switch 移植) ─────────────────────────────────
   // 读写 ~/.pi/agent/ 下的 settings/auth/models/sessions/memory/subagents 等。
   // 只读通道不写 Cindy 自身的 SQLite store,无数据冲突。
+  /** 本机是否装了 Pi CLI(`~/.pi/agent` 是否存在)。登录后的安装提示据此决定。 */
+  PI_AGENT_INSTALL_STATUS: 'maker:pi-agent:install-status',
+  /**
+   * 本机 Pi CLI 面板(`~/.pi/agent`)专用只读通道。
+   * providers 已在主进程剥掉 apiKey / apiKeys 真值,只回遮罩串与 hasApiKey。
+   */
+  PI_CLI_LIST_PROVIDERS: 'maker:pi-cli:list-providers',
+  PI_CLI_LIST_EXTENSIONS: 'maker:pi-cli:list-extensions',
+  /** 对用户自己的 ~/.pi/agent 执行 pi install|remove(与终端手敲等效)。 */
+  PI_CLI_PACKAGE_MUTATE: 'maker:pi-cli:package-mutate',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',

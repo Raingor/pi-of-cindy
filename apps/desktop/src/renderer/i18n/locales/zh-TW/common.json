@@ -1462,7 +1462,6 @@
         "copyKeySuccess": "已複製 Cindy AI Key",
         "copyKeyFailed": "複製失敗，請稍後重試",
         "asset": {
-          "viewUsage": "檢視用量",
           "syncFailed": "憑據同步失敗，暫時無法獲取餘額。已儲存的模型配置不受影響。"
         }
       },
@@ -2851,6 +2850,65 @@
       },
       "capThreads": "限制工具鏈並行度",
       "capThreadsHint": "注入 VITEST_MAX_FORKS、MAKEFLAGS 等環境變數，防止單條測試或構建命令佔滿全部 CPU 核心；你自己設定過的同名變數不會被覆蓋。"
+    },
+    "piCliProviders": {
+      "title": "本機 Pi 供應商",
+      "description": "讀取本機 Pi CLI 的供應商與模型設定。這裡只做展示，增刪改請用 Pi CLI；金鑰不會離開主行程，介面只顯示遮罩。",
+      "refresh": "重新讀取",
+      "loading": "正在讀取供應商…",
+      "loadFailed": "讀取供應商失敗，可重試。",
+      "parseFailed": "供應商設定解析失敗，請檢查 Pi CLI 的 models.json。",
+      "notInstalled": "未偵測到 Pi CLI，安裝並執行一次後這裡才會顯示供應商。",
+      "empty": "本機 Pi CLI 還沒有設定任何供應商。",
+      "railLabel": "本機供應商",
+      "selectHint": "在左側選擇一個供應商查看詳情。",
+      "badgeLocal": "本機 Pi CLI",
+      "baseUrl": "介面位址",
+      "noBaseUrl": "未設定介面位址",
+      "apiType": "介面協定",
+      "apiKey": "API 金鑰",
+      "keyConfigured": "已設定金鑰",
+      "keyActive": "生效中",
+      "keyCount": "共 {{count}} 把",
+      "keyEmpty": "這個供應商還沒有設定金鑰。",
+      "keyMaskedNote": "金鑰只在主行程使用，介面始終只顯示遮罩。",
+      "models": "模型",
+      "modelCount": "{{enabled}} / {{total}} 個模型可用",
+      "noModels": "這個供應商底下還沒有模型。",
+      "model": {
+        "enabled": "已啟用",
+        "disabled": "已停用",
+        "reasoning": "支援思考",
+        "imageInput": "支援圖像輸入",
+        "audioInput": "支援音訊輸入",
+        "free": "免費"
+      }
+    },
+    "piCliExtensions": {
+      "title": "本機 Pi 擴充",
+      "description": "管理本機 Pi CLI 已安裝的擴充。安裝與卸載會直接執行 Pi CLI 指令，效果與在終端機操作一致。",
+      "refresh": "重新讀取",
+      "loading": "正在讀取擴充…",
+      "loadFailed": "讀取擴充失敗，可重試。",
+      "notInstalled": "未偵測到 Pi CLI，安裝並執行一次後這裡才會顯示擴充。",
+      "empty": "本機 Pi CLI 還沒有安裝擴充。",
+      "sourcePlaceholder": "npm 套件名稱，或本機路徑",
+      "install": "安裝",
+      "remove": "卸載",
+      "removeAria": "卸載 {{name}}",
+      "removeConfirmTitle": "卸載這個擴充？",
+      "removeConfirmBody": "將執行 Pi CLI 卸載 {{name}}，本機 Pi 設定會隨之更新。",
+      "installSuccess": "已安裝 {{name}}",
+      "installFailed": "安裝 {{name}} 失敗",
+      "removeSuccess": "已卸載 {{name}}",
+      "removeFailed": "卸載 {{name}} 失敗"
+    },
+    "piInstall": {
+      "dialogTitle": "未偵測到 Pi CLI",
+      "dialogBody": "設定裡的 Pi 面板需要讀取 Pi CLI 的本機資料目錄。目前找不到這個目錄，請先安裝 Pi CLI 並執行一次，面板才會有資料可顯示。Cindy 本身與既有任務不受影響。",
+      "dialogConfirm": "查看安裝說明",
+      "dialogCancel": "稍後再說",
+      "dialogDontShowAgain": "不再提示"
     },
     "piPackages": {
       "title": "Pi 擴充功能",
@@ -5325,7 +5383,6 @@
     "expandControlledNotice": "展開被控提示：{{label}}",
     "versionMismatch": "對方版本不一致，部分功能可能受限"
   },
-
   "accountDeletion": {
     "entryButton": "刪除帳號",
     "entryAria": "刪除目前帳號",
@@ -6997,8 +7054,7 @@
         "badge": "付費",
         "unlock": "付費解鎖",
         "title": "付費後解鎖此模型",
-        "description": "訂閱付費方案或完成餘額儲值後，即可使用此模型。",
-        "action": "查看付費方式"
+        "description": "訂閱付費方案或完成餘額儲值後，即可使用此模型。"
       },
       "hidden": "已隱藏",
       "subscriptionDirectDisabled": {
@@ -7463,7 +7519,6 @@
     "promotionalGrant": {
       "title": "已為你開通 Cindy AI",
       "desc": "贈送餘額 {{amount}} 已到帳，有效期至 {{date}}。用完或過期後可隨時充值。",
-      "openBilling": "檢視用量",
       "acknowledge": "知道了"
     }
   },

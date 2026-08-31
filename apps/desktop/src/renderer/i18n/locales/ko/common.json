@@ -1462,7 +1462,6 @@
         "copyKeySuccess": "Cindy AI Key를 복사했습니다",
         "copyKeyFailed": "복사에 실패했습니다. 나중에 다시 시도해 주세요",
         "asset": {
-          "viewUsage": "사용량 보기",
           "syncFailed": "자격 증명 동기화에 실패해 잔액을 가져올 수 없습니다. 저장된 모델 설정은 영향을 받지 않습니다."
         }
       },
@@ -2859,6 +2858,65 @@
       },
       "capThreads": "툴체인 병렬 처리 제한",
       "capThreadsHint": "VITEST_MAX_FORKS, MAKEFLAGS 등의 환경 변수를 주입하여 단일 테스트나 빌드 명령이 모든 CPU 코어를 점유하지 않도록 합니다. 직접 설정한 동일한 변수는 덮어쓰지 않습니다."
+    },
+    "piCliProviders": {
+      "title": "로컬 Pi 제공자",
+      "description": "로컬 Pi CLI의 제공자와 모델 설정을 읽습니다. 이 화면은 조회 전용이며 추가나 수정은 Pi CLI에서 하세요. 키는 메인 프로세스를 벗어나지 않고, 여기에는 마스킹만 표시됩니다.",
+      "refresh": "다시 읽기",
+      "loading": "제공자를 읽는 중…",
+      "loadFailed": "제공자를 읽지 못했습니다. 다시 시도할 수 있습니다.",
+      "parseFailed": "제공자 설정을 해석하지 못했습니다. Pi CLI의 models.json을 확인하세요.",
+      "notInstalled": "Pi CLI를 찾을 수 없습니다. 설치하고 한 번 실행하면 여기에 제공자가 표시됩니다.",
+      "empty": "로컬 Pi CLI에 설정된 제공자가 아직 없습니다.",
+      "railLabel": "로컬 제공자",
+      "selectHint": "왼쪽에서 제공자를 선택하면 상세 정보가 표시됩니다.",
+      "badgeLocal": "로컬 Pi CLI",
+      "baseUrl": "베이스 URL",
+      "noBaseUrl": "엔드포인트 미설정",
+      "apiType": "API 유형",
+      "apiKey": "API 키",
+      "keyConfigured": "키 설정됨",
+      "keyActive": "사용 중",
+      "keyCount": "총 {{count}}개",
+      "keyEmpty": "이 제공자에는 아직 키가 설정되지 않았습니다.",
+      "keyMaskedNote": "키는 메인 프로세스에서만 사용되며, 이 화면에는 항상 마스킹만 표시됩니다.",
+      "models": "모델",
+      "modelCount": "{{enabled}} / {{total}}개 모델 사용 가능",
+      "noModels": "이 제공자에는 아직 모델이 없습니다.",
+      "model": {
+        "enabled": "사용 중",
+        "disabled": "사용 중지",
+        "reasoning": "추론 지원",
+        "imageInput": "이미지 입력 지원",
+        "audioInput": "오디오 입력 지원",
+        "free": "무료"
+      }
+    },
+    "piCliExtensions": {
+      "title": "로컬 Pi 확장",
+      "description": "로컬 Pi CLI에 설치된 확장을 관리합니다. 설치와 제거는 Pi CLI 명령을 직접 실행하며, 터미널에서 하는 것과 결과가 같습니다.",
+      "refresh": "다시 읽기",
+      "loading": "확장을 읽는 중…",
+      "loadFailed": "확장을 읽지 못했습니다. 다시 시도할 수 있습니다.",
+      "notInstalled": "Pi CLI를 찾을 수 없습니다. 설치하고 한 번 실행하면 여기에 확장이 표시됩니다.",
+      "empty": "로컬 Pi CLI에 설치된 확장이 없습니다.",
+      "sourcePlaceholder": "npm:패키지 이름 또는 로컬 경로",
+      "install": "설치",
+      "remove": "제거",
+      "removeAria": "{{name}} 제거",
+      "removeConfirmTitle": "이 확장을 제거할까요?",
+      "removeConfirmBody": "Pi CLI로 {{name}}을 제거하고 로컬 Pi 설정을 갱신합니다.",
+      "installSuccess": "{{name}}을 설치했습니다",
+      "installFailed": "{{name}}을 설치하지 못했습니다",
+      "removeSuccess": "{{name}}을 제거했습니다",
+      "removeFailed": "{{name}}을 제거하지 못했습니다"
+    },
+    "piInstall": {
+      "dialogTitle": "Pi CLI를 찾을 수 없습니다",
+      "dialogBody": "설정의 Pi 패널은 Pi CLI의 로컬 데이터 디렉터리를 읽습니다. 해당 디렉터리가 없으므로 Pi CLI를 설치하고 한 번 실행해야 패널에 표시할 데이터가 생깁니다. Cindy 자체와 기존 작업에는 영향이 없습니다.",
+      "dialogConfirm": "설치 안내 보기",
+      "dialogCancel": "나중에",
+      "dialogDontShowAgain": "다시 표시하지 않기"
     },
     "piPackages": {
       "title": "Pi 확장",
@@ -5333,7 +5391,6 @@
     "expandControlledNotice": "원격 제어 알림 펼치기: {{label}}",
     "versionMismatch": "상대 기기 버전이 달라 일부 기능이 제한될 수 있습니다"
   },
-
   "accountDeletion": {
     "entryButton": "계정 삭제",
     "entryAria": "현재 계정 삭제",
@@ -7005,8 +7062,7 @@
         "badge": "유료",
         "unlock": "유료로 잠금 해제",
         "title": "결제 후 이 모델 잠금 해제",
-        "description": "유료 플랜을 구독하거나 잔액을 충전하면 이 모델을 사용할 수 있습니다.",
-        "action": "결제 방법 보기"
+        "description": "유료 플랜을 구독하거나 잔액을 충전하면 이 모델을 사용할 수 있습니다."
       },
       "hidden": "숨김",
       "modelListAria": "모델 목록",
@@ -7471,7 +7527,6 @@
     "promotionalGrant": {
       "title": "Cindy AI 사용이 시작되었습니다",
       "desc": "프로모션 잔액 {{amount}}이 지급되었으며 {{date}}까지 사용할 수 있습니다. 모두 사용하거나 기간이 지난 뒤에도 언제든 충전할 수 있습니다.",
-      "openBilling": "사용량 보기",
       "acknowledge": "확인"
     }
   },

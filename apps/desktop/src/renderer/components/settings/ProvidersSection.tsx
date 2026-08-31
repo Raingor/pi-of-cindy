@@ -1317,13 +1317,6 @@ function XdGatewayHeader({
       .catch(() => toast.error(t('settings.providers.xd.copyKeyFailed')));
   }, [hasSavedKey, key, t]);
 
-  const goToBilling = useCallback(
-    (intent?: 'topup') => {
-      navigate(intent ? '/settings?tab=billing&intent=topup' : '/settings?tab=billing');
-    },
-    [navigate],
-  );
-
   // 标题行右端只剩状态位:「已连接」pill,或未连接/同步中的一句状态说明。凭证动作
   // 全部退进「···」菜单;故障态刻意**不显示**「已连接」—— 凭据没同步上,说已连接是假的。
   const trailing = (() => {
@@ -1434,17 +1427,8 @@ function XdGatewayHeader({
                 )}
               </p>
             </div>
-            {/* 余额充值是主动作；查看用量为同区块内的次动作。 */}
-            <div className="flex shrink-0 items-center gap-3">
-              <PillButton
-                label={t('settings.providers.xd.asset.viewUsage')}
-                onClick={() => goToBilling()}
-              />
-              <CtaPillButton
-                label={t('billing.settings.topupCard.action')}
-                onClick={() => goToBilling('topup')}
-              />
-            </div>
+            {/* 「查看用量」与「充值」随计费页一起下架:两者都只能跳那一页,页面没了就
+                不留按钮。余额数字本身仍是有效信息,继续展示。 */}
           </>
         )}
       </div>

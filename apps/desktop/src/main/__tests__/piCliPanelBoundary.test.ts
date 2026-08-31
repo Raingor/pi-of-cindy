@@ -1,0 +1,129 @@
+/**
+ * 本机 Pi CLI 面板的 IPC 与安全契约。
+ *
+ * 两条不变量,都会被"顺手改回去"破坏:
+ *  1. 凭证真值不出主进程 —— providers 视图与配置导出都必须剥掉 apiKey / apiKeys;
+ *  2. 装 / 卸走 Cindy 受管的 pi 二进制 + 参数数组,不拼 shell 命令行。
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+const desktopRoot = path.resolve(process.cwd());
+
+function readSource(relativePath: string): string {
+  return fs.readFileSync(path.join(desktopRoot, relativePath), 'utf8');
+}
+
+describe('pi cli panel credential boundary', () => {
+  const panel = readSource('src/main/pi-agent/piCliPanel.ts');
+
+  it('never puts a key value on the provider view type', () => {
+    const start = panel.indexOf('export interface PiCliProviderView');
+    expect(start).toBeGreaterThan(-1);
+    const view = panel.slice(start, panel.indexOf('}', panel.indexOf('models:', start)));
+
+    expect(view).toContain('hasApiKey: boolean;');
+    expect(view).toContain('maskedApiKey?: string;');
+    // 一旦有人加回 apiKey 字段,真值就会流到 Renderer。
+    expect(view).not.toMatch(/\bapiKey\?*:\s*string/);
+    // 密钥池只能以遮罩视图出现——不得直接挂原始字符串数组。
+    expect(view).toContain('apiKeys: PiCliApiKeyView[];');
+    expect(view).not.toMatch(/\bapiKeys\?*:\s*(string|Array<\s*\{[^}]*\bkey\b)/);
+  });
+
+  it('never puts a key value on the key-pool view type', () => {
+    const start = panel.indexOf('export interface PiCliApiKeyView');
+    expect(start).toBeGreaterThan(-1);
+    const view = panel.slice(start, panel.indexOf('\n}', start));
+
+    expect(view).toContain('maskedKey: string;');
+    // 只允许 id / maskedKey / active。多出一个 `key` 就是明文逗口。
+    expect(view).not.toMatch(/^\s*key\?*:/m);
+    expect(view).not.toMatch(/\brawKey\b|\bplainKey\b|\bsecret\b/);
+  });
+
+  it('masks in the main process rather than shipping the raw key', () => {
+    const start = panel.indexOf('export function readPiCliProviders');
+    const body = panel.slice(start, panel.indexOf('\n}', panel.indexOf('providers.sort', start)));
+
+    expect(body).toContain('toApiKeyViews(raw.apiKeys, raw.activeKeyId, effectiveKey)');
+    // effectiveKey 只用于派生 hasApiKey / 遮罩 / 计数,不得直接进 view。
+    expect(body).not.toContain('apiKey: effectiveKey');
+    expect(body).not.toContain('apiKey: inlineKey');
+    expect(body).not.toContain('apiKeys: raw.apiKeys');
+  });
+
+  it('derives the pool view only through maskApiKey', () => {
+    const start = panel.indexOf('function toApiKeyViews');
+    expect(start).toBeGreaterThan(-1);
+    const body = panel.slice(start, panel.indexOf('\n}', panel.indexOf('return entries.map', start)));
+
+    // 每一条都过 maskApiKey;直接拿 entry.key 回传就是逗口。
+    expect(body).toContain('maskApiKey(entry.key as string)');
+    expect(body).not.toMatch(/maskedKey:\s*entry\.key/);
+  });
+
+  it('keeps the config export free of credentials', () => {
+    const reader = readSource('src/main/pi-agent/piReader.ts');
+    const start = reader.indexOf('export function exportPiConfig');
+    expect(start).toBeGreaterThan(-1);
+    const body = reader.slice(start, reader.indexOf('\n}', start));
+
+    // auth.json 整份省略;models.json 逐 provider 剥掉三个凭证字段。
+    expect(body).toContain('auth: {}');
+    expect(body).toContain('apiKey: _apiKey');
+    expect(body).toContain('apiKeys: _apiKeys');
+    expect(body).toContain('activeKeyId: _activeKeyId');
+    expect(body).not.toContain('auth: readAuth()');
+  });
+});
+
+describe('pi cli package mutation contract', () => {
+  const panel = readSource('src/main/pi-agent/piCliPanel.ts');
+
+  it('spawns the managed pi binary without a shell', () => {
+    const start = panel.indexOf('export async function runPiCliPackageCommand');
+    const body = panel.slice(start);
+
+    // 不走 PATH 查找:避免执行同名的任意可执行文件。
+    expect(body).toContain("getReadyBinaryPath('pi')");
+    expect(body).toContain('shell: false');
+    // 参数数组传参,不做字符串拼接。
+    expect(body).toContain("spawn(binaryPath, [action, source, '--no-approve']");
+    // 目标是用户自己的 Pi CLI 目录,不是 Cindy 的 pi-package-home。
+    expect(body).toContain('cwd: PI_DIR');
+    expect(body).toContain('PI_CODING_AGENT_DIR: PI_DIR');
+    // 装包不执行第三方生命周期脚本(沿用 Cindy 既有姿态)。
+    expect(body).toContain("npm_config_ignore_scripts: 'true'");
+  });
+
+  it('validates the action and source before spawning', () => {
+    const handlers = readSource('src/main/maker-ipc/piAgentHandlers.ts');
+    const start = handlers.indexOf('MAKER_INVOKE.PI_CLI_PACKAGE_MUTATE');
+    expect(start).toBeGreaterThan(-1);
+    const body = handlers.slice(start, handlers.indexOf('  });', start));
+
+    expect(body).toContain('assertTrustedAppRendererEvent(event)');
+    expect(body).toContain("requireEnum(payload.action, ['install', 'remove'] as const");
+    expect(body).toContain("requireString(payload.source, 'source')");
+    // 空白字符与超长 source 一律拒绝。
+    expect(body).toContain('source.length > 512');
+    expect(body).toContain('/\\s/.test(source)');
+  });
+
+  it('gates every panel channel on a trusted renderer', () => {
+    const handlers = readSource('src/main/maker-ipc/piAgentHandlers.ts');
+    for (const channel of [
+      'PI_CLI_LIST_PROVIDERS',
+      'PI_CLI_LIST_EXTENSIONS',
+      'PI_CLI_PACKAGE_MUTATE',
+    ]) {
+      const start = handlers.indexOf(`MAKER_INVOKE.${channel}`);
+      expect(start, channel).toBeGreaterThan(-1);
+      expect(handlers.slice(start, start + 260)).toContain('assertTrustedAppRendererEvent(event)');
+    }
+  });
+});

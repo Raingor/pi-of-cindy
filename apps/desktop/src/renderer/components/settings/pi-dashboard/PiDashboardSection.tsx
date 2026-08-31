@@ -315,7 +315,9 @@ export function PiDashboardSection() {
         <p className="mt-0.5 text-13 text-[var(--settings-section-desc)]">
           {data
             ? t('settings.piDashboard.subtitle', {
-                count: data.requestLog.length,
+                // requestLog 按 (日期, 供应商, 模型) 分组后只剩十几行，用它的长度会跟
+                // 下方「总请求数」卡片当场矛盾。计数要用真正的请求总数。
+                count: data.totalRequests,
                 cost: fmtCost(data.totalCost),
               })
             : t('settings.piDashboard.loading')}

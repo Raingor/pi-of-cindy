@@ -414,16 +414,6 @@ export function ScheduleFormDialog({
     },
     [navigate, onOpenChange, t],
   );
-  const goConfigFeishuBot = () => {
-    onOpenChange(false);
-    // 飞书机器人在「IM 机器人」页的「个人」分栏,缺省 imGroup 会落到默认的 Cindy 栏
-    navigate('/settings?tab=im-bot&imGroup=personal');
-  };
-  const goConfigWecomGroup = () => {
-    onOpenChange(false);
-    navigate('/settings?tab=im-bot&imGroup=personal');
-  };
-
   const projectOptions = useProjectPickerOptions();
 
   const currentModel = useMemo(() => {
@@ -960,18 +950,10 @@ export function ScheduleFormDialog({
                   {t('scheduler.editor.fields.finishSendToFeishu')}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={goConfigFeishuBot}
-                  className={cn(
-                    'inline-flex h-[34px] items-center rounded-md px-2',
-                    'text-13 leading-none text-[var(--settings-btn-secondary-text)]',
-                    'transition-colors hover:bg-[var(--surface-hover)]',
-                    'focus:outline-none underline-offset-2 hover:underline',
-                  )}
-                >
+                /* IM 机器人设置页已下架:未配置时只如实说明不可用,不给死链按钮。 */
+                <span className="inline-flex h-[34px] items-center px-2 text-13 leading-none text-[var(--settings-section-desc)]">
                   {t('scheduler.editor.fields.configFeishu')}
-                </button>
+                </span>
               )}
               {wecomGroupReady ? (
                 <button
@@ -999,18 +981,9 @@ export function ScheduleFormDialog({
                   {t('scheduler.editor.fields.finishSendToWecomGroup')}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={goConfigWecomGroup}
-                  className={cn(
-                    'inline-flex h-[34px] items-center rounded-md px-2',
-                    'text-13 leading-none text-[var(--settings-btn-secondary-text)]',
-                    'transition-colors hover:bg-[var(--surface-hover)]',
-                    'focus:outline-none underline-offset-2 hover:underline',
-                  )}
-                >
+                <span className="inline-flex h-[34px] items-center px-2 text-13 leading-none text-[var(--settings-section-desc)]">
                   {t('scheduler.editor.fields.configWecomGroup')}
-                </button>
+                </span>
               )}
             </div>
             {/* bound 态:单行会话选择器(换选即换绑,选择器旁带"打开会话")。

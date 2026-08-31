@@ -161,8 +161,9 @@ export const router = createHashRouter([
                   { path: 'plugins', element: <GhostPluginPage /> },
                   { path: 'apps/:ghostId', element: <GhostMainViewFeatureLayout /> },
                   {
+                    // 计费页已随本机 Pi 工作台下架;旧路由不留死链,直接回设置首页。
                     path: 'billing',
-                    element: <Navigate to="/settings?tab=billing" replace />,
+                    element: <Navigate to="/settings" replace />,
                   },
                   // Maker IPC / agent event 链路诊断页(独立路由,不影响标准 chat)。
                   { path: 'maker-experimental', element: <MakerExperimentalView /> },

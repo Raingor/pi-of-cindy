@@ -7,6 +7,8 @@
 
 export interface PiUsageRecord {
   date: string; // YYYY-MM-DD
+  /** 中国时区小时（0-23），供「今天」视图按小时聚合。 */
+  hour: number;
   providerId: string;
   modelId: string;
   inputTokens: number;
@@ -92,6 +94,8 @@ export interface PiSessionFileInfo {
   name?: string;
   provider?: string;
   model?: string;
+  /** 会话自己记录的工作目录（权威项目路径，比从目录名反推可靠）。 */
+  cwd?: string;
   messageCount: number;
   duration?: number;
 }

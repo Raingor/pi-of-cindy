@@ -51,6 +51,7 @@ function cnHour(date: Date): number {
 
 interface ParsedUsageLine {
   date: string;
+  /** 中国时区小时（0-23），供仪表盘"今天"视图按小时聚合。 */
   hour: number;
   providerId: string;
   modelId: string;
@@ -61,6 +62,10 @@ interface ParsedUsageLine {
   cost: number;
 }
 
+/**
+ * 兜底成本估算。仅在会话行没带 `usage.cost` 时使用 —— 现行 pi 会话格式里
+ * `usage.cost.total` 是供应商真实计费，优先取它，不要用模型名猜。
+ */
 function estimateCost(modelId: string, inputTokens: number, outputTokens: number): number {
   const model = modelId.toLowerCase();
   if (model.includes('opus')) return (inputTokens * 75 + outputTokens * 75) / 1_000_000;
@@ -87,7 +92,9 @@ function parseSessionFile(filePath: string): ParsedUsageLine[] {
 
         if (obj.type === 'model_change') {
           if (obj.provider) currentProvider = obj.provider;
-          if (obj.model) currentModel = obj.model;
+          // 现行格式用 `modelId`；`model` 是旧字段，留作兼容。
+          if (obj.modelId) currentModel = obj.modelId;
+          else if (obj.model) currentModel = obj.model;
           continue;
         }
 
@@ -95,25 +102,41 @@ function parseSessionFile(filePath: string): ParsedUsageLine[] {
           const usage = obj.message.usage;
           if (!usage) continue;
 
-          const ts = obj.timestamp || obj.message.timestamp;
+          const ts = obj.message.timestamp ?? obj.timestamp;
           const date = ts ? cnDateKey(new Date(ts)) : cnDateKey(new Date());
           const hour = ts ? cnHour(new Date(ts)) : 0;
 
-          const inputTokens = usage.input_tokens ?? 0;
-          const outputTokens = usage.output_tokens ?? 0;
-          const cacheReadTokens = usage.cache_read_input_tokens ?? usage.cache_read_tokens ?? 0;
-          const cacheWriteTokens = usage.cache_creation_input_tokens ?? usage.cache_write_tokens ?? 0;
+          // 现行格式：`input` / `output` / `cacheRead` / `cacheWrite`。
+          // 后面那组下划线名是旧格式，保留兼容，别删。
+          const inputTokens = usage.input ?? usage.input_tokens ?? 0;
+          const outputTokens = usage.output ?? usage.output_tokens ?? 0;
+          const cacheReadTokens =
+            usage.cacheRead ?? usage.cache_read_input_tokens ?? usage.cache_read_tokens ?? 0;
+          const cacheWriteTokens =
+            usage.cacheWrite ?? usage.cache_creation_input_tokens ?? usage.cache_write_tokens ?? 0;
+
+          // 每条 assistant 消息自带 provider/model，比顺序推断的 model_change 更准
+          // （同一会话里子代理会临时换模型，不发 model_change）。
+          const providerId = obj.message.provider ?? currentProvider;
+          const modelId = obj.message.model ?? currentModel;
+
+          // 供应商真实计费优先；只有整个 cost 字段缺失才回落到按模型名估算。
+          const reportedCost = usage.cost?.total;
+          const cost =
+            typeof reportedCost === 'number'
+              ? reportedCost
+              : estimateCost(modelId, inputTokens, outputTokens);
 
           results.push({
             date,
             hour,
-            providerId: currentProvider,
-            modelId: currentModel,
+            providerId,
+            modelId,
             inputTokens,
             outputTokens,
             cacheReadTokens,
             cacheWriteTokens,
-            cost: estimateCost(currentModel, inputTokens, outputTokens),
+            cost,
           });
         }
       } catch {
@@ -163,6 +186,7 @@ export function readPiUsageRecords(): PiUsageRecord[] {
     for (const line of lines) {
       records.push({
         date: line.date,
+        hour: line.hour,
         providerId: line.providerId,
         modelId: line.modelId,
         inputTokens: line.inputTokens,
@@ -187,6 +211,7 @@ export function readCindyPiUsageRecords(): PiUsageRecord[] {
     for (const line of lines) {
       records.push({
         date: line.date,
+        hour: line.hour,
         providerId: line.providerId,
         modelId: line.modelId,
         inputTokens: line.inputTokens,

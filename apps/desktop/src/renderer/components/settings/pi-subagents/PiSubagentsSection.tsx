@@ -90,7 +90,7 @@ export function PiSubagentsSection() {
           className="rounded-md px-4 py-2 text-sm text-white"
           style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
         >
-          {t('piSubagents.retry')}
+          {t('settings.piSubagents.retry')}
         </button>
       </div>
     );
@@ -110,11 +110,11 @@ export function PiSubagentsSection() {
             className="text-lg font-semibold"
             style={{ color: 'var(--settings-text-primary)' }}
           >
-            {t('piSubagents.title')}
+            {t('settings.piSubagents.title')}
           </h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--settings-text-secondary)' }}>
             {data &&
-              t('piSubagents.summary', { arg0: String(data.agents.length), arg1: String(data.chains.length) })}
+              t('settings.piSubagents.summary', { arg0: String(data.agents.length), arg1: String(data.chains.length) })}
           </p>
         </div>
         <button
@@ -126,7 +126,7 @@ export function PiSubagentsSection() {
           }}
         >
           <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          {t('piSubagents.refresh')}
+          {t('settings.piSubagents.refresh')}
         </button>
       </div>
 
@@ -147,7 +147,7 @@ export function PiSubagentsSection() {
             }}
           >
             <Icon className="h-4 w-4" />
-            {t(`piSubagents.tab_${key}`)}
+            {t(`settings.piSubagents.tab_${key}`)}
             <span
               className="rounded-full px-2 py-0.5 text-xs"
               style={{
@@ -175,7 +175,7 @@ export function PiSubagentsSection() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('piSubagents.searchPlaceholder')}
+              placeholder={t('settings.piSubagents.searchPlaceholder')}
               className="w-48 rounded-lg border py-2 pl-9 pr-3 text-sm outline-none"
               style={{
                 borderColor: 'var(--settings-border)',
@@ -231,10 +231,10 @@ function AgentList({
       >
         <Brain className="h-8 w-8" style={{ color: 'var(--settings-text-tertiary)' }} />
         <p className="text-sm font-medium" style={{ color: 'var(--settings-text-secondary)' }}>
-          {t('piSubagents.noAgents')}
+          {t('settings.piSubagents.noAgents')}
         </p>
         <p className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-          {t('piSubagents.noAgentsDesc')}
+          {t('settings.piSubagents.noAgentsDesc')}
         </p>
       </div>
     );
@@ -306,7 +306,7 @@ function AgentList({
             className="flex h-40 items-center justify-center text-sm"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.selectHint')}
+            {t('settings.piSubagents.selectHint')}
           </div>
         )}
       </div>
@@ -332,10 +332,10 @@ function ChainList({
       >
         <GitBranch className="h-8 w-8" style={{ color: 'var(--settings-text-tertiary)' }} />
         <p className="text-sm font-medium" style={{ color: 'var(--settings-text-secondary)' }}>
-          {t('piSubagents.noChains')}
+          {t('settings.piSubagents.noChains')}
         </p>
         <p className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-          {t('piSubagents.noChainsDesc')}
+          {t('settings.piSubagents.noChainsDesc')}
         </p>
       </div>
     );
@@ -384,7 +384,7 @@ function ChainList({
               className="mt-1 text-xs"
               style={{ color: 'var(--settings-text-tertiary)' }}
             >
-              {chain.steps.length} {t('piSubagents.stepsCount')}
+              {chain.steps.length} {t('settings.piSubagents.stepsCount')}
             </p>
           </button>
         ))}
@@ -398,7 +398,7 @@ function ChainList({
             className="flex h-40 items-center justify-center text-sm"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.selectHint')}
+            {t('settings.piSubagents.selectHint')}
           </div>
         )}
       </div>
@@ -416,10 +416,10 @@ function RunHistoryList({ records }: { records: PiRunRecord[] }) {
       >
         <History className="h-8 w-8" style={{ color: 'var(--settings-text-tertiary)' }} />
         <p className="text-sm font-medium" style={{ color: 'var(--settings-text-secondary)' }}>
-          {t('piSubagents.noHistory')}
+          {t('settings.piSubagents.noHistory')}
         </p>
         <p className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-          {t('piSubagents.noHistoryDesc')}
+          {t('settings.piSubagents.noHistoryDesc')}
         </p>
       </div>
     );
@@ -440,25 +440,25 @@ function RunHistoryList({ records }: { records: PiRunRecord[] }) {
               className="px-4 py-3 text-left text-xs font-medium"
               style={{ color: 'var(--settings-text-tertiary)' }}
             >
-              {t('piSubagents.agent')}
+              {t('settings.piSubagents.agent')}
             </th>
             <th
               className="px-4 py-3 text-left text-xs font-medium"
               style={{ color: 'var(--settings-text-tertiary)' }}
             >
-              {t('piSubagents.time')}
+              {t('settings.piSubagents.time')}
             </th>
             <th
               className="px-4 py-3 text-left text-xs font-medium"
               style={{ color: 'var(--settings-text-tertiary)' }}
             >
-              {t('piSubagents.status')}
+              {t('settings.piSubagents.status')}
             </th>
             <th
               className="px-4 py-3 text-right text-xs font-medium"
               style={{ color: 'var(--settings-text-tertiary)' }}
             >
-              {t('piSubagents.duration')}
+              {t('settings.piSubagents.duration')}
             </th>
           </tr>
         </thead>
@@ -477,12 +477,12 @@ function RunHistoryList({ records }: { records: PiRunRecord[] }) {
                 {r.status === 'ok' ? (
                   <span className="flex items-center gap-1" style={{ color: 'var(--success)' }}>
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    {t('piSubagents.statusOk')}
+                    {t('settings.piSubagents.statusOk')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-1" style={{ color: 'var(--danger)' }}>
                     <XCircle className="h-3.5 w-3.5" />
-                    {t('piSubagents.statusError')}
+                    {t('settings.piSubagents.statusError')}
                     {r.exit != null && (
                       <span className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
                         (exit {r.exit})
@@ -509,7 +509,7 @@ function RunHistoryList({ records }: { records: PiRunRecord[] }) {
             color: 'var(--settings-text-tertiary)',
           }}
         >
-          {t('piSubagents.showingRecent')}
+          {t('settings.piSubagents.showingRecent')}
         </p>
       )}
     </div>

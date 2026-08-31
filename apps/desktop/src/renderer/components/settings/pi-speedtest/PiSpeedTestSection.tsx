@@ -54,7 +54,7 @@ export function PiSpeedTestSection() {
           className="text-lg font-semibold"
           style={{ color: 'var(--settings-text-primary)' }}
         >
-          {t('piSpeedtest.title')}
+          {t('settings.piSpeedtest.title')}
         </h2>
         <div
           className="flex flex-col items-center gap-3 rounded-xl border py-12 text-center"
@@ -65,13 +65,13 @@ export function PiSpeedTestSection() {
             className="text-base font-semibold"
             style={{ color: 'var(--settings-text-primary)' }}
           >
-            {t('piSpeedtest.noProvider')}
+            {t('settings.piSpeedtest.noProvider')}
           </h3>
           <p
             className="max-w-sm text-sm"
             style={{ color: 'var(--settings-text-secondary)' }}
           >
-            {t('piSpeedtest.noProviderDesc')}
+            {t('settings.piSpeedtest.noProviderDesc')}
           </p>
         </div>
       </div>
@@ -86,14 +86,14 @@ export function PiSpeedTestSection() {
             className="text-lg font-semibold"
             style={{ color: 'var(--settings-text-primary)' }}
           >
-            {t('piSpeedtest.title')}
+            {t('settings.piSpeedtest.title')}
           </h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--settings-text-secondary)' }}>
-            {t('piSpeedtest.subtitle')}
+            {t('settings.piSpeedtest.subtitle')}
           </p>
         </div>
         <span className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-          {t('piSpeedtest.runsNote', { count: RUNS_PER_MODEL })}
+          {t('settings.piSpeedtest.runsNote', { count: RUNS_PER_MODEL })}
         </span>
       </div>
 
@@ -110,7 +110,7 @@ export function PiSpeedTestSection() {
             className="px-2 pb-2 pt-1 text-xs font-medium uppercase tracking-wider"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSpeedtest.providers')} ({providers.length})
+            {t('settings.piSpeedtest.providers')} ({providers.length})
           </p>
           {providers.map((p) => (
             <button
@@ -144,7 +144,7 @@ export function PiSpeedTestSection() {
                     {selected.name}
                   </h3>
                   <p className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-                    {models.length} {t('piSpeedtest.models')}
+                    {models.length} {t('settings.piSpeedtest.models')}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -162,7 +162,7 @@ export function PiSpeedTestSection() {
                     ) : (
                       <Download className="h-4 w-4" />
                     )}
-                    {fetching ? t('piSpeedtest.fetching') : t('piSpeedtest.fetchModels')}
+                    {fetching ? t('settings.piSpeedtest.fetching') : t('settings.piSpeedtest.fetchModels')}
                   </button>
                   <button
                     onClick={resetResults}
@@ -174,7 +174,7 @@ export function PiSpeedTestSection() {
                     }}
                   >
                     <RotateCcw className="h-4 w-4" />
-                    {t('piSpeedtest.reset')}
+                    {t('settings.piSpeedtest.reset')}
                   </button>
                   <button
                     onClick={() => runAll(selected, models)}
@@ -187,7 +187,7 @@ export function PiSpeedTestSection() {
                     ) : (
                       <Zap className="h-4 w-4" />
                     )}
-                    {running ? t('piSpeedtest.testing') : t('piSpeedtest.runAll')}
+                    {running ? t('settings.piSpeedtest.testing') : t('settings.piSpeedtest.runAll')}
                   </button>
                 </div>
               </div>
@@ -213,10 +213,10 @@ export function PiSpeedTestSection() {
                 >
                   <Download className="h-7 w-7" style={{ color: 'var(--settings-text-tertiary)' }} />
                   <p className="text-sm" style={{ color: 'var(--settings-text-secondary)' }}>
-                    {t('piSpeedtest.emptyCatalog')}
+                    {t('settings.piSpeedtest.emptyCatalog')}
                   </p>
                   <p className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-                    {t('piSpeedtest.emptyCatalogDesc')}
+                    {t('settings.piSpeedtest.emptyCatalogDesc')}
                   </p>
                 </div>
               ) : (
@@ -230,11 +230,11 @@ export function PiSpeedTestSection() {
                           color: 'var(--settings-text-tertiary)',
                         }}
                       >
-                        <th className="px-3 py-2 font-medium">{t('piSpeedtest.colModel')}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t('piSpeedtest.colSuccessRate')}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t('piSpeedtest.colAvgLatency')}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t('piSpeedtest.colRange')}</th>
-                        <th className="px-3 py-2 font-medium">{t('piSpeedtest.colStatus')}</th>
+                        <th className="px-3 py-2 font-medium">{t('settings.piSpeedtest.colModel')}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t('settings.piSpeedtest.colSuccessRate')}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t('settings.piSpeedtest.colAvgLatency')}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t('settings.piSpeedtest.colRange')}</th>
+                        <th className="px-3 py-2 font-medium">{t('settings.piSpeedtest.colStatus')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -293,7 +293,7 @@ export function PiSpeedTestSection() {
                             <td className="px-3 py-2">
                               {!r || r.status === 'idle' ? (
                                 <span className="text-xs" style={{ color: 'var(--settings-text-tertiary)' }}>
-                                  {t('piSpeedtest.pending')}
+                                  {t('settings.piSpeedtest.pending')}
                                 </span>
                               ) : r.status === 'testing' ? (
                                 <span
@@ -301,17 +301,17 @@ export function PiSpeedTestSection() {
                                   style={{ color: 'var(--settings-text-secondary)' }}
                                 >
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  {t('piSpeedtest.testing')} {r.runs}/{RUNS_PER_MODEL}
+                                  {t('settings.piSpeedtest.testing')} {r.runs}/{RUNS_PER_MODEL}
                                 </span>
                               ) : r.success === r.runs ? (
                                 <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}>
                                   <Check className="h-3.5 w-3.5" />
-                                  {t('piSpeedtest.ok')}
+                                  {t('settings.piSpeedtest.ok')}
                                 </span>
                               ) : r.success > 0 ? (
                                 <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--warning, #f59e0b)' }}>
                                   <Check className="h-3.5 w-3.5" />
-                                  {t('piSpeedtest.partial')}
+                                  {t('settings.piSpeedtest.partial')}
                                 </span>
                               ) : (
                                 <span
@@ -320,7 +320,7 @@ export function PiSpeedTestSection() {
                                   title={r.lastMessage}
                                 >
                                   <X className="h-3.5 w-3.5" />
-                                  {r.lastMessage ? r.lastMessage.slice(0, 40) : t('piSpeedtest.fail')}
+                                  {r.lastMessage ? r.lastMessage.slice(0, 40) : t('settings.piSpeedtest.fail')}
                                 </span>
                               )}
                             </td>

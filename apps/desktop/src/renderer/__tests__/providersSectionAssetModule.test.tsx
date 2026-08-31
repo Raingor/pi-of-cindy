@@ -233,35 +233,22 @@ describe('ProvidersSection — Cindy AI 账户资产模块', () => {
     expect(screen.queryByTestId('cindy-ai-free-tier-badge')).toBeNull();
   });
 
-  it('个人云账号:显示可用余额 + 两个动作,并深链到计费页 / 充值意图', async () => {
+  // 计费页已随本机 Pi 工作台下架:余额数字仍是有效信息、继续展示,但「查看用量」与
+  // 「充值」两个动作只能跳那一页,页面没了就不留按钮。
+  it('个人云账号:只展示可用余额,不再给计费页动作', async () => {
     renderSection();
 
     expect(await screen.findByText('billing.balance.title')).toBeTruthy();
     // 金额走 money.ts 的格式化 + BILLING_CURRENCY,不在这里自己拼字符串。
     expect(screen.getByText('cny:18.42')).toBeTruthy();
 
-    fireEvent.click(screen.getByText('settings.providers.xd.asset.viewUsage'));
-    await waitFor(() =>
-      expect(screen.getByTestId('search').textContent).toBe('/settings?tab=billing'),
-    );
-
-    fireEvent.click(screen.getByText('billing.settings.topupCard.action'));
-    await waitFor(() =>
-      expect(screen.getByTestId('search').textContent).toBe('/settings?tab=billing&intent=topup'),
-    );
-
-    // Black Pill(最高强调档)必须用 pure 对(DESIGN.md §4 button/cta):
-    // --accent-cta-bg-pure + --accent-pure-cta-fg;--accent-cta-bg 在默认 Light
-    // 下是 #262626,差一档,回归防再犯。
-    const topupButton = screen.getByText('billing.settings.topupCard.action').closest('button');
-    expect(topupButton?.style.backgroundColor).toBe('var(--accent-cta-bg-pure)');
-    expect(topupButton?.style.color).toBe('var(--accent-pure-cta-fg)');
-    const usageButton = screen.getByText('settings.providers.xd.asset.viewUsage').closest('button');
-    expect(usageButton?.style.backgroundColor).toBe('var(--settings-btn-secondary-bg)');
-    expect(usageButton?.style.color).toBe('var(--settings-btn-secondary-text)');
+    expect(screen.queryByText('settings.providers.xd.asset.viewUsage')).toBeNull();
+    expect(screen.queryByText('billing.settings.topupCard.action')).toBeNull();
+    // 停在初始路由 —— 没有任何跳转发生过,死链是本次要收掉的东西。
+    expect(screen.getByTestId('search').textContent).toBe('/settings?tab=providers');
 
     const assetModule = screen.getByTestId('cindy-ai-asset-module');
-    expect(assetModule.children).toHaveLength(2);
+    expect(assetModule.children).toHaveLength(1);
   });
 
   it('正常态版面上没有重试 / 轮换 / 重新获取凭据按钮(它们退进「···」菜单)', async () => {

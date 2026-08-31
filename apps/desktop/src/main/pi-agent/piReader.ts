@@ -82,6 +82,24 @@ export function clearUsageCache(): void {
   usageCache = null;
 }
 
+// ─── Installation probe ────────────────────────────────────────────────────
+
+/**
+ * 本机是否装了 Pi CLI。判据是 `~/.pi/agent` 目录存在 —— 设置页所有 Pi 面板都从
+ * 这个目录读数据,目录不在就一律没内容可展示。
+ *
+ * 刻意**不**探测 Cindy 自带的受管 pi 二进制(`getReadyBinaryPath('pi')`):那份是
+ * Cindy 用来跑任务的,与用户自己的 Pi CLI 安装是两套独立数据,面板读的是后者。
+ */
+export function isPiCliInstalled(): boolean {
+  try {
+    return existsSync(PI_DIR) && statSync(PI_DIR).isDirectory();
+  } catch {
+    // 权限等异常按"读不到"处理:提示安装比静默给空面板更接近真相。
+    return false;
+  }
+}
+
 // ─── Settings ──────────────────────────────────────────────────────────────
 
 function piPath(filename: string): string {
@@ -178,6 +196,14 @@ export function getUsageByRange(fromDate: string, toDate: string): PiUsageByRang
     daily.outputTokens += r.outputTokens;
     dailyMap.set(r.date, daily);
 
+    // Hourly（仪表盘「今天」视图按小时画图，此前这张表一直是空的）
+    const hourKey = `${r.date}|${r.hour}`;
+    const hourly = hourlyMap.get(hourKey) ?? { date: r.date, hour: r.hour, totalTokens: 0, totalCost: 0, totalRequests: 0 };
+    hourly.totalTokens += tokens;
+    hourly.totalCost += r.cost;
+    hourly.totalRequests += r.requests;
+    hourlyMap.set(hourKey, hourly);
+
     // Provider
     const prov = providerMap.get(r.providerId) ?? { tokens: 0, cost: 0, requests: 0, models: new Set() };
     prov.tokens += tokens;
@@ -211,12 +237,17 @@ export function getUsageByRange(fromDate: string, toDate: string): PiUsageByRang
   }
 
   const totalTokens = totalInput + totalOutput + totalCacheRead + totalCacheWrite;
-  const cacheHitRate = totalCacheRead + totalCacheWrite > 0
-    ? totalCacheRead / (totalCacheRead + totalCacheWrite)
+  // 面板按 `${cacheHitRate}%` 直接渲染并当进度条百分比用，所以这里返回的必须是
+  // 0-100 的百分数，不是 0-1 的比率（此前返回比率，99.9% 会显示成「1%」）。
+  // 口径与 pi-web-switch 一致：缓存 token 占全部处理 token 的比例，保留一位小数。
+  const cacheHitRate = totalTokens > 0
+    ? Math.round(((totalCacheRead + totalCacheWrite) / totalTokens) * 1000) / 10
     : 0;
 
   const dailyBreakdown = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-  const hourlyBreakdown: PiHourlyAggregate[] = [];
+  const hourlyBreakdown: PiHourlyAggregate[] = Array.from(hourlyMap.values()).sort(
+    (a, b) => a.date.localeCompare(b.date) || a.hour - b.hour,
+  );
   const requestLog = Array.from(requestLogMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
   const providerStats: PiProviderUsageSummary[] = Array.from(providerMap.entries()).map(([id, v]) => ({
@@ -260,8 +291,27 @@ export function getUsageByRange(fromDate: string, toDate: string): PiUsageByRang
 
 // ─── Sessions ──────────────────────────────────────────────────────────────
 
+/**
+ * 会话目录名 → 项目路径。
+ *
+ * 目录名形如 `--Users-mac-2312-r-workspace-wwwroot-M-projects-pi-of-cindy--`：
+ * 路径分隔符被写成单个 `-`，首尾各有一对 `--`。名字里本来就带 `-`
+ * （`mac-2312-r`、`M-projects`）与分隔符无法区分，所以这里只做保守还原：
+ * 去掉首尾的 `--`，其余原样保留。**真实路径优先从会话文件的 `session` 行
+ * 读 `cwd`**，这个函数只是那条路走不通时的兜底。
+ *
+ * 之前的实现把首个 `--` 换成 `/` 再把剩余 `--` 换成 `/`，结果尾部的 `--`
+ * 变成尾斜杠，`split('/').pop()` 拿到空串 —— 会话列表的项目名一片空白。
+ */
 function decodeProjectPath(dirName: string): string {
-  return dirName.replace(/^--/, '/').replace(/--/g, '/');
+  const trimmed = dirName.replace(/^--/, '').replace(/--$/, '');
+  return trimmed.replace(/--/g, '/');
+}
+
+/** 路径 → 展示名：取末段，`~` 缩写 home。 */
+function projectDisplayName(projectPath: string): string {
+  const segments = projectPath.split('/').filter(Boolean);
+  return segments[segments.length - 1] ?? projectPath;
 }
 
 function parseSessionFile(filePath: string): PiSessionFileInfo | null {
@@ -273,6 +323,7 @@ function parseSessionFile(filePath: string): PiSessionFileInfo | null {
     let name: string | undefined;
     let provider: string | undefined;
     let model: string | undefined;
+    let cwd: string | undefined;
     let messageCount = 0;
     let lastActive = stat.mtimeMs;
 
@@ -288,12 +339,17 @@ function parseSessionFile(filePath: string): PiSessionFileInfo | null {
             lastActive = Math.max(lastActive, new Date(obj.timestamp).getTime());
           }
         }
-        if (obj.type === 'session_start' && obj.name) {
+        if (obj.type === 'session' && typeof obj.cwd === 'string') {
+          // 会话自己记录的工作目录，比从目录名反推可靠（目录名里 `-` 有歧义）。
+          cwd = obj.cwd;
+        }
+        if (obj.type === 'session_info' && obj.name) {
           name = obj.name;
         }
         if (obj.type === 'model_change') {
           if (obj.provider) provider = obj.provider;
-          if (obj.model) model = obj.model;
+          if (obj.modelId) model = obj.modelId;
+          else if (obj.model) model = obj.model;
         }
       } catch {
         continue;
@@ -309,6 +365,7 @@ function parseSessionFile(filePath: string): PiSessionFileInfo | null {
       name,
       provider,
       model,
+      cwd,
       messageCount,
     };
   } catch {
@@ -327,8 +384,6 @@ export function listSessions(): PiProjectGroup[] {
         const stat = statSync(fullPath);
 
         if (stat.isDirectory() && entry.startsWith('--')) {
-          const projectPath = decodeProjectPath(entry);
-          const projectName = projectPath.split('/').pop() ?? projectPath;
           const sessions: PiSessionFileInfo[] = [];
 
           const subEntries = readdirSync(fullPath);
@@ -341,7 +396,9 @@ export function listSessions(): PiProjectGroup[] {
 
           if (sessions.length > 0) {
             sessions.sort((a, b) => b.lastActive - a.lastActive);
-            groups.set(projectPath, sessions);
+            // 会话里记的 cwd 是权威路径；目录名反推只作兜底。
+            const projectPath = sessions.find((s) => s.cwd)?.cwd ?? decodeProjectPath(entry);
+            groups.set(projectPath, [...(groups.get(projectPath) ?? []), ...sessions]);
           }
         } else if (entry.endsWith('.jsonl')) {
           const info = parseSessionFile(fullPath);
@@ -362,10 +419,9 @@ export function listSessions(): PiProjectGroup[] {
 
   const result: PiProjectGroup[] = [];
   for (const [projectPath, sessions] of groups) {
-    const projectName = projectPath === '(root)' ? '(root)' : projectPath.split('/').pop() ?? projectPath;
     result.push({
       projectPath,
-      projectName,
+      projectName: projectPath === '(root)' ? '(root)' : projectDisplayName(projectPath),
       sessions,
       totalSessions: sessions.length,
       lastActive: Math.max(...sessions.map((s) => s.lastActive)),
@@ -1003,11 +1059,32 @@ export async function fetchProviderModels(baseUrl: string, apiKey?: string): Pro
 
 // ─── Config Import/Export ──────────────────────────────────────────────────
 
+/**
+ * 面板「导出配置」用的快照。
+ *
+ * **不含凭证**:`auth.json` 整份省略,`models.json` 的每个 provider 剥掉
+ * `apiKey` / `apiKeys` / `activeKeyId`。Cindy 的 Renderer 会渲染 agent 输出、
+ * Markdown、插件面板与内置浏览器网页,是不可信环境(见
+ * `docs/dev-rules/electron-security-and-process-boundaries.md`),导出的 JSON
+ * 还会经用户手落盘/外传 —— 两条都不该带明文 key。
+ * 导入侧保持原样:用户显式提供的配置里带 key 时照写(那是他自己的输入)。
+ */
 export function exportPiConfig(): PiConfig {
+  const models = readModelsJson();
+  const providers = models?.providers && typeof models.providers === 'object'
+    ? Object.fromEntries(
+        Object.entries(models.providers).map(([id, raw]) => {
+          if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [id, raw];
+          const { apiKey: _apiKey, apiKeys: _apiKeys, activeKeyId: _activeKeyId, ...rest } =
+            raw as Record<string, unknown>;
+          return [id, rest];
+        }),
+      )
+    : {};
   return {
     settings: readSettings() ?? {},
-    auth: readAuth() ?? {},
-    modelsJson: readModelsJson() as PiConfig['modelsJson'],
+    auth: {},
+    modelsJson: { providers } as PiConfig['modelsJson'],
   };
 }
 

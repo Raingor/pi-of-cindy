@@ -7037,6 +7037,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     // ── Pi Agent 数据层 (pi-web-switch 移植) ──────────────────────────────
     piAgent: {
+      installStatus: (): Promise<{ installed: boolean }> =>
+        ipcRenderer.invoke('maker:pi-agent:install-status'),
+      // 本机 Pi CLI 面板:providers 已在主进程剥密,这里拿到的没有 key 真值。
+      listCliProviders: (): Promise<{
+        installed: boolean;
+        providers: Array<{
+          id: string;
+          name: string;
+          baseUrl?: string;
+          api?: string;
+          hasApiKey: boolean;
+          maskedApiKey?: string;
+          apiKeyCount: number;
+          /** 整池 key 的遮罩视图(不含真值),标出当前生效的那把。 */
+          apiKeys: Array<{ id: string; maskedKey: string; active: boolean }>;
+          models: Array<{
+            id: string;
+            name: string;
+            reasoning: boolean;
+            input: string[];
+            contextWindow?: number;
+            maxTokens?: number;
+            cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+            enabled: boolean;
+          }>;
+        }>;
+        error?: string;
+      }> => ipcRenderer.invoke('maker:pi-cli:list-providers'),
+      listCliExtensions: (): Promise<{
+        installed: boolean;
+        extensions: Array<{ source: string; name: string }>;
+        error?: string;
+      }> => ipcRenderer.invoke('maker:pi-cli:list-extensions'),
+      mutateCliPackage: (payload: {
+        action: 'install' | 'remove';
+        source: string;
+      }): Promise<{ success: boolean }> =>
+        ipcRenderer.invoke('maker:pi-cli:package-mutate', payload),
       readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
       writeSettings: (settings: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:write-settings', settings),

@@ -239,17 +239,14 @@ describe('PromotionalGrantNotice', () => {
     expect(screen.queryByTestId('promotional-grant-notice')).toBeNull();
   });
 
-  it('「查看用量」同时记已读并跳计费页 —— 否则回到首屏它还在', async () => {
+  // 计费页已随本机 Pi 工作台下架 —— 卡上不再有「查看用量」出口,只剩「知道了」。
+  it('不给「查看用量」出口:计费页已下架,不留跳不过去的按钮', async () => {
     await renderNotice();
 
-    await act(async () => {
-      screen.getByText('onboarding.promotionalGrant.openBilling').click();
-    });
-    expect(navigate).toHaveBeenCalledWith('/settings?tab=billing');
-
-    cleanup();
-    await renderNotice();
-    expect(screen.queryByTestId('promotional-grant-notice')).toBeNull();
+    expect(screen.queryByText('onboarding.promotionalGrant.openBilling')).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
+    // 赠额本身仍如实告知,唯一动作是记已读。
+    expect(screen.getByText('onboarding.promotionalGrant.acknowledge')).toBeTruthy();
   });
 
   it('已读态按账号隔离:换账号后同一 grantId 仍会告知一次', async () => {

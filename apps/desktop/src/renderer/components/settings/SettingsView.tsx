@@ -10,7 +10,6 @@ import { TAB_IDS, isSettingsTab } from '@/lib/tabLabels';
 import type { SettingsTab } from '@/lib/tabLabels';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
 import { UserProfileCard } from './UserProfileCard';
-import { VoiceInputSection } from './VoiceInputSection';
 import { AppearanceSection } from './AppearanceSection';
 import { SubagentModelSection } from './SubagentModelSection';
 import { AuxiliaryModelSection } from './AuxiliaryModelSection';
@@ -25,7 +24,6 @@ import { KeyboardShortcutsSection } from './KeyboardShortcutsSection';
 import { AgentIslandSection } from './AgentIslandSection';
 import { LanguageSection } from './LanguageSection';
 import { LogoutSection } from './LogoutSection';
-import { ImBotSection, isImBotSettingsGroup, type ImBotSettingsGroup } from './ImBotSection';
 import { AboutSection } from './AboutSection';
 import { UserPromptSection } from './UserPromptSection';
 import { MemorySection } from './MemorySection';
@@ -41,6 +39,8 @@ import { HelpSection } from './HelpSection';
 import { HelpAssistantPanel } from './HelpAssistantPanel';
 import { AgentResourceSection } from './AgentResourceSection';
 import { PiPackagesSection } from './PiPackagesSection';
+import { PiCliProvidersSection } from './pi-providers/PiCliProvidersSection';
+import { PiCliExtensionsSection } from './pi-extensions/PiCliExtensionsSection';
 import { PiConfigImportExport } from './PiConfigImportExport';
 import { PiDashboardSection } from './pi-dashboard/PiDashboardSection';
 import { PiSessionsSection } from './pi-sessions/PiSessionsSection';
@@ -54,10 +54,6 @@ import { ComputerUseSection } from './ComputerUseSection';
 import { useAuth } from '@/contexts/AuthContext';
 import { SettingsCatalogPanel } from './SettingsCatalogPanel';
 import { getLastWorkingDir, subscribeToLastWorkingDir } from '@/state/lastWorkingDir';
-import { BillingSettingsSection } from '@/features/billing/BillingPage';
-import { canAccessBillingSettings } from './billingVisibility';
-import { canAccessUsageSettings } from './usageVisibility';
-import { UsageHistorySection } from './usage/UsageHistorySection';
 
 const DEFAULT_SETTINGS_MENU_WIDTH = 260;
 
@@ -70,7 +66,7 @@ export function SettingsView() {
   const outletContext = useOutletContext<SettingsOutletContext | null>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation();
-  const { mode, dataOwnerId, user } = useAuth();
+  const { mode, dataOwnerId } = useAuth();
   const menuWidth = outletContext?.sidebarWidth ?? DEFAULT_SETTINGS_MENU_WIDTH;
   const isMac = window.electronAPI?.platform === 'darwin';
   const [helpAssistantOpen, setHelpAssistantOpen] = useState(false);
@@ -80,52 +76,45 @@ export function SettingsView() {
     getLastWorkingDir,
   );
   const rawTab = searchParams.get('tab');
-  const canAccessBilling = canAccessBillingSettings({
-    mode,
-    membershipKind: user?.membershipKind ?? null,
-  });
   const shouldRedirectLegacyPluginTabs = rawTab === 'api-keys' || rawTab === 'connections';
-  // 用量历史对所有**已登录**身份开放 (local / cloud personal / cloud org),
-  // 与 billing 的 canAccessBillingSettings 无关 —— #2785 维护者裁决。
-  const canAccessUsage = canAccessUsageSettings({ mode });
 
   const activeTab = useMemo<SettingsTab>(() => {
     const raw = rawTab;
     // legacy 别名:旧「远端机器」(remote) /「设备互联」(devices) 已并入「远程控制」(remote-control)。
     if (raw === 'remote' || raw === 'devices') return 'remote-control';
-    // legacy 别名:旧「飞书机器人」(feishu-bot) /「Slack 机器人」(slack-bot) 已并入「IM 机器人」(im-bot)。
-    if (raw === 'feishu-bot' || raw === 'slack-bot') return 'im-bot';
-    // legacy 别名:旧独立「Tina」(tina) 已并入「IM 机器人」(im-bot)。
-    if (raw === 'tina') return 'im-bot';
-    if (raw === 'billing' && !canAccessBilling) return 'general';
-    if (raw === 'usage' && !canAccessUsage) return 'general';
+    // 已下架分区的深链一律回落通用页:IM 机器人(含旧 feishu-bot / slack-bot / tina
+    // 别名)、语音输入、计费与用量历史都不再是可路由 tab —— 本机 Pi 工作台的用量
+    // 口径统一由 Pi 仪表盘(pi-dashboard)承担。
+    if (raw === 'feishu-bot' || raw === 'slack-bot' || raw === 'tina') return 'general';
+    if (raw === 'billing' || raw === 'usage' || raw === 'voice-input' || raw === 'im-bot') {
+      return 'general';
+    }
     if (raw === 'agent-island' && !isMac) return 'general';
     return isSettingsTab(raw) ? raw : 'general';
-  }, [canAccessBilling, canAccessUsage, isMac, rawTab]);
+  }, [isMac, rawTab]);
   const piExtensionsPanelOpen =
     activeTab === 'general' &&
     (rawTab === 'pi-extensions' || searchParams.get('openPanel') === 'pi-extensions');
 
+  // 下架分区留在 URL 上的深链参数一并作废,防用户切到别的 tab 再被误消费。
   useEffect(() => {
-    if (rawTab !== 'billing' || canAccessBilling) return;
+    if (
+      rawTab !== 'billing' &&
+      rawTab !== 'usage' &&
+      rawTab !== 'voice-input' &&
+      rawTab !== 'im-bot' &&
+      rawTab !== 'feishu-bot' &&
+      rawTab !== 'slack-bot' &&
+      rawTab !== 'tina'
+    ) {
+      return;
+    }
     const next = new URLSearchParams(searchParams);
     next.delete('tab');
-    // 计费页不可见时它的深链意图(intent=topup)也一并作废,不留在 URL 上等着
-    // 用户切到别的 tab 再被误消费。
     next.delete('intent');
+    next.delete('imGroup');
     setSearchParams(next, { replace: true });
-  }, [canAccessBilling, rawTab, searchParams, setSearchParams]);
-
-  // 「IM 机器人」官方/个人已纵向同页展示；?imGroup=cindy|personal 只负责把
-  // 深链滚动到对应分区。旧「飞书机器人」深链继续定位到「个人」。
-  const activeImGroupRaw = activeTab === 'im-bot' ? searchParams.get('imGroup') : null;
-  const activeImBotGroup: ImBotSettingsGroup | null = isImBotSettingsGroup(activeImGroupRaw)
-    ? activeImGroupRaw
-    : null;
-  const imBotTargetGroup: ImBotSettingsGroup | null =
-    activeTab === 'im-bot'
-      ? (activeImBotGroup ?? (searchParams.get('tab') === 'feishu-bot' ? 'personal' : null))
-      : null;
+  }, [rawTab, searchParams, setSearchParams]);
 
   // 切分区后外层滚动容器回顶:滚动偏移是容器的、不随内层 key 重挂归零,
   // 长页滚到底再切短页会停在中段(review 反馈)。瞬时回顶,不做平滑。
@@ -185,14 +174,8 @@ export function SettingsView() {
   }, [activeTab, searchParams, setSearchParams]);
 
   const visibleTabIds = useMemo(
-    () =>
-      TAB_IDS.filter(
-        (tabId) =>
-          (isMac || tabId !== 'agent-island') &&
-          (canAccessBilling || tabId !== 'billing') &&
-          (canAccessUsage || tabId !== 'usage'),
-      ),
-    [canAccessBilling, canAccessUsage, isMac],
+    () => TAB_IDS.filter((tabId) => isMac || tabId !== 'agent-island'),
+    [isMac],
   );
 
   // deep-link: ?section=... → scroll to a section inside the active tab.
@@ -412,29 +395,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {activeTab === 'billing' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-billing"
-                aria-labelledby="settings-tab-billing"
-              >
-                <section aria-label={t('settings.sections.billing')}>
-                  <BillingSettingsSection
-                    key={`billing:${dataOwnerId ?? 'none'}`}
-                    accountId={dataOwnerId}
-                  />
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'usage' && (
-              <div role="tabpanel" id="settings-panel-usage" aria-labelledby="settings-tab-usage">
-                <section aria-label={t('settings.tabs.usage')}>
-                  <UsageHistorySection />
-                </section>
-              </div>
-            )}
-
             {activeTab === 'personalization' && (
               <div
                 role="tabpanel"
@@ -490,18 +450,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {activeTab === 'voice-input' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-voice-input"
-                aria-labelledby="settings-tab-voice-input"
-              >
-                <section aria-label={t('settings.sections.voiceInput')}>
-                  <VoiceInputSection key={`voice-input:${mode}:${dataOwnerId ?? 'none'}`} />
-                </section>
-              </div>
-            )}
-
             {activeTab === 'shortcuts' && (
               <div
                 role="tabpanel"
@@ -521,6 +469,11 @@ export function SettingsView() {
                 id="settings-panel-providers"
                 aria-labelledby="settings-tab-providers"
               >
+                {/* 本机 Pi CLI 的供应商与模型(只读面板,读 ~/.pi/agent/models.json)。
+                    放在 Cindy 自有供应商之前:本分支的主诉求是本机 Pi 工作台。 */}
+                <section className="pb-[18px]" aria-label={t('settings.piCliProviders.title')}>
+                  <PiCliProvidersSection />
+                </section>
                 <section className="pb-[18px]" aria-label={t('settings.sections.providers')}>
                   <ProvidersSection />
                 </section>
@@ -603,15 +556,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {activeTab === 'im-bot' && (
-              <div role="tabpanel" id="settings-panel-im-bot" aria-labelledby="settings-tab-im-bot">
-                {/* 官方/个人纵向同页展示；imGroup 只保留深链定位语义。 */}
-                <section aria-label={t('settings.sections.imBot')}>
-                  <ImBotSection targetGroup={imBotTargetGroup} />
-                </section>
-              </div>
-            )}
-
             {activeTab === 'help' && (
               <div role="tabpanel" id="settings-panel-help" aria-labelledby="settings-tab-help">
                 <section aria-label={t('settings.sections.help')}>
@@ -670,6 +614,10 @@ export function SettingsView() {
 
             {activeTab === 'pi-packages' && (
               <div role="tabpanel" id="settings-panel-pi-packages" aria-labelledby="settings-tab-pi-packages">
+                {/* 本机 Pi CLI 扩展:装 / 卸直接跑 CLI,不走 Cindy 的批准态。 */}
+                <section className="pb-[18px]" aria-label={t('settings.piCliExtensions.title')}>
+                  <PiCliExtensionsSection />
+                </section>
                 <section aria-label={t('settings.tabs.piPackages')}>
                   <PiPackagesSection />
                 </section>

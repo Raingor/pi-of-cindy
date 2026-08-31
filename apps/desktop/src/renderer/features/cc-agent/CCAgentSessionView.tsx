@@ -131,7 +131,6 @@ import {
   isDataOwnerPushCurrent,
 } from '@/contexts/dataOwnerGeneration';
 import { isDeviceLinkRemotePushCurrent } from '@/lib/remoteDataOwnerPushFence';
-import { canAccessBillingSettings } from '@/components/settings/billingVisibility';
 import { useDeviceProviders } from '@/hooks/useDeviceProviders';
 import { useAgentCapabilities, resolveManualCompactChannel } from '@/hooks/useAgentCapabilities';
 import { useLiveErrorSourceProvider } from '@/hooks/useLiveErrorSourceProvider';
@@ -1750,18 +1749,9 @@ export function CCAgentSessionView({
         provider.id === 'anthropic' && providerOffersModel(provider, session.model, 'claude-code'),
     );
   }, [localProviders, remoteDeviceId, session?.agentKind, session?.model, session?.remoteHostId]);
-  /**
-   * 余额不足横幅的「查看余额」出口 —— 只在计费面对当前账号可见时提供（cloud +
-   * personal，与设置页「用量和计费」同一判据）。org / local / 未登录账号在 Cindy 里
-   * 没有余额页可跳，此时不传回调，ErrorBanner 会保持原样文案、不加按钮。
-   */
-  const canAccessBilling = canAccessBillingSettings({
-    mode: authMode,
-    membershipKind: authUser?.membershipKind ?? null,
-  });
-  const handleViewBalance = useCallback(() => {
-    navigate('/settings?tab=billing');
-  }, [navigate]);
+  // 余额不足横幅的「查看余额」出口已随计费页一起下架:本机 Pi 工作台里没有余额页
+  // 可跳,不传回调时 ErrorBanner 保持原样文案、不加按钮(与旧的 org / local 账号
+  // 分支同一行为)。
   // live 错误的来源 provider 快照:错误出现时取值、任务切换时重置、错误存续期间
   // 切 provider 不跟随。语义与边界条件见 useLiveErrorSourceProvider 头注释。
   const liveErrorSourceProviderId = useLiveErrorSourceProvider(
@@ -4530,7 +4520,6 @@ export function CCAgentSessionView({
                   deviceLinkDeviceId={remoteDeviceId}
                   modelId={session?.model}
                   providerId={session?.providerId}
-                  onViewBalance={canAccessBilling ? handleViewBalance : undefined}
                   errorSourceProviderId={errorTailMsg?.errorProviderId ?? null}
                   onSwitchToClaudeSubscription={
                     canSwitchToClaudeSubscription ? handleSwitchToClaudeSubscription : undefined
@@ -4598,7 +4587,6 @@ export function CCAgentSessionView({
                 onSwitchToClaudeSubscription={
                   canSwitchToClaudeSubscription ? handleSwitchToClaudeSubscription : undefined
                 }
-                onViewBalance={canAccessBilling ? handleViewBalance : undefined}
                 errorSourceProviderId={liveErrorSourceProviderId}
                 silentEncryptedRetryEnabled={silentEncryptedRetryEnabled}
                 onForkStripEncrypted={canNavigateSession ? handleForkStripEncrypted : undefined}

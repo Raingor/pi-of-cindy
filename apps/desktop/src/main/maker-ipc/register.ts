@@ -6114,8 +6114,17 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
 
   // ── 元能力 ─────────────────────────────────────────────────────────────
+  /**
+   * 新建任务入口只暴露 Pi harness。
+   *
+   * Maker 的 agent map 仍注册着 claude-code / codex —— 历史会话要继续能打开、能续聊,
+   * 所以**不能**从 registry 里摘掉它们。这里只收窄「创建入口可选哪个 harness」这一个
+   * 语义:renderer 的 useAvailableAgents 消费本 channel 决定 vendor 切换器显示什么。
+   * pi 未注册(二进制缺失)时返回空数组,消费方按 fail-open 不隐藏入口,最终由
+   * Maker.requireAgent 兜底报错 —— 与既有语义一致。
+   */
   ipcMain.handle(MAKER_INVOKE.LIST_AVAILABLE_AGENTS, () => {
-    return maker.listAvailableAgents();
+    return maker.listAvailableAgents().filter((kind) => kind === 'pi');
   });
 
   ipcMain.handle(MAKER_INVOKE.TURN_CHANGE_SETS_LIST, async (event, sessionId: unknown) => {

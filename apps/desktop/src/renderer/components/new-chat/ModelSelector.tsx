@@ -2314,22 +2314,16 @@ function ModelSelectorContentView({
     </div>
   ) : null;
 
+  // 付费模型仍要如实告知"这个模型需要付费才能用",但计费页已随本机 Pi 工作台下架,
+  // 没有可跳的页面 —— 弹窗只做告知,不再给"查看付费方式"的跳转动作。
   const showPaymentRequired = () => {
     if (!confirmDialog) return;
-    void confirmDialog
-      .confirm({
-        title: t('newChat.modelSelector.paymentRequired.title'),
-        description: t('newChat.modelSelector.paymentRequired.description'),
-        confirmText: t('newChat.modelSelector.paymentRequired.action'),
-        cancelText: t('commonUi.confirmDialog.cancel'),
-      })
-      .then((accepted) => {
-        if (!accepted) return;
-        // Desktop 使用 createHashRouter；ModelSelectorContent 同时是可裸渲染的复用组件，
-        // 不能在这里强依赖 Router context。写入 hash 会触发 hashchange，并由正式路由
-        // 切到设置里的计费 tab；直接 pushState(pathname) 不会被 HashRouter 接管。
-        window.location.hash = '#/settings?tab=billing';
-      });
+    void confirmDialog.confirm({
+      title: t('newChat.modelSelector.paymentRequired.title'),
+      description: t('newChat.modelSelector.paymentRequired.description'),
+      confirmText: t('commonUi.confirmDialog.confirm'),
+      showCancel: false,
+    });
   };
 
   // ── 单个模型行 ───────────────────────────────────────────────────────────

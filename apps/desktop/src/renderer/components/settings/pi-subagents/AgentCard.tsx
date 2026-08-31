@@ -39,11 +39,11 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
       thinking: thinking.trim() || undefined,
     });
     if (ok) {
-      setMsg({ ok: true, text: t('piSubagents.saved') });
+      setMsg({ ok: true, text: t('settings.piSubagents.saved') });
       setEditing(false);
       onSaved();
     } else {
-      setMsg({ ok: false, text: t('piSubagents.saveFailed') });
+      setMsg({ ok: false, text: t('settings.piSubagents.saveFailed') });
     }
     setSaving(false);
   };
@@ -92,7 +92,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             }}
           >
             <Pencil className="h-3.5 w-3.5" />
-            {t('piSubagents.edit')}
+            {t('settings.piSubagents.edit')}
           </button>
         )}
       </div>
@@ -113,7 +113,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             className="text-xs"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.model')}
+            {t('settings.piSubagents.model')}
           </span>
           {editing ? (
             <input
@@ -133,7 +133,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
               className="mt-0.5 font-mono text-sm"
               style={{ color: 'var(--settings-text-primary)' }}
             >
-              {agent.model || t('piSubagents.modelDefault')}
+              {agent.model || t('settings.piSubagents.modelDefault')}
             </p>
           )}
         </div>
@@ -143,7 +143,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             className="text-xs"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.thinking')}
+            {t('settings.piSubagents.thinking')}
           </span>
           {editing ? (
             <select
@@ -156,7 +156,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
                 color: 'var(--settings-text-primary)',
               }}
             >
-              <option value="">{t('piSubagents.thinkingDefault')}</option>
+              <option value="">{t('settings.piSubagents.thinkingDefault')}</option>
               {THINKING_LEVELS.map((lvl) => (
                 <option key={lvl} value={lvl}>
                   {lvl}
@@ -168,7 +168,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
               className="mt-0.5 text-sm"
               style={{ color: 'var(--settings-text-primary)' }}
             >
-              {agent.thinking || t('piSubagents.thinkingDefault')}
+              {agent.thinking || t('settings.piSubagents.thinkingDefault')}
             </p>
           )}
         </div>
@@ -187,8 +187,8 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
                 <Check className="h-3.5 w-3.5" />
               )}
               {saving
-                ? t('piSubagents.saving')
-                : t('piSubagents.save')}
+                ? t('settings.piSubagents.saving')
+                : t('settings.piSubagents.save')}
             </button>
             <button
               onClick={handleCancel}
@@ -200,7 +200,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
               }}
             >
               <X className="h-3.5 w-3.5" />
-              {t('piSubagents.cancel')}
+              {t('settings.piSubagents.cancel')}
             </button>
             {msg && (
               <span
@@ -229,7 +229,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
               className="text-xs"
               style={{ color: 'var(--settings-text-tertiary)' }}
             >
-              {t('piSubagents.tools')}
+              {t('settings.piSubagents.tools')}
             </span>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {agent.tools.map((tool) => (
@@ -254,7 +254,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             className="text-xs"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.systemPromptMode')}
+            {t('settings.piSubagents.systemPromptMode')}
           </span>
           <p
             className="mt-0.5 text-sm"
@@ -268,7 +268,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             className="text-xs"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.input')}
+            {t('settings.piSubagents.input')}
           </span>
           <p
             className="mt-0.5 text-sm"
@@ -284,7 +284,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
           className="text-xs"
           style={{ color: 'var(--settings-text-tertiary)' }}
         >
-          {t('piSubagents.systemPrompt')}
+          {t('settings.piSubagents.systemPrompt')}
         </span>
         <pre
           className="mt-1.5 max-h-48 overflow-y-auto rounded-lg border p-3 whitespace-pre-wrap font-mono text-xs"
@@ -294,7 +294,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             color: 'var(--settings-text-secondary)',
           }}
         >
-          {agent.body || t('piSubagents.emptyPrompt')}
+          {agent.body || t('settings.piSubagents.emptyPrompt')}
         </pre>
       </div>
     </div>

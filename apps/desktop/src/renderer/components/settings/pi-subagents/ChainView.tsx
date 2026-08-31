@@ -33,7 +33,7 @@ export function ChainView({ chain }: ChainViewProps) {
           className="text-xs font-medium"
           style={{ color: 'var(--settings-text-tertiary)' }}
         >
-          {t('piSubagents.pipeline')}
+          {t('settings.piSubagents.pipeline')}
         </span>
         <div className="relative">
           <div
@@ -85,17 +85,17 @@ export function ChainView({ chain }: ChainViewProps) {
                 >
                   {step.phase && (
                     <span>
-                      {t('piSubagents.phase')}: {step.phase}
+                      {t('settings.piSubagents.phase')}: {step.phase}
                     </span>
                   )}
                   {step.label && (
                     <span>
-                      {t('piSubagents.label')}: {step.label}
+                      {t('settings.piSubagents.label')}: {step.label}
                     </span>
                   )}
                   {step.output && (
                     <span>
-                      {t('piSubagents.output')}: {step.output}
+                      {t('settings.piSubagents.output')}: {step.output}
                     </span>
                   )}
                 </div>
@@ -117,7 +117,7 @@ export function ChainView({ chain }: ChainViewProps) {
             className="text-xs"
             style={{ color: 'var(--settings-text-tertiary)' }}
           >
-            {t('piSubagents.chainBody')}
+            {t('settings.piSubagents.chainBody')}
           </span>
           <pre
             className="mt-1.5 max-h-48 overflow-y-auto rounded-lg border p-3 whitespace-pre-wrap font-mono text-xs"

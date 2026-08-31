@@ -39,16 +39,14 @@ export const TAB_IDS = [
   'general',
   'personalization',
   'providers',
-  'billing',
-  // 「用量历史」紧随计费:两者都回答"我用了多少",但分工明确 —— billing 管账单与账户
-  // 信息,usage 只统计本机 Cindy 内产生的 token 消耗(#2785 维护者裁决)。
-  'usage',
+  // 「计费」(billing)与「用量历史」(usage)已下架:本分支只跑本机 Pi harness,
+  // 账单与网关计量不再适用,用量口径统一由 Pi 仪表盘(pi-dashboard)承担。
+  // 两个 id 仍留在 SettingsTab 类型与 TAB_LABEL_KEY 中,供旧深链重定向。
   // 「工具密钥」(api-keys)已于 2026-07-13 下架:面板里最后一把 mivo key 随
   // XD Mivo 意识化改由意识设置页收单(官方别名映射同一存储键)。id 仍留在
   // SettingsTab 类型与 TAB_LABEL_KEY 保留,供旧深链重定向到插件分区。
-  'voice-input',
-  // IM 机器人紧随语音输入(Lizi 2026-07-15 拍板)。
-  'im-bot',
+  // 「语音输入」(voice-input)与「IM 机器人」(im-bot)同样下架:两者都依赖
+  // Cindy 云端语音/机器人服务,不属于本机 Pi 工作台范围。
   'shortcuts',
   'agent-island',
   'import',

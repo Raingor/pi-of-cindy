@@ -1462,7 +1462,6 @@
         "copyKeySuccess": "Cindy AI Key をコピーしました",
         "copyKeyFailed": "コピーに失敗しました。後でもう一度お試しください",
         "asset": {
-          "viewUsage": "使用量を見る",
           "syncFailed": "認証情報の同期に失敗したため、残高を取得できません。保存済みのモデル設定には影響しません。"
         }
       },
@@ -2859,6 +2858,65 @@
       },
       "capThreads": "ツールチェーンの並列度を制限",
       "capThreadsHint": "VITEST_MAX_FORKS や MAKEFLAGS などの環境変数を注入し、1 つのテストやビルドが全 CPU コアを占有しないようにします。自分で設定した同名の変数は上書きされません。"
+    },
+    "piCliProviders": {
+      "title": "ローカル Pi のプロバイダー",
+      "description": "ローカルの Pi CLI のプロバイダーとモデル設定を読み取ります。この画面は表示のみで、追加や変更は Pi CLI で行ってください。キーはメインプロセスから出ず、ここではマスクのみ表示します。",
+      "refresh": "再読み込み",
+      "loading": "プロバイダーを読み取り中…",
+      "loadFailed": "プロバイダーを読み取れませんでした。再試行できます。",
+      "parseFailed": "プロバイダー設定を解析できませんでした。Pi CLI の models.json を確認してください。",
+      "notInstalled": "Pi CLI が見つかりません。インストールして一度実行すると、ここにプロバイダーが表示されます。",
+      "empty": "ローカルの Pi CLI にプロバイダーがまだ設定されていません。",
+      "railLabel": "ローカルのプロバイダー",
+      "selectHint": "左側のプロバイダーを選ぶと詳細が表示されます。",
+      "badgeLocal": "ローカル Pi CLI",
+      "baseUrl": "ベース URL",
+      "noBaseUrl": "エンドポイント未設定",
+      "apiType": "API タイプ",
+      "apiKey": "API キー",
+      "keyConfigured": "キー設定済み",
+      "keyActive": "有効",
+      "keyCount": "合計 {{count}} 個",
+      "keyEmpty": "このプロバイダーにはキーがまだ設定されていません。",
+      "keyMaskedNote": "キーはメインプロセス内でのみ使用され、この画面では常にマスク表示です。",
+      "models": "モデル",
+      "modelCount": "{{enabled}} / {{total}} 個のモデルが利用可能",
+      "noModels": "このプロバイダーにはまだモデルがありません。",
+      "model": {
+        "enabled": "有効",
+        "disabled": "無効",
+        "reasoning": "思考対応",
+        "imageInput": "画像入力対応",
+        "audioInput": "音声入力対応",
+        "free": "無料"
+      }
+    },
+    "piCliExtensions": {
+      "title": "ローカル Pi の拡張",
+      "description": "ローカルの Pi CLI にインストール済みの拡張を管理します。インストールとアンインストールは Pi CLI コマンドを直接実行し、ターミナルでの操作と同じ結果になります。",
+      "refresh": "再読み込み",
+      "loading": "拡張を読み取り中…",
+      "loadFailed": "拡張を読み取れませんでした。再試行できます。",
+      "notInstalled": "Pi CLI が見つかりません。インストールして一度実行すると、ここに拡張が表示されます。",
+      "empty": "ローカルの Pi CLI に拡張がインストールされていません。",
+      "sourcePlaceholder": "npm:パッケージ名、またはローカルパス",
+      "install": "インストール",
+      "remove": "アンインストール",
+      "removeAria": "{{name}} をアンインストール",
+      "removeConfirmTitle": "この拡張をアンインストールしますか？",
+      "removeConfirmBody": "Pi CLI で {{name}} をアンインストールし、ローカルの Pi 設定を更新します。",
+      "installSuccess": "{{name}} をインストールしました",
+      "installFailed": "{{name}} をインストールできませんでした",
+      "removeSuccess": "{{name}} をアンインストールしました",
+      "removeFailed": "{{name}} をアンインストールできませんでした"
+    },
+    "piInstall": {
+      "dialogTitle": "Pi CLI が見つかりません",
+      "dialogBody": "設定の Pi パネルは Pi CLI のローカルデータディレクトリを読み取ります。そのディレクトリが見つからないため、Pi CLI をインストールして一度実行するまでパネルに表示できるデータがありません。Cindy 本体と既存のタスクには影響しません。",
+      "dialogConfirm": "インストール手順を見る",
+      "dialogCancel": "後で",
+      "dialogDontShowAgain": "次回から表示しない"
     },
     "piPackages": {
       "title": "Pi 拡張機能",
@@ -5333,7 +5391,6 @@
     "expandControlledNotice": "リモート操作の通知を展開: {{label}}",
     "versionMismatch": "相手のバージョンが異なります。一部機能が制限される場合があります"
   },
-
   "accountDeletion": {
     "entryButton": "アカウントを削除",
     "entryAria": "現在のアカウントを削除",
@@ -7005,8 +7062,7 @@
         "badge": "有料",
         "unlock": "有料で解放",
         "title": "有料でこのモデルを解放",
-        "description": "有料プランを購読するか、残高をチャージすると、このモデルを利用できます。",
-        "action": "支払い方法を見る"
+        "description": "有料プランを購読するか、残高をチャージすると、このモデルを利用できます。"
       },
       "hidden": "非表示",
       "modelListAria": "モデル一覧",
@@ -7471,7 +7527,6 @@
     "promotionalGrant": {
       "title": "Cindy AI の利用を開始しました",
       "desc": "特典残高 {{amount}} を付与しました。有効期限は {{date}} です。使い切った後や期限切れの後も、いつでもチャージできます。",
-      "openBilling": "使用量を見る",
       "acknowledge": "了解"
     }
   },
