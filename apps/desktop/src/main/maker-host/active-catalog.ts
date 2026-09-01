@@ -78,6 +78,25 @@ let baseUnverifiedXdMediaKinds: ReadonlySet<CatalogXdMediaKind> = new Set([
 let trustedCustomProviderRegistry: Catalog['modelRegistry'] = BUNDLED_CATALOG.modelRegistry;
 /** 用户自定义供应商(已 buildUserProvider 展开的标准 Provider),追加在 base 之后。 */
 let custom: Provider[] = [];
+/**
+ * 本机 Pi CLI 供应商投影(~/.pi/agent/models.json,source:'user' 语义,不含凭证),
+ * 追加在 custom 之后;外部文件变化由 piCliCatalogPoll 探测。desktop host 装配时
+ * 注入(本模块保持零 Electron),未注入(单测)= 空。
+ */
+let piCliProviders: Provider[] = [];
+let piCliCatalogPoll: (() => boolean) | null = null;
+/** 注入本机 Pi CLI 供应商投影;下次目录重算生效。传空数组 = 本机无可用供应商。 */
+export function setPiCliCatalogProviders(providers: Provider[]): void {
+  piCliProviders = providers;
+  markChanged();
+}
+/**
+ * 注入外部变化探测钩子:返回 true 表示「本机 Pi CLI 供应商有变,目录需重算」。
+ * 在 getActiveCatalog() 每次读取时调用,必须是廉价探测(自带节流),不得做重 IO。
+ */
+export function setPiCliCatalogPoll(poll: (() => boolean) | null): void {
+  piCliCatalogPoll = poll;
+}
 /** 当前 owner 的原始配置；仅用于 Registry 热更新后的运行时重投影。 */
 let customConfigs: CustomProviderConfig[] | null = null;
 /**
@@ -916,6 +935,11 @@ function computeMerged(): Catalog {
   // 的发现模型永远合不进目录(map 只扫过内置列表)。
   if (custom.length > 0) providers = [...providers, ...custom];
 
+  // 本机 Pi CLI 供应商(~/.pi/agent/models.json):最后追加,各 pipeline 步骤对
+  // 未知 id 都是 no-op。models 只填 pi,cc/codex 的派生不受影响;连接态由
+  // provider-service 的 user 来源「存在即连接」语义承接(投影层已过滤缺 key 条目)。
+  if (piCliProviders.length > 0) providers = [...providers, ...piCliProviders];
+
   // 通用 OAuth 供应商的发现模型(additions-only,per provider × agent;内置与自定义同待遇)。
   if (discoveredByProvider.size > 0) {
     providers = providers.map((p) => {
@@ -1210,10 +1234,15 @@ function computeMerged(): Catalog {
 }
 
 /**
- * 同步返回当前生效目录(base + 自定义供应商)。未加载完成 → base 回落 `BUNDLED_CATALOG`
- * (安全兜底,绝不抛)。消费方(路由 / 标题 / 能力派生 / 注册表)统一走这里。
+ * 同步返回当前生效目录(base + 自定义供应商 + 本机 Pi CLI 供应商)。未加载完成 →
+ * base 回落 `BUNDLED_CATALOG`(安全兜底,绝不抛)。消费方(路由 / 标题 / 能力派生 /
+ * 注册表)统一走这里。
  */
 export function getActiveCatalog(): Catalog {
+  // 本机 Pi CLI 供应商(~/.pi/agent/models.json)是外部文件,目录缓存感知不到它的
+  // 变化;每次读取前经注入的 poll 钩子做廉价探测(1s 节流的 mtime stat),发现变更
+  // 就 markChanged 令下方缓存重算。未注入(单测 / 未装配)时 no-op。
+  if (piCliCatalogPoll?.() === true) merged = null;
   if (!merged) merged = computeMerged();
   return merged;
 }

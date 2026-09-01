@@ -2030,6 +2030,10 @@
           "clearFailed": "画像生成 API key のクリアに失敗しました"
         }
       },
+      "piCli": {
+        "managedNote": "プロバイダーとキーはローカル Pi CLI が管理します（Cindy では読み取り専用）",
+        "badge": "ローカル Pi CLI"
+      },
       "enabledModels": {
         "title": "有効なモデル",
         "disableAll": "すべて無効化",

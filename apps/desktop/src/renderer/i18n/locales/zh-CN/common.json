@@ -2030,6 +2030,10 @@
           "clearFailed": "清除图像生成 API key 失败"
         }
       },
+      "piCli": {
+        "managedNote": "供应商与密钥由本机 Pi CLI 管理，Cindy 侧只读展示",
+        "badge": "本机 Pi CLI"
+      },
       "enabledModels": {
         "title": "已启用的模型",
         "disableAll": "全部禁用",

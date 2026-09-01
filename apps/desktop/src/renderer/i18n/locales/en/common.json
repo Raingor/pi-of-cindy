@@ -2021,6 +2021,10 @@
           "clearFailed": "Failed to clear image generation API key"
         }
       },
+      "piCli": {
+        "managedNote": "Provider and keys are managed by the local Pi CLI; read-only in Cindy",
+        "badge": "Local Pi CLI"
+      },
       "enabledModels": {
         "title": "Enabled Models",
         "disableAll": "Disable All",

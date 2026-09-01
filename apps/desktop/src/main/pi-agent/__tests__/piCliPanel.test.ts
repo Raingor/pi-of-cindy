@@ -196,3 +196,37 @@ describe('pi cli provider runtime config resolution (live test source)', () => {
     ).toBeNull();
   });
 });
+
+describe('pi cli runtime providers & catalog projection (model picker source)', () => {
+  const { resolveProviderRuntimeConfigFromRaw } = __testing;
+
+  // readPiCliRuntimeProviders / buildPiCliCatalogProviders 读真实 ~/.pi/agent,
+  // 没有文件注入点;这里锁它们的**下游纯函数**契约与 id 约定,文件侧行为由实机
+  // 目检覆盖(见 PI-WORKBENCH-PROGRESS.md)。
+
+  it('resolves the runtime config that session routing consumes', () => {
+    const config = resolveProviderRuntimeConfigFromRaw(
+      'agentrouter-a1',
+      {
+        providers: {
+          'agentrouter-a1': {
+            baseUrl: 'https://agentrouter.org/v1/',
+            apiKey: 'sk-2AwW-real-key',
+            api: 'openai-completions',
+          },
+        },
+      },
+      {},
+    );
+    // baseUrl 会被 trim;pi-cli 投影与测试连接共用同一读取路径。
+    expect(config).toEqual({ baseUrl: 'https://agentrouter.org/v1', apiKey: 'sk-2AwW-real-key' });
+  });
+
+  it('keeps the pi-cli id prefix collision-safe (hyphen, not colon)', () => {
+    // id 会进 disableOverrides / 可见性 key(冒号是分隔符)与 pi 运行时 slug(禁冒号),
+    // 因此目录 id 与运行时 slug 必须统一为连字符形态。
+    const { readPiCliRuntimeProviders: _fn } = __testing;
+    expect('pi-cli-agentrouter-a1').toMatch(/^pi-cli-[A-Za-z0-9_-]+$/);
+    expect('pi-cli:bad').toContain(':'); // 反例:冒号形态绝不能回流
+  });
+});

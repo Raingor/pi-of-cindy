@@ -35,13 +35,14 @@ import {
   type CatalogIO,
   type CatalogLoadResult,
   type CatalogSourceConfig,
+  type Provider,
 } from '@cindy/model-providers';
 
 import { createLogger } from '../logger.js';
 import { getBaseUrl } from '../manifestService.js';
 import { throwIpcError } from '../utils/ipcValidate.js';
 import { getBuildClientEndpoint, getClientEndpoint } from '../clientEndpointsService.js';
-import {
+import { setPiCliCatalogProviders, setPiCliCatalogPoll,
   commitActiveCatalogSnapshot,
   getActiveCatalog,
   getModelPlaneWarnings,
@@ -51,6 +52,7 @@ import {
   setDiscoveredCodexModels,
   setLocalCatalogOverrides,
 } from './active-catalog.js';
+import { buildPiCliCatalogProviders, readPiCliConfigMtimes } from '../pi-agent/piCliPanel.js';
 import { readModelCatalogOverrides } from './model-catalog-override-store.js';
 import {
   readCodexDiscoveredModels,
@@ -925,6 +927,26 @@ export function getDesktopSelectableCatalog(): Catalog {
 }
 
 /** 进程内单例：注入 active-catalog（同步读）+ 实时连接状态读取器。 */
+/**
+ * 本机 Pi CLI 目录投影的外部变化探测(1s 节流):对比 ~/.pi/agent/models.json 与
+ * auth.json 的 mtime 快照,变化时重读投影并让 active-catalog 重算。getActiveCatalog
+ * 是同步热路径,这里只做 stat + 内存比对,不做重 IO。
+ */
+let piCliMtimes: string | null = null;
+let piCliLastCheckMs = 0;
+export function createPiCliCatalogPoll(): () => boolean {
+  return () => {
+    const now = Date.now();
+    if (piCliMtimes !== null && now - piCliLastCheckMs < 1_000) return false;
+    piCliLastCheckMs = now;
+    const mtimes = readPiCliConfigMtimes();
+    if (piCliMtimes === mtimes) return false;
+    piCliMtimes = mtimes;
+    setPiCliCatalogProviders(buildPiCliCatalogProviders());
+    return true;
+  };
+}
+
 export function getDesktopProviderService(): ProviderService {
   const authState = getAuthState();
   const ownerId = getActiveAppSession().dataOwnerId;
@@ -943,6 +965,12 @@ export function getDesktopProviderService(): ProviderService {
     });
   }
   if (singleton) return singleton;
+  // 本机 Pi CLI 供应商(~/.pi/agent/models.json)注入 active-catalog 合并层:
+  // 投影由 piCliPanel 提供(source:'user' 语义、不含凭证真值);poll 钩子在每次
+  // getActiveCatalog 读取时做 1s 节流的 mtime 探测,外部改 pi 配置后选择器/能力
+  // 清单自动跟随,无需重启。注入一次、幂等(单例守卫之后)。
+  setPiCliCatalogProviders(buildPiCliCatalogProviders());
+  setPiCliCatalogPoll(createPiCliCatalogPoll());
   singleton = createProviderService({
     getCatalog: getDesktopSelectableCatalog,
     connection: {

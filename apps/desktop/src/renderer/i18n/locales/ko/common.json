@@ -2030,6 +2030,10 @@
           "clearFailed": "이미지 생성 API key 지우기에 실패했습니다"
         }
       },
+      "piCli": {
+        "managedNote": "제공자와 키는 로컬 Pi CLI가 관리합니다(Cindy는 읽기 전용)",
+        "badge": "로컬 Pi CLI"
+      },
       "enabledModels": {
         "title": "활성화된 모델",
         "disableAll": "모두 비활성화",

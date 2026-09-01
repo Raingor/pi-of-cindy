@@ -87,6 +87,7 @@ import {
   MANAGED_LMSTUDIO_PROVIDER_ID,
   MANAGED_OLLAMA_PROVIDER_ID,
 } from '../../../shared/localModelRuntime';
+import { PI_CLI_PROVIDER_ID_PREFIX } from '../../../shared/piCliProviders';
 import { OAuthDeviceCodeCard } from './OAuthDeviceCodeCard';
 import { SettingsTextInput } from './SettingsTextInput';
 import { buildUnionRows, UnifiedModelList } from './UnifiedModelList';
@@ -1482,6 +1483,27 @@ function OllamaHeader({ provider, onDelete }: { provider: ProviderView; onDelete
 }
 
 // ---------------------------------------------------------------------------
+// 本机 Pi CLI 供应商只读详情头 —— 供应商与密钥都在 ~/.pi/agent 由 Pi CLI 管理,
+// Cindy 侧不提供编辑/删除/刷新;去 Pi 供应商面板（本机 Pi 供应商 tab）查看与测试。
+function PiCliProviderHeader({ provider }: { provider: ProviderView }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-15 font-semibold text-[var(--settings-section-title)]">
+          {provider.name}
+        </p>
+        <p className="mt-0.5 text-12 text-[var(--settings-section-desc)]">
+          {t('settings.providers.piCli.managedNote')}
+        </p>
+      </div>
+      <span className="shrink-0 rounded-md bg-[var(--surface)] px-2 py-0.5 text-11 text-[var(--settings-section-desc)]">
+        {t('settings.providers.piCli.badge')}
+      </span>
+    </div>
+  );
+}
+
 // 自定义供应商详情头 —— 编辑 / 删除;OAuth 形态另有授权/登出。
 // ---------------------------------------------------------------------------
 
@@ -2317,6 +2339,11 @@ export function ProvidersSection() {
     if (p.source === 'builtin') return <GenericOAuthHeader provider={p} onChanged={refetch} />;
     if (p.id === MANAGED_OLLAMA_PROVIDER_ID) {
       return <OllamaHeader provider={p} onDelete={() => void handleDeleteOllama()} />;
+    }
+    // 本机 Pi CLI 供应商(~/.pi/agent/models.json 的投影):增删改归 Pi CLI,这里只读。
+    // 编辑/删除/刷新模型都指向 Cindy 的 custom CRUD,对投影行没有意义。
+    if (p.id.startsWith(PI_CLI_PROVIDER_ID_PREFIX)) {
+      return <PiCliProviderHeader provider={p} />;
     }
     return (
       <CustomProviderHeader

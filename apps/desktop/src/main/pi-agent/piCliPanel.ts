@@ -19,8 +19,10 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { PI_CLI_PROVIDER_ID_PREFIX } from '../../shared/piCliProviders.js';
 import { getReadyBinaryPath } from '../agent-binaries/index.js';
 import { createLogger } from '../logger.js';
+import type { Provider } from '@cindy/model-providers';
 import type { PiFetchModelsResult, PiProviderTestResult } from './piTypes.js';
 import { fetchProviderModels, testProviderConnection } from './piReader.js';
 
@@ -343,7 +345,184 @@ export async function runPiCliPackageCommand(
   });
 }
 
-export const __testing = { maskApiKey, toModelView, toApiKeyViews, resolveProviderRuntimeConfigFromRaw };
+// ─── Catalog & runtime projection（本机 Pi 供应商接入模型选择器）───────────
+//
+// 需求:输入框的模型选择器要能选用户本机 ~/.pi/agent/models.json 里配的供应商模型
+// （pi-web-switch 的核心能力）。接线三处:
+//   1. buildPiCliCatalogProviders() → active-catalog 合并层（选择器可见性）;
+//   2. resolvePiNativeProviders(pi-host) → PiNativeProviderSpec（会话路由,真 key 经
+//      env 注入子进程）;
+//   3. ProvidersSection 对 `pi-cli:` 前缀行渲染只读头（增删改归 Pi CLI,不走 Cindy CRUD）。
+// providerId 统一用 `pi-cli-<id>`（连字符）:既是会话/停用 override/可见性 key 的
+// 持久化主键,也是 pi 运行时 slug（pi 不接受冒号;连字符避开与内置/自定义 id 撞名）。
+// key 真值不出主进程。
+
+export interface PiCliRuntimeModel {
+  id: string;
+  name: string;
+  contextWindow?: number;
+  maxTokens?: number;
+  reasoning: boolean;
+  supportsImageInput: boolean;
+}
+
+/** 运行时投影条目 —— key 真值只在主进程内存,不进目录/IPC。 */
+export interface PiCliRuntimeProvider {
+  /** Cindy 持久化 providerId（`pi-cli:<id>`）。 */
+  catalogId: string;
+  /** pi 运行时 slug（`pi-cli-<id>`）。 */
+  runtimeId: string;
+  name: string;
+  baseUrl: string;
+  api: string;
+  models: PiCliRuntimeModel[];
+  /** models.json inline apiKey 或 auth.json key,主进程内使用。 */
+  key: string;
+}
+
+function toRuntimeModels(raw: unknown): PiCliRuntimeModel[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PiCliRuntimeModel[] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry) || typeof entry.id !== 'string' || !entry.id.trim()) continue;
+    if (entry.enabled === false) continue; // pi 显式停用的模型不进选择器/路由
+    const input = Array.isArray(entry.input)
+      ? entry.input.filter((x): x is string => typeof x === 'string')
+      : [];
+    out.push({
+      id: entry.id.trim(),
+      name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.id.trim(),
+      ...(optionalNumber(entry.contextWindow) !== undefined
+        ? { contextWindow: optionalNumber(entry.contextWindow) }
+        : {}),
+      ...(optionalNumber(entry.maxTokens) !== undefined
+        ? { maxTokens: optionalNumber(entry.maxTokens) }
+        : {}),
+      reasoning: entry.reasoning === true,
+      supportsImageInput: input.includes('image'),
+    });
+    if (out.length >= MAX_MODELS_PER_PROVIDER) break;
+  }
+  return out;
+}
+
+/**
+ * 读取本机 Pi CLI 供应商的运行时投影（baseUrl + 生效 key + 模型清单）。
+ * 只返回**可路由**的条目:baseUrl 与至少一把 key 齐备（缺 key 的供应商路由必失败,
+ * 投影进选择器只会制造「选了就连不上」的死行）。
+ */
+export function readPiCliRuntimeProviders(): PiCliRuntimeProvider[] {
+  if (!isPiCliDirPresent()) return [];
+  const models = readJsonFile<{ providers?: Record<string, unknown> }>(join(PI_DIR, 'models.json'));
+  if ('error' in models || !isRecord(models.value.providers)) return [];
+  const auth = readJsonFile<Record<string, { key?: string }>>(join(PI_DIR, 'auth.json'));
+  const authMap = 'value' in auth && isRecord(auth.value) ? auth.value : {};
+
+  const out: PiCliRuntimeProvider[] = [];
+  for (const [id, raw] of Object.entries(models.value.providers)) {
+    if (out.length >= MAX_PROVIDERS) break;
+    if (!isRecord(raw) || !id.trim()) continue;
+    const baseUrl = typeof raw.baseUrl === 'string' ? raw.baseUrl.trim() : '';
+    if (!baseUrl) continue;
+    const inlineKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '';
+    const authKey = typeof authMap[id]?.key === 'string' ? authMap[id].key.trim() : '';
+    const key = inlineKey || authKey;
+    if (!key) continue;
+    const modelsList = toRuntimeModels(raw.models);
+    if (modelsList.length === 0) continue;
+    out.push({
+      catalogId: `${PI_CLI_PROVIDER_ID_PREFIX}${id}`,
+      runtimeId: `${PI_CLI_PROVIDER_ID_PREFIX}${id}`,
+      name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : id,
+      baseUrl,
+      api: typeof raw.api === 'string' && raw.api.trim() ? raw.api.trim() : 'openai-completions',
+      models: modelsList,
+      key,
+    });
+  }
+  out.sort((a, b) => a.catalogId.localeCompare(b.catalogId));
+  return out;
+}
+
+/** models.json 的 api 枚举与 pi 的 PiModelApi 同名,原样透传;未知值回落 openai-completions。 */
+function toPiApi(
+  api: string,
+): 'anthropic-messages' | 'openai-responses' | 'openai-completions' | 'google-generative-ai' {
+  switch (api) {
+    case 'anthropic-messages':
+    case 'openai-responses':
+    case 'google-generative-ai':
+      return api;
+    default:
+      return 'openai-completions';
+  }
+}
+
+/**
+ * 投影成 Cindy 目录 `Provider`（source: 'user' 语义,不含任何凭证真值）。
+ * active-catalog 合并层消费:模型选择器/能力派生/连接态（user 来源「存在即连接」）
+ * 全部自动跟随,cc/codex 不受影响（models 只填 pi）。
+ */
+export function buildPiCliCatalogProviders(): Provider[] {
+  return readPiCliRuntimeProviders().map((entry) => ({
+    id: entry.catalogId,
+    name: entry.name,
+    source: 'user' as const,
+    agents: ['pi' as const],
+    auth: { method: 'apiKey' as const },
+    routing: {
+      pi: {
+        wireProtocol:
+          entry.api === 'anthropic-messages'
+            ? ('anthropic-messages' as const)
+            : entry.api === 'openai-responses'
+              ? ('openai-responses' as const)
+              : ('openai-chat' as const),
+        upstream: entry.baseUrl,
+        authStrategy: 'api-key-header' as const,
+      },
+    },
+    models: {
+      pi: entry.models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        contextWindow: m.contextWindow ?? 200_000,
+        ...(m.contextWindow !== undefined ? { contextWindowVerified: true as const } : {}),
+        ...(m.maxTokens !== undefined ? { maxOutput: m.maxTokens } : {}),
+        piApi: toPiApi(entry.api),
+        efforts: m.reasoning ? ['low', 'medium', 'high'] : [],
+        defaultEffort: m.reasoning ? ('high' as const) : null,
+        group: `custom:${entry.runtimeId}`,
+        defaultEnabled: true as const,
+        ...(m.supportsImageInput ? { supportsImageInput: true as const } : {}),
+      })),
+    },
+  }));
+}
+
+export const __testing = {
+  maskApiKey,
+  toModelView,
+  toApiKeyViews,
+  resolveProviderRuntimeConfigFromRaw,
+  readPiCliRuntimeProviders,
+  buildPiCliCatalogProviders,
+};
+
+/**
+ * models.json + auth.json 的 mtime 指纹(目录投影外部变化探测用;任一文件缺失记 '0')。
+ * 变化判定由调用方(createDesktopProviderService 的 poll 钩子)做,这里只读指纹。
+ */
+export function readPiCliConfigMtimes(): string {
+  const stat = (file: string): string => {
+    try {
+      return String(statSync(file).mtimeMs);
+    } catch {
+      return '0';
+    }
+  };
+  return `${stat(join(PI_DIR, 'models.json'))}:${stat(join(PI_DIR, 'auth.json'))}`;
+}
 
 // ─── Provider live test（主进程持真值,Renderer 只收结果）───────────────────
 
@@ -378,7 +557,7 @@ function resolveProviderRuntimeConfigFromRaw(
   if (!raw && !authEntry) return null;
   return {
     ...(typeof raw?.baseUrl === 'string' && raw.baseUrl.trim()
-      ? { baseUrl: raw.baseUrl.trim() }
+      ? { baseUrl: raw.baseUrl.trim().replace(/\/+$/, '') }
       : {}),
     // models.json 的 apiKey 镜像当前生效的那把;auth.json 是 pi 自己读的凭证源。
     apiKey:

@@ -55,6 +55,7 @@ import type {
 } from '@cindy/model-providers';
 
 import { getCachedLocalPiPath } from '../pi-agent/localPi.js';
+import { readPiCliRuntimeProviders } from '../pi-agent/piCliPanel.js';
 import { t } from '../i18n.js';
 import { spawnPiSubagentRunner } from '../cindy-brain/piSubagentRunnerHost.js';
 import { getPiExtraSpawnConfig } from '../mcp-integrations/piEnvironment.js';
@@ -1577,6 +1578,47 @@ export async function resolvePiNativeProviders(ctx: {
     const xai = await buildXaiPiNativeProvider(selectedXaiModel, !!ctx.resumeSessionId, isRemote);
     custom.providers.push(...xai.providers);
     Object.assign(custom.env, xai.env);
+  }
+  // 本机 Pi CLI 供应商(~/.pi/agent/models.json):用户在 pi 里自己配的 BYOM 端点,
+  // 与模型选择器的 `pi-cli-<id>` 投影同源(piCliPanel.readPiCliRuntimeProviders,
+  // 已过滤缺 baseUrl/key/模型的死条目)。key 经 env 注入子进程,不落盘、不进目录。
+  // 本地会话注入;远端 SSH 会话的 loopback/本机路径不可达,由 PiAgent 的
+  // [REMOTE_LOCAL_ONLY_PROVIDER] guard 显式拒绝(与本地 Ollama 同待遇)。
+  if (!isRemote) {
+    const piCliRuntime = readPiCliRuntimeProviders();
+    if (piCliRuntime.length > 0) {
+      const piCliResult = buildPiNativeProvidersFromConfigs(
+        piCliRuntime.map((entry) => ({
+          id: entry.runtimeId,
+          name: entry.name,
+          auth: { method: 'apiKey' },
+          runtimes: {
+            pi: {
+              baseUrl: entry.baseUrl,
+              wireProtocol:
+                entry.api === 'anthropic-messages'
+                  ? ('anthropic-messages' as const)
+                  : entry.api === 'openai-responses'
+                    ? ('openai-responses' as const)
+                    : ('openai-chat' as const),
+              models: entry.models.map((m) => ({
+                id: m.id,
+                name: m.name,
+                contextWindow: m.contextWindow,
+                supportsImageInput: m.supportsImageInput,
+                reasoning: m.reasoning,
+              })),
+            },
+          },
+        })),
+        (runtimeId) => piCliRuntime.find((entry) => entry.runtimeId === runtimeId)?.key ?? null,
+        (id, reason) =>
+          log.warn('resolvePiNativeProviders: skipped local pi-cli provider', { id, reason }),
+        bundledModels ?? undefined,
+      );
+      custom.providers.push(...piCliResult.providers);
+      Object.assign(custom.env, piCliResult.env);
+    }
   }
   return mergePiNativeProviderResults(
     subscriptions,
