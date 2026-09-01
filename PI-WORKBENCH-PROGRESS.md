@@ -13,9 +13,9 @@
 | 4 | Pi 子代理板块右侧标题（piSubagents.title） | ✅ 已完成 |
 | 5 | piSpeedtest.title 同样处理 | ✅ 已完成 |
 | 6 | 加载本地 pi 扩展（按钮装卸，走 CLI） | ✅ 已完成 |
-| 7 | 只保留本地 pi 的 harness | ⚠️ 仅 UI 层收窄（见「遗留」） |
+| 7 | 只保留本地 pi 的 harness | ✅ 真拆完成（binaryPath 延迟解析，2026-09-01） |
 | 8 | 未装 pi（`~/.pi/agent` 不存在）登录后弹窗提示安装 | ✅ 已完成 |
-| 9 | 移除其他 harness | ⚠️ 仅 UI 层收窄（同 #7，被 binaryPath 硬依赖挡住） |
+| 9 | 移除其他 harness | ✅ 真拆完成（同 #7，2026-09-01） |
 
 ## 本轮（08-31 下午）修复内容
 
@@ -109,11 +109,22 @@ Cindy 的 Renderer 会渲染 agent 输出、Markdown、插件面板与内置浏�
 
 ## 接下来要完成的
 
-1. **需求 7/9 真拆 harness**（独立重构）:`base-agent.ts:1913` 构造期硬要求
-   `binaryPath`，`getMaker()` 起动即要 Claude/Codex 二进制
-   （`maker-host/index.ts:726`）。需先让两个 agent 支持 binaryPath 延迟解析，
-   才能停掉预下载、真正只保留 pi harness。届时同步更新
-   `localPiWorkbenchBoundary.test.ts` 的注释（现在记录了为什么锁不死）。
+1. **需求 7/9 真拆 harness**：✅ 完成（2026-09-01）。
+   - `maker-core` `AgentDeps.binaryPath` 改可选 + 新增 `resolveBinaryPath` 钩子；
+     `BaseAgent` 构造期不再抛错，spawn 前最后一道闸下沉到 `protected resolveBinaryPath()`
+     （`binaryPath` 优先，其次 host 注入的现查 resolver，都无则抛可理解错误）。
+     claude-code / codex 的会话启动点改走延迟解析；pi 经 `piBinaryPath` getter 保持非空
+     约定（host 只在 pi 就绪时构造 PiAgent）。
+   - `getMaker()` 删除两条构造期硬断言，改为注入
+     `resolveBinaryPath: () => getCachedBinaryStatus(kind).binaryPath ?? null`
+     （同步快查 lastReadyPath / dev LFS / userData 安装目录，不触发下载；
+     装过二进制的用户历史会话照常可用）。
+   - splash `check-environment` 移除 claude/codex 两段 prepare 与多段下载进度机器
+     （result 固定 skipped），保留 ripgrep fail-fast 与 pi best-effort；
+     生产用户首启不再被强制下载 ~340MB。
+   - `localPiWorkbenchBoundary.test.ts` 改锁新不变量（splash 不再 prepare、getMaker
+     容缺、maker-core 延迟解析三组断言）；新增
+     `packages/maker-core/src/agents/__tests__/baseAgentLazyBinary.test.ts`（6 用例）。
 2. **glossary 既有 44 处违规**：✅ 已裁决（2026-09-01）。真错改文案（zh「子代理/代理」→
    全仓统一的 `Subagents`/`Agent` 保留英文、「折叠」→「收起」、ko「공급자」→「제공자」）；
    两类刻意保留走 glossary.json 的 exempt（不是 baseline）：
@@ -126,9 +137,20 @@ Cindy 的 Renderer 会渲染 agent 输出、Markdown、插件面板与内置浏�
    遗留：zh-TW 同一面板 tab 叫「Pi 工作階段」、面板标题叫「Pi 會話」，存量不一致
    （不在门禁范围），后续统一。另 18 处 proposed（harness/lead 大小写）不阻断，
    属术语未裁决状态，另行处理。
-3. **测连接 / 拉取模型列表**：pi-web-switch 供应商详情有 Test Connection 与
-   Fetch Models，当前 Cindy 面板是只读展示。若要补，主进程已有真值可发请求，
-   Renderer 只收结果——设计上可行，未实现。
+3. **测连接 / 拉取模型列表**：✅ 完成（2026-09-01）。**追加（09-01 晚）**：本机
+   Pi 供应商已接入模型选择器与会话路由——`~/.pi/agent/models.json` 里配了 key 的
+   供应商投影进 active-catalog（`pi-cli-<id>`，source:'user' 语义、不含凭证真值，
+   mtime 轮询跟随外部修改），`resolvePiNativeProviders` 注入同名 native provider
+   （key 经 env 注入子进程）；设置页对投影行渲染只读头（增删改归 Pi CLI）。
+   实机验证：选择器出现 6 家本机供应商分组（kktoken 在 pi 里 enabled:false 被正确
+   过滤），选中 bluesminds GPT-5 发消息得到回复（pi harness + usage 计量正常）。
+   （kktoken 等三家供应商的 Test Connection 返回上游 HTTP 401——agentrouter.org 的
+   key 不接受 /models 端点,链路本身已验证为真实上游响应。）
+   原实现：`maker:pi-cli:test-provider` / `maker:pi-cli:fetch-models` 两通道:Renderer 只传
+   providerId,主进程现读 models.json/auth.json 取 baseUrl + 生效 key 发探测请求
+   （复用 SpeedTest 的 `testProviderConnection` / `fetchProviderModels`,10s/15s 超时），
+   真 key 全程不出主进程。面板详情区加「测连接 / 拉取模型」按钮与结果横幅，
+   拉取到的模型以 chip 列表展示（cap 40，不写回 models.json）。五语文案 +12 key。
 4. （远期）Pi 会话列表点击预览/回收站恢复的实机回归——本轮只改了分组命名，
    未动这些路径。
 
