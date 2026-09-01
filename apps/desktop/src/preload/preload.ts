@@ -7134,12 +7134,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:pi-agent:apply-updates', { names }),
       searchPackages: (query: string) =>
         ipcRenderer.invoke('maker:pi-agent:search-packages', { query }),
-      testProvider: (baseUrl: string, apiKey?: string) =>
-        ipcRenderer.invoke('maker:pi-agent:test-provider', { baseUrl, apiKey }),
-      testModel: (baseUrl: string, modelId: string, apiKey?: string) =>
-        ipcRenderer.invoke('maker:pi-agent:test-model', { baseUrl, modelId, apiKey }),
-      fetchModels: (baseUrl: string, apiKey?: string) =>
-        ipcRenderer.invoke('maker:pi-agent:fetch-models', { baseUrl, apiKey }),
+      // 测速面板单模型探测:同 testCliProvider 口径,真 key 不出主进程。
+      testCliModel: (providerId: string, modelId: string): Promise<{
+        success: boolean;
+        status?: number;
+        latencyMs?: number;
+        message?: string;
+      }> => ipcRenderer.invoke('maker:pi-cli:test-model', { providerId, modelId }),
       exportConfig: () => ipcRenderer.invoke('maker:pi-agent:export-config'),
       importConfig: (config: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:import-config', config),

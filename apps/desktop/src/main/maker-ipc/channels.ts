@@ -760,6 +760,8 @@ export const MAKER_INVOKE = {
    */
   PI_CLI_TEST_PROVIDER: 'maker:pi-cli:test-provider',
   PI_CLI_FETCH_MODELS: 'maker:pi-cli:fetch-models',
+  /** 测速面板单模型探测:与上同口径,Renderer 只传 providerId + modelId。 */
+  PI_CLI_TEST_MODEL: 'maker:pi-cli:test-model',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',
@@ -781,9 +783,6 @@ export const MAKER_INVOKE = {
   PI_AGENT_CHECK_UPDATES: 'maker:pi-agent:check-updates',
   PI_AGENT_APPLY_UPDATES: 'maker:pi-agent:apply-updates',
   PI_AGENT_SEARCH_PACKAGES: 'maker:pi-agent:search-packages',
-  PI_AGENT_TEST_PROVIDER: 'maker:pi-agent:test-provider',
-  PI_AGENT_TEST_MODEL: 'maker:pi-agent:test-model',
-  PI_AGENT_FETCH_MODELS: 'maker:pi-agent:fetch-models',
   PI_AGENT_EXPORT_CONFIG: 'maker:pi-agent:export-config',
   PI_AGENT_IMPORT_CONFIG: 'maker:pi-agent:import-config',
 } as const;

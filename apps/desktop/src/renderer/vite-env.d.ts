@@ -6382,9 +6382,13 @@ interface ElectronAPI {
       checkUpdates: () => Promise<unknown>;
       applyUpdates: (names: string[]) => Promise<unknown>;
       searchPackages: (query: string) => Promise<unknown[]>;
-      testProvider: (baseUrl: string, apiKey?: string) => Promise<unknown>;
-      testModel: (baseUrl: string, modelId: string, apiKey?: string) => Promise<unknown>;
-      fetchModels: (baseUrl: string, apiKey?: string) => Promise<unknown[]>;
+      /** 测速面板单模型探测:同 testCliProvider 口径,只传 providerId + modelId。 */
+      testCliModel: (providerId: string, modelId: string) => Promise<{
+        success: boolean;
+        status?: number;
+        latencyMs?: number;
+        message?: string;
+      }>;
       exportConfig: () => Promise<unknown>;
       importConfig: (config: unknown) => Promise<unknown>;
     };

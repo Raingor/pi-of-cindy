@@ -20,7 +20,17 @@
 
 ## 余项清单
 
-### R1 · Pi 测速面板读的配置键不存在，且明文 key 过 Renderer（P0）
+### R1 · Pi 测速面板读的配置键不存在，且明文 key 过 Renderer（P0）✅ 已修复
+
+> **状态：已修复（2026-09-02）。** `loadProviders` 改走 `piAgent.listCliProviders()`
+> （过滤 `hasApiKey && baseUrl`）；新增 `maker:pi-cli:test-model` 通道（签名
+> `{ providerId, modelId }`，主进程 `testPiCliModel` 复用 `readPiCliProviderRuntimeConfig`
+> 取真 key）；`fetchModelsForProvider` 改走既有 `fetchCliProviderModels(providerId)`；
+> 旧 `PI_AGENT_TEST_MODEL` / `PI_AGENT_FETCH_MODELS` / `PI_AGENT_TEST_PROVIDER` 三个
+> 「Renderer 传 baseUrl+apiKey」通道已从 channels / preload / d.ts / handler 全部删除。
+> 边界契约测试锁在 `piCliPanelBoundary.test.ts`（speed test 无 `apiKey`、旧通道不得还魂、
+> test-model 与测连接同口径）。真机验收（测速 tab 列出本机供应商并跑完 `RUNS_PER_MODEL`
+> 轮）待应用侧目检。
 
 - **现象**：`usePiSpeedTest.loadProviders()` 读 `settings.customProviders`
   （`apps/desktop/src/renderer/hooks/usePiSpeedTest.ts:45`）。**`~/.pi/agent/settings.json`

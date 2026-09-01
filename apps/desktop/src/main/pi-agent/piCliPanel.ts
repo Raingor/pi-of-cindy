@@ -24,7 +24,7 @@ import { getReadyBinaryPath } from '../agent-binaries/index.js';
 import { createLogger } from '../logger.js';
 import type { Provider } from '@cindy/model-providers';
 import type { PiFetchModelsResult, PiProviderTestResult } from './piTypes.js';
-import { fetchProviderModels, testProviderConnection } from './piReader.js';
+import { fetchProviderModels, testModel, testProviderConnection } from './piReader.js';
 
 const log = createLogger('pi-cli-panel');
 
@@ -696,4 +696,15 @@ export async function fetchPiCliProviderModels(providerId: string): Promise<PiFe
   if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
   if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
   return fetchProviderModels(config.baseUrl, config.apiKey);
+}
+
+/** 测速面板单模型探测:POST {baseUrl}/chat/completions,真值 key 只在主进程。 */
+export async function testPiCliModel(
+  providerId: string,
+  modelId: string,
+): Promise<PiProviderTestResult> {
+  const config = readPiCliProviderRuntimeConfig(providerId);
+  if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
+  return testModel(config.baseUrl, modelId, config.apiKey);
 }

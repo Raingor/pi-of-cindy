@@ -15,7 +15,6 @@ import {
   checkUpdates,
   deleteMemoryEntry,
   exportPiConfig,
-  fetchProviderModels,
   getUsageByRange,
   importPiConfig,
   isPiCliInstalled,
@@ -32,8 +31,6 @@ import {
   readSubagents,
   restoreFromTrash,
   searchPackages,
-  testModel,
-  testProviderConnection,
   trashSessionFile,
   updateAgentFields,
   writeHermesMemoryConfig,
@@ -44,11 +41,11 @@ import {
   readPiCliExtensions,
   readPiCliProviders,
   runPiCliPackageCommand,
+  testPiCliModel,
   testPiCliProviderConnection,
 } from '../pi-agent/piCliPanel.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
-  optionalString,
   requireEnum,
   requireNonNegativeInt,
   requireObject,
@@ -141,6 +138,27 @@ export function registerPiAgentIpc(): void {
         throwIpcError('INVALID_PARAMS', 'provider has no baseUrl configured');
       }
       log.warn('pi cli provider fetch-models failed', { providerId });
+      throwIpcError('INTERNAL', message.slice(0, 500));
+    }
+  });
+
+  // 测速面板单模型探测:同上口径,Renderer 只传 providerId + modelId,真 key 全程在主进程。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_TEST_MODEL, async (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const providerId = requireString(payload.providerId, 'providerId');
+    const modelId = requireString(payload.modelId, 'modelId');
+    try {
+      return await testPiCliModel(providerId, modelId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_CLI_PROVIDER_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'provider not found in ~/.pi/agent/models.json');
+      }
+      if (message === 'PI_CLI_PROVIDER_NO_BASEURL') {
+        throwIpcError('INVALID_PARAMS', 'provider has no baseUrl configured');
+      }
+      log.warn('pi cli model test failed', { providerId });
       throwIpcError('INTERNAL', message.slice(0, 500));
     }
   });
@@ -300,32 +318,6 @@ export function registerPiAgentIpc(): void {
     const args = requireObject(raw, 'payload');
     const query = requireString(args.query, 'query');
     return searchPackages(query);
-  });
-
-  // ── Speed Test ──────────────────────────────────────────────────────────
-  ipcMain.handle(MAKER_INVOKE.PI_AGENT_TEST_PROVIDER, async (event, raw: unknown) => {
-    assertTrustedAppRendererEvent(event);
-    const args = requireObject(raw, 'payload');
-    const baseUrl = requireString(args.baseUrl, 'baseUrl');
-    const apiKey = optionalString(args.apiKey);
-    return testProviderConnection(baseUrl, apiKey);
-  });
-
-  ipcMain.handle(MAKER_INVOKE.PI_AGENT_TEST_MODEL, async (event, raw: unknown) => {
-    assertTrustedAppRendererEvent(event);
-    const args = requireObject(raw, 'payload');
-    const baseUrl = requireString(args.baseUrl, 'baseUrl');
-    const modelId = requireString(args.modelId, 'modelId');
-    const apiKey = optionalString(args.apiKey);
-    return testModel(baseUrl, modelId, apiKey);
-  });
-
-  ipcMain.handle(MAKER_INVOKE.PI_AGENT_FETCH_MODELS, async (event, raw: unknown) => {
-    assertTrustedAppRendererEvent(event);
-    const args = requireObject(raw, 'payload');
-    const baseUrl = requireString(args.baseUrl, 'baseUrl');
-    const apiKey = optionalString(args.apiKey);
-    return fetchProviderModels(baseUrl, apiKey);
   });
 
   // ── Config Import/Export ────────────────────────────────────────────────

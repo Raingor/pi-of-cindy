@@ -4,7 +4,6 @@ interface ProviderInfo {
   id: string;
   name: string;
   baseUrl: string;
-  apiKey?: string;
 }
 
 interface FetchedModel {
@@ -28,6 +27,11 @@ function avg(nums: number[]): number {
   return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
 }
 
+/**
+ * Pi 测速面板数据层 —— 全部走「只传 providerId」的 pi-cli 通道
+ * (listCliProviders / fetchCliProviderModels / testCliModel)。
+ * 供应商清单来自本机 ~/.pi/agent 的剥密视图;真 key 全程留在主进程。
+ */
 export function usePiSpeedTest() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [models, setModels] = useState<FetchedModel[]>([]);
@@ -39,20 +43,20 @@ export function usePiSpeedTest() {
 
   const loadProviders = useCallback(async () => {
     const api = window.electronAPI?.maker?.piAgent;
-    if (!api) return;
+    if (!api?.listCliProviders) return;
 
     try {
-      const settings = (await api.readSettings()) as {
-        customProviders?: Record<string, { name?: string; baseUrl?: string; apiKey?: string }>;
-      };
-      const entries = Object.entries(settings?.customProviders ?? {});
-      const list: ProviderInfo[] = entries
-        .filter(([, v]) => (v.baseUrl ?? '').trim() !== '')
-        .map(([id, v]) => ({
-          id,
-          name: v.name ?? id,
-          baseUrl: v.baseUrl ?? '',
-          apiKey: v.apiKey,
+      const snapshot = await api.listCliProviders();
+      if (!snapshot.installed || snapshot.error) {
+        setProviders([]);
+        return;
+      }
+      const list: ProviderInfo[] = snapshot.providers
+        .filter((p) => p.hasApiKey && (p.baseUrl ?? '').trim() !== '')
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          baseUrl: p.baseUrl ?? '',
         }));
       setProviders(list);
     } catch {
@@ -63,7 +67,7 @@ export function usePiSpeedTest() {
   const fetchModelsForProvider = useCallback(
     async (provider: ProviderInfo) => {
       const api = window.electronAPI?.maker?.piAgent;
-      if (!api) return;
+      if (!api?.fetchCliProviderModels) return;
 
       setFetching(true);
       setFetchError(null);
@@ -71,9 +75,13 @@ export function usePiSpeedTest() {
       setResults(new Map());
 
       try {
-        const raw = await api.fetchModels(provider.baseUrl, provider.apiKey);
-        const fetched = (raw as FetchedModel[]) ?? [];
-        setModels(fetched);
+        const result = await api.fetchCliProviderModels(provider.id);
+        if (result.error) {
+          setFetchError(result.error);
+          setModels([]);
+          return;
+        }
+        setModels(result.models);
       } catch (err) {
         setFetchError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -98,7 +106,7 @@ export function usePiSpeedTest() {
   const testOneModel = useCallback(
     async (provider: ProviderInfo, model: FetchedModel) => {
       const api = window.electronAPI?.maker?.piAgent;
-      if (!api) return;
+      if (!api?.testCliModel) return;
 
       setResults((prev) => {
         const next = new Map(prev);
@@ -115,11 +123,7 @@ export function usePiSpeedTest() {
         if (i > 0) await sleep(600);
 
         try {
-          const data = (await api.testModel(
-            provider.baseUrl,
-            model.id,
-            provider.apiKey,
-          )) as { success: boolean; latencyMs?: number; message?: string };
+          const data = await api.testCliModel(provider.id, model.id);
 
           if (data.success) {
             success++;

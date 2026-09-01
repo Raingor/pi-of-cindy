@@ -120,10 +120,34 @@ describe('pi cli package mutation contract', () => {
       'PI_CLI_LIST_PROVIDERS',
       'PI_CLI_LIST_EXTENSIONS',
       'PI_CLI_PACKAGE_MUTATE',
+      'PI_CLI_TEST_PROVIDER',
+      'PI_CLI_FETCH_MODELS',
+      'PI_CLI_TEST_MODEL',
     ]) {
       const start = handlers.indexOf(`MAKER_INVOKE.${channel}`);
       expect(start, channel).toBeGreaterThan(-1);
       expect(handlers.slice(start, start + 260)).toContain('assertTrustedAppRendererEvent(event)');
     }
+  });
+
+  it('speed test never ships a key through the renderer', () => {
+    const hook = readSource('src/renderer/hooks/usePiSpeedTest.ts');
+    // 测速面板不读 settings(那会带回明文 apiKey),也不再出现 apiKey 形参。
+    expect(hook).not.toContain('readSettings');
+    expect(hook).not.toMatch(/\bapiKey\b/);
+
+    // 旧的「Renderer 传 baseUrl+apiKey」通道已删,不得借尸还魂。
+    const channels = readSource('src/main/maker-ipc/channels.ts');
+    for (const legacy of ['PI_AGENT_TEST_PROVIDER', 'PI_AGENT_TEST_MODEL', 'PI_AGENT_FETCH_MODELS']) {
+      expect(channels.includes(legacy), legacy).toBe(false);
+    }
+
+    // 单模型探测与供应商详情同口径:主进程现读真 key,Handler 只投递结果。
+    const panel = readSource('src/main/pi-agent/piCliPanel.ts');
+    const start = panel.indexOf('export async function testPiCliModel');
+    expect(start).toBeGreaterThan(-1);
+    const body = panel.slice(start, panel.indexOf('\n}', start));
+    expect(body).toContain('readPiCliProviderRuntimeConfig(providerId)');
+    expect(body).toContain('testModel(config.baseUrl, modelId, config.apiKey)');
   });
 });
