@@ -23,7 +23,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Check,
   Copy,
-  Gift,
   GripVertical,
   KeyRound,
   LogOut,
@@ -43,7 +42,6 @@ import { useModelAccessStatus } from '@/hooks/useModelAccessStatus';
 import { useModelAccessCreditUsage } from '@/hooks/useModelAccessCreditUsage';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
-import { useSignInToCindy } from '@/hooks/useSignInToCindy';
 import { useProviderOAuthDeviceCode } from '@/hooks/useProviderOAuthDeviceCode';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/lib/toast';
@@ -98,7 +96,6 @@ import { XDIncMark } from '@/components/icons/XDIncMark';
 import { hasProviderLogo, ProviderLogoMark } from '@/components/icons/ProviderLogoMark';
 import { SortableList } from '@/components/sidebar/SortableList';
 
-import { localCliDisplayName, type LocalCliDetection } from '../../../shared/localCliDetect';
 import { isBuiltinRefreshableProviderId } from '../../../shared/providerModelRefresh';
 import { applyProviderOrder } from '../../../shared/providerOrder';
 import type { CustomProviderConfig, ProviderView } from '@cindy/model-providers';
@@ -159,22 +156,6 @@ function ConnectedPill() {
 }
 
 /** OpenAI OAuth 仍可恢复但需要用户重新连接；使用中性 chip，避免表现成全局故障。 */
-function ReconnectRequiredPill() {
-  const { t } = useTranslation();
-  return (
-    <span
-      className="flex h-[22px] shrink-0 select-none items-center gap-1 rounded-full px-2.5 text-11 font-medium"
-      style={{
-        backgroundColor: 'var(--settings-btn-secondary-bg)',
-        color: 'var(--settings-section-desc)',
-      }}
-    >
-      <RefreshCw size={11} />
-      {t('settings.providers.openai.reconnectRequired')}
-    </span>
-  );
-}
-
 /** 摘要只展示去重后的模型数，避免把「模型 × Agent」误读成模型数量。 */
 function ModelCountChip({ count }: { count: number }) {
   const { t } = useTranslation();
@@ -187,6 +168,23 @@ function ModelCountChip({ count }: { count: number }) {
       }}
     >
       {t('settings.providers.models.modelCount', { count })}
+    </span>
+  );
+}
+
+/** OpenAI OAuth 仍可恢复但需要用户重新连接；使用中性 chip，避免表现成全局故障。 */
+function ReconnectRequiredPill() {
+  const { t } = useTranslation();
+  return (
+    <span
+      className="flex h-[22px] shrink-0 select-none items-center gap-1 rounded-full px-2.5 text-11 font-medium"
+      style={{
+        backgroundColor: 'var(--settings-btn-secondary-bg)',
+        color: 'var(--settings-section-desc)',
+      }}
+    >
+      <RefreshCw size={11} />
+      {t('settings.providers.openai.reconnectRequired')}
     </span>
   );
 }
@@ -1626,59 +1624,9 @@ function CustomProviderHeader({
 // 左栏列表
 // ---------------------------------------------------------------------------
 
-/**
- * Cindy AI 登录引导行:无账号会话(local/signed-out)的目录被
- * getDesktopSelectableCatalog 过滤掉 xd 供应商,设置页会完全丢失官方服务的
- * 发现/购买入口(2026-07-24 用户反馈)。此行在 xd 缺席时置顶出现,点击右栏
- * 展示登录引导;不触碰 main 的目录过滤(无账号确实不可路由 xd)。
- */
-const CINDY_SIGNIN_ID = 'xd-signin';
-
-function CindySigninRow({ selected, onSelect }: { selected: boolean; onSelect: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected}
-      className={cn(
-        'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-        selected
-          ? 'bg-[var(--settings-menu-bg-selected)]'
-          : 'hover:bg-[var(--settings-menu-bg-hover)]',
-      )}
-    >
-      <div
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-        style={{
-          backgroundColor: 'var(--settings-integration-avatar-bg)',
-          border: '1px solid var(--settings-integration-avatar-border)',
-          color: 'var(--settings-integration-avatar-icon)',
-        }}
-      >
-        <XDIncMark size={14} />
-      </div>
-      <span
-        className="min-w-0 flex-1 truncate text-13 font-medium"
-        style={{ color: 'var(--settings-section-title)' }}
-      >
-        {t('settings.providers.xd.title')}
-      </span>
-      {/* 徽标不大写不加字距:224px 窄栏里 en「RECOMMENDED」会把行名挤成「Cin…」。 */}
-      <span
-        className="shrink-0 rounded-full border px-1.5 py-px text-10 font-medium"
-        style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)' }}
-      >
-        {t('settings.providers.xdSignin.badge')}
-      </span>
-    </button>
-  );
-}
-
 function ListRow({
   provider,
   selected,
-  reconnectRequired = false,
   onSelect,
   position,
   total,
@@ -1687,7 +1635,6 @@ function ListRow({
 }: {
   provider: ProviderView;
   selected: boolean;
-  reconnectRequired?: boolean;
   onSelect: () => void;
   position: number;
   total: number;
@@ -1768,14 +1715,7 @@ function ListRow({
         >
           {title}
         </span>
-        {reconnectRequired ? (
-          <span
-            className="shrink-0 select-none text-11"
-            style={{ color: 'var(--settings-integration-warning)' }}
-          >
-            {t('settings.providers.openai.reconnectRequired')}
-          </span>
-        ) : provider.suspended ? (
+        {provider.suspended ? (
           // 已停用比模型数更要紧:窄栏(224px)只放得下一个注记,停用时以状态取代计数。
           <span className="shrink-0 select-none text-11" style={{ color: 'var(--text-tertiary)' }}>
             {t('settings.providers.pill.suspended')}
@@ -1793,9 +1733,7 @@ function ListRow({
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full"
           style={{
-            backgroundColor: reconnectRequired
-              ? 'var(--remote-status-failed)'
-              : provider.id === MANAGED_OLLAMA_PROVIDER_ID
+            backgroundColor: provider.id === MANAGED_OLLAMA_PROVIDER_ID
                 ? ollamaLive
                   ? 'var(--remote-status-ready)'
                   : 'var(--border-default)'
@@ -1809,57 +1747,6 @@ function ListRow({
   );
 }
 
-/** 检测建议行:本机 CLI 已安装且对应渠道未连接时出现;点击直达向导的授权步。 */
-function SuggestionRow({
-  detection,
-  provider,
-  onClick,
-}: {
-  detection: LocalCliDetection;
-  provider: ProviderView;
-  onClick: () => void;
-}) {
-  const { t } = useTranslation();
-  const cliName = localCliDisplayName(detection.cli);
-  const title = provider.id === 'xd' ? t('settings.providers.xd.title') : provider.name;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={t(
-        detection.loggedIn
-          ? 'settings.providers.detect.hintLoggedIn'
-          : 'settings.providers.detect.hintInstalled',
-        { cli: cliName },
-      )}
-      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--settings-menu-bg-hover)]"
-    >
-      <div
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-70"
-        style={{
-          backgroundColor: 'var(--settings-integration-avatar-bg)',
-          border: '1px solid var(--settings-integration-avatar-border)',
-          color: 'var(--settings-integration-avatar-icon)',
-        }}
-      >
-        {providerIcon(provider, 14)}
-      </div>
-      <span className="min-w-0 flex-1 truncate text-13" style={{ color: 'var(--text-secondary)' }}>
-        {title}
-      </span>
-      <span
-        className="flex h-[22px] shrink-0 items-center rounded-full border px-2.5 text-11 font-medium"
-        style={{
-          borderColor: 'var(--settings-btn-secondary-border)',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        {t('settings.providers.detect.action')}
-      </span>
-    </button>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Section
 // ---------------------------------------------------------------------------
@@ -1867,14 +1754,9 @@ function SuggestionRow({
 export function ProvidersSection() {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
-  const signInToCindy = useSignInToCindy();
   const { dataOwnerId } = useAuth();
   const { confirm } = useConfirmDialog();
   const { providers, providerOrder, ownerGeneration, loading, refetch } = useProviders();
-  // OpenAI 的 reconnect-required 是 useCodexAuth 独有状态(目录 connected 此时为 false):
-  // 该状态下 OpenAI 行必须留在左栏,否则「重新连接」入口不可达,用户被迫从向导重发现。
-  const codexAuth = useCodexAuth();
-  const openaiReconnectRequired = codexAuth.state.kind === 'reconnect-required';
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingProviderOrder, setPendingProviderOrder] = useState<{
@@ -1897,7 +1779,6 @@ export function ProvidersSection() {
     null | { mode: 'create' } | { mode: 'edit'; config: CustomProviderConfig }
   >(null);
   const addProviderButtonRef = useRef<HTMLButtonElement>(null);
-  const [detections, setDetections] = useState<LocalCliDetection[]>([]);
   const [rediscovering, setRediscovering] = useState(false);
   const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null);
   // React state 负责渲染反馈；ref 才是同一事件循环内立即生效的互斥锁，防止双击在
@@ -1923,20 +1804,6 @@ export function ProvidersSection() {
       .catch(() => undefined);
   }, []);
 
-  // 本机 CLI 扫描:挂载时一次(失败静默空数组;检测建议是增强,不是依赖)。
-  useEffect(() => {
-    let cancelled = false;
-    void window.electronAPI.maker
-      .scanLocalCli()
-      .then((r) => {
-        if (!cancelled) setDetections(r.detections);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // SortableJS drop 后先由 React 乐观铺左栏可见顺序，等 PROVIDER_CHANGED 回来的 main
   // 快照与目标一致再清掉覆盖；隐藏项是否有持久化槽位只由 Main 判定，Renderer 不猜。
   const pendingProviderOrderIds =
@@ -1956,33 +1823,22 @@ export function ProvidersSection() {
   const visibleProviders = useMemo(() => {
     const rows: ProviderView[] = [];
     for (const p of providers) {
-      if (p.source === 'builtin') {
-        // reconnect-required 视同占行:凭证失效 ≠ 用户断开,重连入口必须保留。
-        // OpenAI 图像 key 与 ChatGPT OAuth 两套凭证解耦:imageModels 已声明时,
-        // 即使未做 OAuth 登录也需占行以便配置 / 管理图像 key。
-        const openaiHasImageCap = p.id === 'openai' && (p.imageModels?.length ?? 0) > 0;
-        if (
-          p.id === 'xd' ||
-          p.connected ||
-          (p.id === 'openai' && openaiReconnectRequired) ||
-          openaiHasImageCap
-        ) {
-          rows.push(p);
-        }
-        continue;
-      }
+      // pi-only 改造:设置页不再展示 Cindy 自带供应商(目录 builtin 段:xd 网关、
+      // Anthropic / OpenAI / xAI / Gemini 订阅直连)。它们的模型仍由目录与运行时
+      // 服务(composer 选择器、pi 网关投影),只是供应商管理 UI 收敛到本机来源:
+      // ~/.pi/agent 投影(pi-cli-*)、用户自定义供应商与本机引擎(Ollama/LM Studio)。
+      if (p.source !== 'user') continue;
       if (
-        p.source === 'user' &&
-        (p.id === MANAGED_OLLAMA_PROVIDER_ID ||
-          p.id === MANAGED_LMSTUDIO_PROVIDER_ID ||
-          providerHasModels(p) ||
-          (p.auth.method === 'oauth' && !!p.auth.oauth))
+        p.id === MANAGED_OLLAMA_PROVIDER_ID ||
+        p.id === MANAGED_LMSTUDIO_PROVIDER_ID ||
+        providerHasModels(p) ||
+        (p.auth.method === 'oauth' && !!p.auth.oauth)
       ) {
         rows.push(p);
       }
     }
     return rows;
-  }, [providers, openaiReconnectRequired]);
+  }, [providers]);
 
   const orderedVisibleProviders = useMemo(
     () => applyProviderOrder(visibleProviders, providerOrder),
@@ -2056,7 +1912,6 @@ export function ProvidersSection() {
       if (reorderedVisibleIds.every((id, index) => id === currentIds[index])) return;
       if (ownerGeneration === null) return;
       if (
-        selectedId !== CINDY_SIGNIN_ID &&
         !listProviders.some((provider) => provider.id === selectedId) &&
         listProviders[0]
       ) {
@@ -2114,17 +1969,6 @@ export function ProvidersSection() {
 
   // 检测建议:CLI 已安装 + 对应渠道存在于目录 + 未连接,且**未以任何形态占行**
   // (OpenAI reconnect-required 已在主列表时,不再重复出建议行)。
-  const suggestions = useMemo(() => {
-    const listedIds = new Set(listProviders.map((p) => p.id));
-    return detections
-      .filter((d) => d.installed && !listedIds.has(d.providerId))
-      .map((d) => ({ detection: d, provider: byId.get(d.providerId) }))
-      .filter(
-        (s): s is { detection: LocalCliDetection; provider: ProviderView } =>
-          !!s.provider && !s.provider.connected,
-      );
-  }, [detections, byId, listProviders]);
-
   /**
    * 深链定位(?connect=<id> / ?wizard=1,来自「连接供应商」引导卡等):providers
    * 就绪后一次性消费,消费即从 URL 摘除(replace,防返回/刷新重复触发)。
@@ -2145,9 +1989,6 @@ export function ProvidersSection() {
       const target = byId.get(connect);
       if (listProviders.some((p) => p.id === connect)) {
         setSelectedId(connect);
-      } else if (connect === 'xd') {
-        // 无账号会话目录不含 xd → 落到登录引导行(不能当 preset 交给向导)。
-        setSelectedId(CINDY_SIGNIN_ID);
       } else if (connect === MANAGED_OLLAMA_PROVIDER_ID) {
         setWizard({});
       } else if (target && target.source === 'builtin') {
@@ -2163,13 +2004,6 @@ export function ProvidersSection() {
     next.delete('wizard');
     setSearchParams(next, { replace: true });
   }, [loading, searchParams, setSearchParams, byId, listProviders]);
-
-  // Cindy AI 登录引导:无账号会话目录不含 xd(见 CindySigninRow 头注释),置顶
-  // 引导行;列表为空时默认选中它(右栏直接展示登录引导,不留「点击添加」空态)。
-  const showCindySignin = !byId.has('xd');
-  const cindySigninActive =
-    showCindySignin &&
-    (selectedId === CINDY_SIGNIN_ID || (selectedId == null && listProviders.length === 0));
 
   // 选中项:默认第一行;所选供应商被删除/消失时回退第一行(不留空详情)。
   const effectiveSelected = useMemo(() => {
@@ -2388,12 +2222,6 @@ export function ProvidersSection() {
             style={{ borderColor: 'var(--settings-theme-card-border)' }}
           >
             <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-              {showCindySignin && (
-                <CindySigninRow
-                  selected={cindySigninActive}
-                  onSelect={() => setSelectedId(CINDY_SIGNIN_ID)}
-                />
-              )}
               {listProviders.length > 1 && (
                 <div className="select-none px-1.5 pb-1 pt-1">
                   <span className="text-11" style={{ color: 'var(--text-tertiary)' }}>
@@ -2408,8 +2236,7 @@ export function ProvidersSection() {
                 renderItem={(provider, index) => (
                   <ListRow
                     provider={provider}
-                    selected={!cindySigninActive && effectiveSelected?.id === provider.id}
-                    reconnectRequired={provider.id === 'openai' && openaiReconnectRequired}
+                    selected={effectiveSelected?.id === provider.id}
                     onSelect={() => setSelectedId(provider.id)}
                     position={index + 1}
                     total={listProviders.length}
@@ -2426,26 +2253,6 @@ export function ProvidersSection() {
               <span className="sr-only" aria-live="polite" aria-atomic="true">
                 {orderAnnouncement}
               </span>
-              {suggestions.length > 0 && (
-                <>
-                  <span
-                    className="px-2.5 pb-1 pt-3 text-11 font-medium uppercase"
-                    style={{ color: 'var(--text-tertiary)', letterSpacing: '0.5px' }}
-                  >
-                    {t('settings.providers.detect.groupLabel')}
-                  </span>
-                  {suggestions.map((s) => (
-                    <SuggestionRow
-                      key={s.detection.cli}
-                      detection={s.detection}
-                      provider={s.provider}
-                      onClick={() =>
-                        setWizard({ entry: { kind: 'builtin', providerId: s.provider.id } })
-                      }
-                    />
-                  ))}
-                </>
-              )}
             </div>
             <div
               className="border-t p-2"
@@ -2470,53 +2277,7 @@ export function ProvidersSection() {
           {/* 右栏详情:详情头/条带固定,仅模型列表(UnifiedModelList 内部)滚动 ——
               长清单滚动时供应商名称、连接状态与工具行不随之滚走(2026-07 定稿)。 */}
           <div className="flex min-w-0 flex-1 flex-col">
-            {cindySigninActive ? (
-              /* 登录引导是 brand-scale surface(DESIGN §3):48px 标识 → 24px 名字 →
-                 一行价值主张 → 赠送余额徽标 → 黑 CTA,间距走 8px 系统。底部留白比
-                 顶部多,视觉重心才落在上三分之一。 */
-              <div className="flex flex-1 flex-col items-center justify-center px-10 pb-14 pt-8 text-center">
-                <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-                  style={{
-                    backgroundColor: 'var(--settings-integration-avatar-bg)',
-                    border: '1px solid var(--settings-integration-avatar-border)',
-                    color: 'var(--settings-integration-avatar-icon)',
-                  }}
-                >
-                  <XDIncMark size={24} />
-                </div>
-                <span
-                  className="mt-4 text-24 font-medium leading-[1.2]"
-                  style={{ color: 'var(--settings-section-title)' }}
-                >
-                  {t('settings.providers.xd.title')}
-                </span>
-                <span
-                  className="mt-3 max-w-[380px] text-14 leading-[1.5]"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {t('settings.providers.xdSignin.desc')}
-                </span>
-                {/* 赠送余额是一个安静的事实标签,不是促销文案:灰阶 chip、不写金额
-                    (CN / Global 金额不同且服务端可调,数字只在计费页出现)。 */}
-                <span
-                  className="mt-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-12 font-medium"
-                  style={{
-                    backgroundColor: 'var(--surface-chip)',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  <Gift size={13} />
-                  {t('settings.providers.xdSignin.grantBadge')}
-                </span>
-                <CtaPillButton
-                  size="lg"
-                  className="mt-6"
-                  label={t('settings.providers.xdSignin.cta')}
-                  onClick={() => void signInToCindy()}
-                />
-              </div>
-            ) : effectiveSelected ? (
+            {effectiveSelected ? (
               <>
                 {renderDetailHeader(effectiveSelected)}
                 <>
