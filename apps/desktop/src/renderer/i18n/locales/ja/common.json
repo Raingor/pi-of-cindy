@@ -3294,7 +3294,15 @@
       "pending": "待機中",
       "ok": "成功",
       "partial": "部分成功",
-      "fail": "失敗"
+      "fail": "失敗",
+      "slowMode": "スローモード（レート制限対策）",
+      "fetchedCount": "{{count}} 個のモデルを取得（ローカル保存済み）",
+      "clear": "クリア",
+      "addAllPassed": "合格モデルをすべて追加",
+      "addAllPassedDesc": "100% 合格したモデルをすべてプロバイダー設定に追加します",
+      "addToProvider": "追加",
+      "added": "設定済み",
+      "colAction": "操作"
     },
     "computerUse": {
       "title": "自動操作",

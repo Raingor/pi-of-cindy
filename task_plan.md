@@ -152,3 +152,37 @@
 - [ ] 余项 3：auth-adapters 的 claude/codex 段、deferredCodexRestart/codex-credential-switch
       的惰化结构、SessionImport 后端——待其消费方（供应商区 auth IPC、voice-input、
       历史导入）retarget 后再删
+
+## 第四轮：设置 Pi 模块与 pi-web-switch 全量对齐（用户指令 2026-09-01）
+
+> 基准：pi-web-switch HEAD `050f9da`（v0.8.3），仓库 `/Users/raingor_ye/wwwroot/M-my-project/pi-web-switch`。
+> 逐页基准情报来自 intercom 会话 `01a05d63`（pws 侧梳理）。对齐口径：**功能、排版、信息密度 1:1；
+> 颜色走 Cindy 语义 token 双模式**（pws 为深色硬编码，Cindy 按 DESIGN.md 必须 Light/Dark 双模式，
+> 视觉等效映射、不逐色复制）。pws 的「密钥明文显形」在 Cindy 为安全红线
+> （electron-security-and-process-boundaries.md），登记为唯一有意不做项，待用户裁决。
+
+### 差距清单（Cindy 现状 → pws 基准）
+- P1 测速 pi-speedtest：双速度档(429 退避重试)、结果/目录 localStorage 持久化、一键添加通过模型
+  到正式配置(需新 IPC maker:pi-cli:add-model)、fetch 成功条+清空、rail 计数徽标、page-kicker 排版
+- P2 供应商 pi-providers：粘贴批量导入、添加/编辑供应商表单(9 API)、模型增删编辑、内置 provider
+  baseUrl/api 覆盖、复制提供商、全部启用/禁用 + 已启用汇总（对照 ProvidersModelsPage 2745L）
+- P3 会话 pi-sessions：purge 永久删除、删除会话入口、项目分组、autoTrashed 提示（pws 1064L）
+- P4 记忆 pi-memory：复制按钮、三文件(MEMORY/USER/failures)结构核对、Markdown 渲染（pws 895L）
+- P5 仪表盘 pi-dashboard：缓存命中率进度条(cacheRead/cacheWrite)、StatCard tokens ≈格式核对；
+  codex-usage-status 登记平台例外（Cindy pi-only 无 codex 账号数据源）
+- P6 子代理 pi-subagents：编辑 model/thinking（IPC updateAgent 已存在）
+- P7 扩展包 pi-packages：推荐+模糊搜索双 tab（对照 pws SettingsPage PackageBrowser）
+
+### 执行记录
+- [x] P1 测速页全对齐（2026-09-01，提交见 git log）
+  - 双速度档 normal/slow + 429 退避重试（SPEED_PROFILES 与 pws 逐字一致）
+  - localStorage 持久化：speedtest:model-catalog / model-results / last-provider（切页往返不丢）
+  - 添加到正式配置：maker:pi-cli:add-model（主进程写 models.json，payload 无凭证字段、字段白名单、同 id 幂等）+ 单行添加 + 全部通过 + 已在配置状态 + loadProviders 重同步
+  - fetch 成功条 + 清空、rail 计数徽标、操作列、kicker 排版；列出口径改为「有 baseUrl 即列」（pws 同口径，取代 R1 的 hasApiKey 过滤）
+  - 实机验证：27 模型拉取/全量测速/429·410·timeout 分类/添加 6 个通过模型写盘/UI 已在配置闭环；测试后已恢复用户 models.json
+- [ ] P2 供应商页补齐
+- [ ] P3 会话页补齐
+- [ ] P4 记忆页补齐
+- [ ] P5 仪表盘补齐
+- [ ] P6 子代理补齐
+- [ ] P7 扩展包补齐

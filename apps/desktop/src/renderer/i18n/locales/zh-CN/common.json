@@ -3294,7 +3294,15 @@
       "pending": "等待中",
       "ok": "通过",
       "partial": "部分通过",
-      "fail": "失败"
+      "fail": "失败",
+      "slowMode": "慢速档（防限流）",
+      "fetchedCount": "已拉取 {{count}} 个模型（已本地保存）",
+      "clear": "清空",
+      "addAllPassed": "添加全部通过",
+      "addAllPassedDesc": "把所有 100% 通过的模型加入供应商配置",
+      "addToProvider": "添加",
+      "added": "已在配置",
+      "colAction": "操作"
     },
     "computerUse": {
       "title": "自动操作",

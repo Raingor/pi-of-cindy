@@ -3285,7 +3285,15 @@
       "pending": "Pending",
       "ok": "OK",
       "partial": "Partial",
-      "fail": "Failed"
+      "fail": "Failed",
+      "slowMode": "Slow mode (rate-limit safe)",
+      "fetchedCount": "Fetched {{count}} models (stored locally)",
+      "clear": "Clear",
+      "addAllPassed": "Add all passed",
+      "addAllPassedDesc": "Add every model that passed 100% to the provider config",
+      "addToProvider": "Add",
+      "added": "In config",
+      "colAction": "Action"
     },
     "computerUse": {
       "title": "Automation",

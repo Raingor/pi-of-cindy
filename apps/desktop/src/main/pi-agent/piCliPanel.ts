@@ -594,6 +594,7 @@ export const __testing = {
   resolveKeyRef,
   resolveProviderRuntimeConfigFromRaw,
   applyPiCliKeySwitch,
+  applyPiCliAddModel,
   readPiCliRuntimeProviders,
   buildPiCliCatalogProviders,
 };
@@ -773,4 +774,101 @@ export function switchPiCliProviderKey(providerId: string, keyId: string): void 
   } catch {
     throw new Error('PI_CLI_WRITE_FAILED');
   }
+}
+
+// ─── 模型追加（测速页「添加到正式配置」）──────────────────────────
+
+/** 测速页传来的模型定义（不含任何凭证字段）。 */
+export interface PiCliModelInput {
+  id: string;
+  name?: string;
+  reasoning?: boolean;
+  input?: string[];
+  contextWindow?: number;
+  maxTokens?: number;
+  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+}
+
+/**
+ * 纯函数：把测速页拉取到的模型追加进 models.json 里某 provider 的 models 数组，
+ * 返回写回用整文档。语义对齐 pi-web-switch 的 addToProvider：同 id 已存在时
+ * 幂等跳过（added=false）；新模型不动 settings.enabledModels —— 白名单非空时
+ * 新模型默认不在名单内 = 未启用，用户在供应商页打开（与 pws "added disabled
+ * by default" 同语义）。
+ *
+ * 抛类型化错误：PI_CLI_PROVIDER_NOT_FOUND / PI_CLI_MODEL_INVALID /
+ * PI_CLI_WRITE_FAILED（wrapper）。
+ */
+export function applyPiCliAddModel(
+  modelsJson: unknown,
+  providerId: string,
+  model: PiCliModelInput,
+): { doc: Record<string, unknown>; added: boolean } {
+  const id = providerId.trim();
+  if (!id || !isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const block = isRecord(modelsJson.providers) ? modelsJson.providers[id] : undefined;
+  const disabledBlock = isRecord(modelsJson._disabledProviders)
+    ? modelsJson._disabledProviders[id]
+    : undefined;
+  const provider = isRecord(block) ? block : isRecord(disabledBlock) ? disabledBlock : null;
+  if (!provider) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+
+  // 模型定义校验：pi 的 ModelDefinitionSchema 要求 id 非空；其余字段带默认值。
+  const modelId = typeof model?.id === 'string' ? model.id.trim() : '';
+  if (!modelId) throw new Error('PI_CLI_MODEL_INVALID');
+  const cost =
+    isRecord(model.cost)
+      ? {
+          input: optionalNumber(model.cost.input) ?? 0,
+          output: optionalNumber(model.cost.output) ?? 0,
+          cacheRead: optionalNumber(model.cost.cacheRead) ?? 0,
+          cacheWrite: optionalNumber(model.cost.cacheWrite) ?? 0,
+        }
+      : undefined;
+  const input = Array.isArray(model.input)
+    ? model.input.filter((x): x is string => typeof x === 'string')
+    : undefined;
+  const definition: Record<string, unknown> = {
+    id: modelId,
+    ...(typeof model.name === 'string' && model.name.trim() ? { name: model.name.trim() } : {}),
+    ...(model.reasoning === true ? { reasoning: true } : {}),
+    ...(input && input.length > 0 ? { input } : {}),
+    ...(optionalNumber(model.contextWindow) !== undefined
+      ? { contextWindow: optionalNumber(model.contextWindow) }
+      : {}),
+    ...(optionalNumber(model.maxTokens) !== undefined
+      ? { maxTokens: optionalNumber(model.maxTokens) }
+      : {}),
+    ...(cost ? { cost } : {}),
+  };
+
+  const existing = Array.isArray(provider.models) ? provider.models : [];
+  const duplicate = existing.some(
+    (m) => isRecord(m) && typeof m.id === 'string' && m.id === modelId,
+  );
+  if (duplicate) return { doc: modelsJson as Record<string, unknown>, added: false };
+  provider.models = [...existing, definition];
+  return { doc: modelsJson as Record<string, unknown>, added: true };
+}
+
+/** 面板「添加模型到正式配置」：读 models.json → applyPiCliAddModel → 整文档写回。 */
+export function addPiCliProviderModel(
+  providerId: string,
+  model: PiCliModelInput,
+): boolean {
+  const modelsPath = join(PI_DIR, 'models.json');
+  const models = readJsonFile<unknown>(modelsPath);
+  if ('error' in models) {
+    throw new Error(
+      models.error === 'missing' ? 'PI_CLI_PROVIDER_NOT_FOUND' : 'PI_CLI_WRITE_FAILED',
+    );
+  }
+  const { doc, added } = applyPiCliAddModel(models.value, providerId, model);
+  if (!added) return false;
+  try {
+    writeFileSync(modelsPath, JSON.stringify(doc, null, 2), 'utf-8');
+  } catch {
+    throw new Error('PI_CLI_WRITE_FAILED');
+  }
+  return true;
 }

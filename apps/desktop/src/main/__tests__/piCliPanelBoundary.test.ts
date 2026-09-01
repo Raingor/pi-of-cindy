@@ -124,6 +124,7 @@ describe('pi cli package mutation contract', () => {
       'PI_CLI_FETCH_MODELS',
       'PI_CLI_TEST_MODEL',
       'PI_CLI_SWITCH_KEY',
+      'PI_CLI_ADD_MODEL',
     ]) {
       const start = handlers.indexOf(`MAKER_INVOKE.${channel}`);
       expect(start, channel).toBeGreaterThan(-1);
@@ -169,5 +170,17 @@ describe('pi cli package mutation contract', () => {
     expect(hBody).toContain("requireString(payload.keyId, 'keyId')");
     expect(hBody).toContain('return { success: true };');
     expect(hBody).not.toMatch(/apiKey/);
+  });
+
+  it('add-model payload carries no credentials and is whitelisted', () => {
+    const handlers = readSource('src/main/maker-ipc/piAgentHandlers.ts');
+    const start = handlers.indexOf('MAKER_INVOKE.PI_CLI_ADD_MODEL');
+    expect(start).toBeGreaterThan(-1);
+    const body = handlers.slice(start, handlers.indexOf('  });', start));
+    expect(body).toContain('assertTrustedAppRendererEvent(event)');
+    // 任意键穿透禁止:只接受已知字段。
+    expect(body).toContain("for (const k of ['contextWindow', 'maxTokens'] as const)");
+    // models.json 写路径不携带 apiKey/credential 字段。
+    expect(body).not.toMatch(/apiKey/);
   });
 });

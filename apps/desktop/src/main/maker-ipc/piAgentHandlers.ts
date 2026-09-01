@@ -37,6 +37,7 @@ import {
   writeSettings,
 } from '../pi-agent/piReader.js';
 import {
+  addPiCliProviderModel,
   fetchPiCliProviderModels,
   readPiCliExtensions,
   readPiCliProviders,
@@ -44,6 +45,7 @@ import {
   switchPiCliProviderKey,
   testPiCliModel,
   testPiCliProviderConnection,
+  type PiCliModelInput,
 } from '../pi-agent/piCliPanel.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
@@ -187,6 +189,63 @@ export function registerPiAgentIpc(): void {
         throwIpcError('PI_AGENT_IMPORT_FAILED', 'failed to write ~/.pi/agent/models.json');
       }
       log.warn('pi cli key switch failed', { providerId });
+      throwIpcError('INTERNAL', message.slice(0, 500));
+    }
+  });
+
+  // 测速页「添加模型到正式配置」：payload 不含任何凭证字段；同 id 幂等返回 added=false。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_ADD_MODEL, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const providerId = requireString(payload.providerId, 'providerId');
+    const model = requireObject(payload.model, 'model');
+    const modelId = requireString(model.id, 'model.id');
+    if (modelId.length > 200) {
+      throwIpcError('INVALID_PARAMS', 'model.id too long');
+    }
+    // 只接受已知形状的字段，避免任意键穿透进 models.json。
+    const input: PiCliModelInput = { id: modelId };
+    if (typeof model.name === 'string') input.name = model.name;
+    if (model.reasoning === true) input.reasoning = true;
+    if (Array.isArray(model.input)) {
+      const vals = model.input.filter((x): x is string => typeof x === 'string');
+      if (vals.length > 0) input.input = vals;
+    }
+    for (const k of ['contextWindow', 'maxTokens'] as const) {
+      if (typeof model[k] === 'number' && Number.isFinite(model[k])) {
+        input[k] = model[k];
+      }
+    }
+    const costInput = model.cost as Record<string, unknown> | undefined;
+    if (
+      costInput &&
+      typeof costInput === 'object' &&
+      !Array.isArray(costInput) &&
+      ['input', 'output', 'cacheRead', 'cacheWrite'].some((k) => k in costInput)
+    ) {
+      input.cost = {};
+      for (const k of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) {
+        if (typeof costInput[k] === 'number' && Number.isFinite(costInput[k])) {
+          input.cost[k] = costInput[k];
+        }
+      }
+    }
+    try {
+      const added = addPiCliProviderModel(providerId, input);
+      return { success: true, added };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_CLI_PROVIDER_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'provider not found in ~/.pi/agent/models.json');
+      }
+      if (message === 'PI_CLI_MODEL_INVALID') {
+        throwIpcError('INVALID_PARAMS', 'model definition is invalid');
+      }
+      if (message === 'PI_CLI_WRITE_FAILED') {
+        log.warn('pi cli add-model write failed', { providerId });
+        throwIpcError('PI_AGENT_IMPORT_FAILED', 'failed to write ~/.pi/agent/models.json');
+      }
+      log.warn('pi cli add-model failed', { providerId });
       throwIpcError('INTERNAL', message.slice(0, 500));
     }
   });

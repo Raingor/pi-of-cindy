@@ -6363,6 +6363,19 @@ interface ElectronAPI {
       }>;
       /** 面板「切换生效 key」:唯一写通道,只传 providerId + keyId,不回传 key 真值。 */
       switchCliKey: (providerId: string, keyId: string) => Promise<{ success: boolean }>;
+      /** 测速页「添加模型到正式配置」:模型定义不含凭证字段,同 id 幂等。 */
+      addCliModel: (
+        providerId: string,
+        model: {
+          id: string;
+          name?: string;
+          reasoning?: boolean;
+          input?: string[];
+          contextWindow?: number;
+          maxTokens?: number;
+          cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+        },
+      ) => Promise<{ success: boolean; added: boolean }>;
       readSettings: () => Promise<unknown>;
       writeSettings: (settings: unknown) => Promise<unknown>;
       readUsage: () => Promise<unknown>;

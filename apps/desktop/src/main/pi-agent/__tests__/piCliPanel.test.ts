@@ -368,3 +368,66 @@ describe('applyPiCliKeySwitch', () => {
     expect(() => applyPiCliKeySwitch(legacy, 'p', '0')).toThrow('PI_CLI_KEY_NOT_FOUND');
   });
 });
+
+describe('applyPiCliAddModel', () => {
+  const { applyPiCliAddModel } = __testing;
+
+  const doc = () => ({
+    providers: {
+      p1: {
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-x-0000000000000001',
+        models: [{ id: 'existing-1', name: 'Existing' }],
+      },
+    },
+  });
+
+  it('appends the model with pi-compatible defaults and reports added', () => {
+    const { doc: next, added } = applyPiCliAddModel(doc(), 'p1', {
+      id: 'new-model',
+      name: 'New Model',
+      reasoning: true,
+      input: ['text', 'image'],
+      contextWindow: 262144,
+      maxTokens: 32768,
+      cost: { input: 1.5, output: 9 },
+    });
+    expect(added).toBe(true);
+    const models = (next.providers as Record<string, Record<string, unknown>>).p1!.models as Array<
+      Record<string, unknown>
+    >;
+    expect(models).toHaveLength(2);
+    expect(models[1]).toEqual({
+      id: 'new-model',
+      name: 'New Model',
+      reasoning: true,
+      input: ['text', 'image'],
+      contextWindow: 262144,
+      maxTokens: 32768,
+      cost: { input: 1.5, output: 9, cacheRead: 0, cacheWrite: 0 },
+    });
+  });
+
+  it('is idempotent on duplicate ids and does not touch other fields', () => {
+    const { added } = applyPiCliAddModel(doc(), 'p1', { id: 'existing-1' });
+    expect(added).toBe(false);
+  });
+
+  it('rejects unknown provider and blank model ids', () => {
+    expect(() => applyPiCliAddModel(doc(), 'ghost', { id: 'm' })).toThrow(
+      'PI_CLI_PROVIDER_NOT_FOUND',
+    );
+    expect(() => applyPiCliAddModel(doc(), 'p1', { id: '  ' })).toThrow('PI_CLI_MODEL_INVALID');
+    expect(() => applyPiCliAddModel(doc(), 'p1', {} as never)).toThrow('PI_CLI_MODEL_INVALID');
+    expect(() => applyPiCliAddModel(null, 'p1', { id: 'm' })).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+  });
+
+  it('works on providers inside _disabledProviders', () => {
+    const d = {
+      providers: {},
+      _disabledProviders: { off: { baseUrl: 'https://x', models: [] } },
+    };
+    const { added } = applyPiCliAddModel(d, 'off', { id: 'm1' });
+    expect(added).toBe(true);
+  });
+});

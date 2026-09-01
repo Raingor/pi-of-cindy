@@ -767,6 +767,8 @@ export const MAKER_INVOKE = {
    * 主进程现读 models.json 原文切换后整文档写回,不回传任何 key 真值。
    */
   PI_CLI_SWITCH_KEY: 'maker:pi-cli:switch-key',
+  /** 测速页「添加模型到正式配置」：providerId + 模型定义（无凭证字段），幂等。 */
+  PI_CLI_ADD_MODEL: 'maker:pi-cli:add-model',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',

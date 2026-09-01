@@ -3294,7 +3294,15 @@
       "pending": "대기 중",
       "ok": "성공",
       "partial": "부분 성공",
-      "fail": "실패"
+      "fail": "실패",
+      "slowMode": "슬로우 모드 (레이트 리밋 방지)",
+      "fetchedCount": "{{count}}개 모델을 가져왔습니다 (로컬 저장됨)",
+      "clear": "지우기",
+      "addAllPassed": "통과 모델 모두 추가",
+      "addAllPassedDesc": "100% 통과한 모델을 모두 제공자 설정에 추가합니다",
+      "addToProvider": "추가",
+      "added": "설정됨",
+      "colAction": "작업"
     },
     "computerUse": {
       "title": "자동 조작",
