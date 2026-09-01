@@ -7102,6 +7102,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }>;
         error?: string;
       }> => ipcRenderer.invoke('maker:pi-cli:fetch-models', { providerId }),
+      // 面板「切换生效 key」:唯一写通道,只传 providerId + keyId,不回传 key 真值。
+      switchCliKey: (providerId: string, keyId: string): Promise<{ success: boolean }> =>
+        ipcRenderer.invoke('maker:pi-cli:switch-key', { providerId, keyId }),
       readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
       writeSettings: (settings: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:write-settings', settings),

@@ -2866,7 +2866,7 @@
     },
     "piCliProviders": {
       "title": "Local Pi providers",
-      "description": "Reads the provider and model config from your local Pi CLI. This view is read-only — add or edit through the Pi CLI. Keys never leave the main process; only a mask is shown here.",
+      "description": "Reads the provider and model config from your local Pi CLI. Click a key to switch the active one; add or edit providers through the Pi CLI. Keys never leave the main process; only a mask is shown here.",
       "refresh": "Reload",
       "loading": "Reading providers…",
       "loadFailed": "Could not read providers. Try again.",
@@ -2890,6 +2890,9 @@
       "keyConfigured": "Key configured",
       "keyActive": "Active",
       "keyCount": "{{count}} keys",
+      "keyUse": "Use this key",
+      "keySwitchFailed": "Key switch failed",
+      "keySwitchOk": "Switched",
       "keyEmpty": "This provider has no key configured yet.",
       "keyMaskedNote": "Keys stay in the main process; this view always shows a mask.",
       "testConnection": "Test connection",

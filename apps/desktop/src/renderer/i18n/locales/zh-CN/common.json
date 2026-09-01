@@ -2875,7 +2875,7 @@
     },
     "piCliProviders": {
       "title": "本机 Pi 供应商",
-      "description": "读取本机 Pi CLI 的供应商与模型配置。这里只做展示，增删改请用 Pi CLI；密钥不会离开主进程，界面只显示遮罩。",
+      "description": "读取本机 Pi CLI 的供应商与模型配置。点击密钥即可切换生效的那把，增删改请用 Pi CLI；密钥不会离开主进程，界面只显示遮罩。",
       "refresh": "重新读取",
       "loading": "正在读取供应商…",
       "loadFailed": "读取供应商失败，可重试。",
@@ -2899,6 +2899,9 @@
       "keyConfigured": "已配置密钥",
       "keyActive": "生效中",
       "keyCount": "共 {{count}} 把",
+      "keyUse": "使用这把密钥",
+      "keySwitchFailed": "切换密钥失败",
+      "keySwitchOk": "已切换",
       "keyEmpty": "这个供应商还没有配置密钥。",
       "keyMaskedNote": "密钥只在主进程使用，界面始终只显示遮罩。",
       "testConnection": "测连接",

@@ -7,10 +7,11 @@
  * 上下文窗口徽标。
  *
  * 与 Cindy 自己的「模型供应商」页(`ProvidersSection`)是两套数据:那页读 Cindy 的
- * provider 注册表并管理 Cindy 网关凭证;本页只读用户自己的 Pi CLI 配置,面板性质,
- * 不写不改 —— 增删改走 Pi CLI。唯二的「活」动作是测连接与拉取模型:两者都是只读
- * 探测请求,providerId 交给主进程、由主进程现取真 key 发请求,结果(状态/延迟/
- * 模型清单)投影回来,配置文件不会被修改。
+ * provider 注册表并管理 Cindy 网关凭证;本页读用户自己的 Pi CLI 配置。唯一的写
+ * 动作是「切换生效 key」:只传 providerId + keyId,由主进程现读 models.json 原文
+ * 切换后整文档写回,不回传任何 key 真值;其余增删改走 Pi CLI。测连接与拉取模型
+ * 仍是只读探测请求:providerId 交给主进程、由主进程现取真 key 发请求,结果(状态/
+ * 延迟/模型清单)投影回来,配置文件不会被修改。
  *
  * 凭证:主进程已剥掉 apiKey / apiKeys 真值,这里只拿到遮罩串与 `hasApiKey`。
  * pi-web-switch 支持逐把明文显形,本面板**刻意不做**:Renderer 会渲染 agent 输出、
@@ -208,7 +209,13 @@ function ProviderRailItem({
   );
 }
 
-function ProviderDetail({ provider }: { provider: PiCliProvider }) {
+function ProviderDetail({
+  provider,
+  onReload,
+}: {
+  provider: PiCliProvider;
+  onReload: () => Promise<void> | void;
+}) {
   const { t } = useTranslation();
   const api = window.electronAPI?.maker?.piAgent;
   const enabledCount = useMemo(
@@ -223,6 +230,32 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
   const [fetchState, setFetchState] = useState<'idle' | 'fetching'>('idle');
   const [fetchResult, setFetchResult] = useState<ProviderFetchResult | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // 切换生效 key:唯一写动作,只传 providerId + keyId。成功后重拉清单让 active
+  // 标记与 apiKey 镜像落到面板上;失败时保持原状并提示。
+  const [switchingKeyId, setSwitchingKeyId] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [switchOk, setSwitchOk] = useState(false);
+
+  const handleSwitchKey = useCallback(
+    async (keyId: string) => {
+      if (!api?.switchCliKey || switchingKeyId) return;
+      if (provider.apiKeys.find((k) => k.id === keyId)?.active) return;
+      setSwitchingKeyId(keyId);
+      setSwitchError(null);
+      setSwitchOk(false);
+      try {
+        await api.switchCliKey(provider.id, keyId);
+        setSwitchOk(true);
+        await onReload();
+      } catch (err: unknown) {
+        setSwitchError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSwitchingKeyId(null);
+      }
+    },
+    [api, provider.id, provider.apiKeys, switchingKeyId, onReload],
+  );
 
   const runTest = useCallback(async () => {
     if (!api?.testCliProvider || testState === 'testing') return;
@@ -491,7 +524,10 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
             {t('settings.piCliProviders.keyEmpty')}
           </p>
         ) : (
-          <div className="mt-1.5 flex flex-col gap-1.5">
+          <div
+            className="mt-1.5 flex flex-col gap-1.5"
+            {...(provider.apiKeys.length > 1 ? { role: 'radiogroup' } : {})}
+          >
             {provider.apiKeys.map((key) => (
               <div
                 key={key.id}
@@ -502,6 +538,37 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
                     : 'border-[var(--settings-theme-card-border)] bg-[var(--surface)]',
                 )}
               >
+                {/* 多把 key 时提供切换:点击圆点即把该把置为生效,与 pi-web-switch
+                    的 radio 一致;单把无切换意义,只展示 active 标记。 */}
+                {provider.apiKeys.length > 1 && (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={key.active}
+                    aria-label={t('settings.piCliProviders.keyUse')}
+                    disabled={key.active || switchingKeyId !== null}
+                    onClick={() => void handleSwitchKey(key.id)}
+                    title={
+                      key.active
+                        ? t('settings.piCliProviders.keyActive')
+                        : t('settings.piCliProviders.keyUse')
+                    }
+                    className={cn(
+                      'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+                      'disabled:cursor-default',
+                      key.active
+                        ? 'border-blue-500'
+                        : 'border-[var(--settings-theme-card-border)] hover:border-blue-400 disabled:opacity-60',
+                    )}
+                  >
+                    {switchingKeyId === key.id ? (
+                      <Spinner size={10} />
+                    ) : (
+                      key.active && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    )}
+                  </button>
+                )}
                 <KeyRound size={13} className="shrink-0 text-[var(--text-tertiary)]" />
                 <code className="min-w-0 flex-1 truncate font-mono text-11 text-[var(--settings-section-title)]">
                   {key.maskedKey}
@@ -514,6 +581,16 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
               </div>
             ))}
           </div>
+        )}
+        {switchOk && !switchError && (
+          <p role="status" className="mt-1.5 text-11 text-emerald-500">
+            {t('settings.piCliProviders.keySwitchOk')}
+          </p>
+        )}
+        {switchError && (
+          <p role="alert" className="mt-1.5 text-11 text-red-500">
+            {t('settings.piCliProviders.keySwitchFailed')} · {switchError}
+          </p>
         )}
         <p className="mt-1.5 text-11 text-[var(--settings-section-desc)]">
           {t('settings.piCliProviders.keyMaskedNote')}
@@ -668,7 +745,7 @@ export function PiCliProvidersSection() {
           </div>
           <div className="min-w-0 flex-1 p-5">
             {selected ? (
-              <ProviderDetail key={selected.id} provider={selected} />
+              <ProviderDetail key={selected.id} provider={selected} onReload={load} />
             ) : (
               <p className="text-12 text-[var(--settings-section-desc)]">
                 {t('settings.piCliProviders.selectHint')}

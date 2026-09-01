@@ -2875,7 +2875,7 @@
     },
     "piCliProviders": {
       "title": "本機 Pi 供應商",
-      "description": "讀取本機 Pi CLI 的供應商與模型設定。這裡只做展示，增刪改請用 Pi CLI；金鑰不會離開主行程，介面只顯示遮罩。",
+      "description": "讀取本機 Pi CLI 的供應商與模型設定。點擊金鑰即可切換生效的那把，增刪改請用 Pi CLI；金鑰不會離開主行程，介面只顯示遮罩。",
       "refresh": "重新讀取",
       "loading": "正在讀取供應商…",
       "loadFailed": "讀取供應商失敗，可重試。",
@@ -2899,6 +2899,9 @@
       "keyConfigured": "已設定金鑰",
       "keyActive": "生效中",
       "keyCount": "共 {{count}} 把",
+      "keyUse": "使用這把金錀",
+      "keySwitchFailed": "切換金錀失敗",
+      "keySwitchOk": "已切換",
       "keyEmpty": "這個供應商還沒有設定金鑰。",
       "keyMaskedNote": "金鑰只在主行程使用，介面始終只顯示遮罩。",
       "testConnection": "測試連線",

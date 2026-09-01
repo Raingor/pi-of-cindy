@@ -41,6 +41,7 @@ import {
   readPiCliExtensions,
   readPiCliProviders,
   runPiCliPackageCommand,
+  switchPiCliProviderKey,
   testPiCliModel,
   testPiCliProviderConnection,
 } from '../pi-agent/piCliPanel.js';
@@ -159,6 +160,33 @@ export function registerPiAgentIpc(): void {
         throwIpcError('INVALID_PARAMS', 'provider has no baseUrl configured');
       }
       log.warn('pi cli model test failed', { providerId });
+      throwIpcError('INTERNAL', message.slice(0, 500));
+    }
+  });
+
+  // 面板「切换生效 key」:唯一写通道。只收 providerId + keyId,写回动作在主进程内
+  // 完成,返回值只有布尔,不回传任何 key 真值。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_SWITCH_KEY, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const providerId = requireString(payload.providerId, 'providerId');
+    const keyId = requireString(payload.keyId, 'keyId');
+    try {
+      switchPiCliProviderKey(providerId, keyId);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_CLI_PROVIDER_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'provider not found in ~/.pi/agent/models.json');
+      }
+      if (message === 'PI_CLI_KEY_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'key not found in the provider key pool');
+      }
+      if (message === 'PI_CLI_WRITE_FAILED') {
+        log.warn('pi cli key switch write failed', { providerId });
+        throwIpcError('PI_AGENT_IMPORT_FAILED', 'failed to write ~/.pi/agent/models.json');
+      }
+      log.warn('pi cli key switch failed', { providerId });
       throwIpcError('INTERNAL', message.slice(0, 500));
     }
   });

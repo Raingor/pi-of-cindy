@@ -18,6 +18,12 @@
 | 5 | `fetchProviderModels` 只回裸 id | pi-web-switch 回完整元数据 + id 启发式推断 |
 | 6 | 面板缺 `compat` 与 per-model `maxTokens` | pi-web-switch 详情区/表单有 |
 
+## 追加交付
+
+| # | 内容 | 提交 |
+|---|------|------|
+| 1 | 供应商面板支持**切换生效 key**（多把 key 的池出 radio，与 pi-web-switch 同语义：改 `activeKeyId` + `apiKey` 镜像原值；唯一写通道 `maker:pi-cli:switch-key` 只传 `providerId + keyId`，真值不出主进程） | `af5f981f5` |
+
 ## 余项清单
 
 ### R1 · Pi 测速面板读的配置键不存在，且明文 key 过 Renderer（P0）✅ 已修复

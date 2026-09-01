@@ -123,6 +123,7 @@ describe('pi cli package mutation contract', () => {
       'PI_CLI_TEST_PROVIDER',
       'PI_CLI_FETCH_MODELS',
       'PI_CLI_TEST_MODEL',
+      'PI_CLI_SWITCH_KEY',
     ]) {
       const start = handlers.indexOf(`MAKER_INVOKE.${channel}`);
       expect(start, channel).toBeGreaterThan(-1);
@@ -149,5 +150,24 @@ describe('pi cli package mutation contract', () => {
     const body = panel.slice(start, panel.indexOf('\n}', start));
     expect(body).toContain('readPiCliProviderRuntimeConfig(providerId)');
     expect(body).toContain('testModel(config.baseUrl, modelId, config.apiKey)');
+  });
+
+  it('key switch writes only through the providerId path and never echoes key values', () => {
+    const panel = readSource('src/main/pi-agent/piCliPanel.ts');
+    const start = panel.indexOf('export function switchPiCliProviderKey');
+    expect(start).toBeGreaterThan(-1);
+    const body = panel.slice(start, panel.indexOf('\n}', start));
+    // 走纯函数切换,不拼接任何 key 真值;写回的是从盘上读的原文。
+    expect(body).toContain('applyPiCliKeySwitch(models.value, providerId, keyId)');
+
+    // handler 只收 providerId + keyId,返回布尔;不出现 apiKey 形参或回传。
+    const handlers = readSource('src/main/maker-ipc/piAgentHandlers.ts');
+    const hStart = handlers.indexOf('MAKER_INVOKE.PI_CLI_SWITCH_KEY');
+    expect(hStart).toBeGreaterThan(-1);
+    const hBody = handlers.slice(hStart, handlers.indexOf('  });', hStart));
+    expect(hBody).toContain("requireString(payload.providerId, 'providerId')");
+    expect(hBody).toContain("requireString(payload.keyId, 'keyId')");
+    expect(hBody).toContain('return { success: true };');
+    expect(hBody).not.toMatch(/apiKey/);
   });
 });

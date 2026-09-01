@@ -305,3 +305,66 @@ describe('pi cli runtime providers & catalog projection (model picker source)', 
     expect('pi-cli:bad').toContain(':'); // 反例:冒号形态绝不能回流
   });
 });
+
+describe('applyPiCliKeySwitch', () => {
+  const { applyPiCliKeySwitch } = __testing;
+
+  const doc = () => ({
+    providers: {
+      active1: {
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-old-key-0000000001',
+        activeKeyId: 'k1',
+        apiKeys: [
+          { id: 'k1', key: 'sk-old-key-0000000001' },
+          { id: 'k2', key: '$MY_NEW_KEY' },
+        ],
+      },
+      other: { apiKey: 'sk-untouched-00000000003' },
+    },
+    _disabledProviders: {
+      disabled1: {
+        baseUrl: 'https://down.example.com/v1',
+        apiKey: 'sk-disabled-0000000002',
+        apiKeys: [{ id: 'd1', key: 'sk-disabled-0000000002' }],
+      },
+    },
+  });
+
+  it('moves activeKeyId and mirrors the raw key into apiKey', () => {
+    const next = applyPiCliKeySwitch(doc(), 'active1', 'k2');
+    const p = (next.providers as Record<string, Record<string, unknown>>).active1!;
+    expect(p.activeKeyId).toBe('k2');
+    // $VAR 引用原样镜像,不展开 —— 展开是 pi 运行时的职责。
+    expect(p.apiKey).toBe('$MY_NEW_KEY');
+    // 池本身不动。
+    expect(p.apiKeys).toHaveLength(2);
+    // 其他供应商不受影响。
+    expect((next.providers as Record<string, Record<string, unknown>>).other!.apiKey).toBe(
+      'sk-untouched-00000000003',
+    );
+  });
+
+  it('switches keys inside _disabledProviders too', () => {
+    const next = applyPiCliKeySwitch(doc(), 'disabled1', 'd1');
+    const p = (next._disabledProviders as Record<string, Record<string, unknown>>).disabled1!;
+    expect(p.activeKeyId).toBe('d1');
+    expect(p.apiKey).toBe('sk-disabled-0000000002');
+  });
+
+  it('rejects unknown provider, unknown key, blank ids and malformed docs', () => {
+    expect(() => applyPiCliKeySwitch(doc(), 'ghost', 'k1')).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+    expect(() => applyPiCliKeySwitch(doc(), 'active1', 'nope')).toThrow('PI_CLI_KEY_NOT_FOUND');
+    expect(() => applyPiCliKeySwitch(doc(), '', 'k1')).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+    expect(() => applyPiCliKeySwitch(doc(), 'active1', '  ')).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+    expect(() => applyPiCliKeySwitch(null, 'active1', 'k1')).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+    expect(() => applyPiCliKeySwitch({}, 'active1', 'k1')).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+  });
+
+  it('does not guess by index when pool entries lack ids', () => {
+    // 非 pws 写入的旧文件:条目没有 id。按 id 精确匹配 = 切不了,报 key 不存在,
+    // 绝不下标猜测误切。
+    const legacy = { providers: { p: { apiKey: 'sk-a', apiKeys: [{ key: 'sk-b' }] } } };
+    expect(() => applyPiCliKeySwitch(legacy, 'p', '0')).toThrow('PI_CLI_KEY_NOT_FOUND');
+  });
+});

@@ -2875,7 +2875,7 @@
     },
     "piCliProviders": {
       "title": "로컬 Pi 제공자",
-      "description": "로컬 Pi CLI의 제공자와 모델 설정을 읽습니다. 이 화면은 조회 전용이며 추가나 수정은 Pi CLI에서 하세요. 키는 메인 프로세스를 벗어나지 않고, 여기에는 마스킹만 표시됩니다.",
+      "description": "로컬 Pi CLI의 제공자와 모델 설정을 읽습니다. 키를 클릭하면 사용 중인 키를 전환할 수 있습니다. 추가나 수정은 Pi CLI에서 하세요. 키는 메인 프로세스를 벗어나지 않고, 여기에는 마스킹만 표시됩니다.",
       "refresh": "다시 읽기",
       "loading": "제공자를 읽는 중…",
       "loadFailed": "제공자를 읽지 못했습니다. 다시 시도할 수 있습니다.",
@@ -2899,6 +2899,9 @@
       "keyConfigured": "키 설정됨",
       "keyActive": "사용 중",
       "keyCount": "총 {{count}}개",
+      "keyUse": "이 키 사용",
+      "keySwitchFailed": "키 전환 실패",
+      "keySwitchOk": "전환됨",
       "keyEmpty": "이 제공자에는 아직 키가 설정되지 않았습니다.",
       "keyMaskedNote": "키는 메인 프로세스에서만 사용되며, 이 화면에는 항상 마스킹만 표시됩니다.",
       "testConnection": "연결 테스트",

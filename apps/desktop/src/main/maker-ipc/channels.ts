@@ -762,6 +762,11 @@ export const MAKER_INVOKE = {
   PI_CLI_FETCH_MODELS: 'maker:pi-cli:fetch-models',
   /** 测速面板单模型探测:与上同口径,Renderer 只传 providerId + modelId。 */
   PI_CLI_TEST_MODEL: 'maker:pi-cli:test-model',
+  /**
+   * 面板「切换生效 key」—— 唯一写通道。Renderer 只传 providerId + keyId,
+   * 主进程现读 models.json 原文切换后整文档写回,不回传任何 key 真值。
+   */
+  PI_CLI_SWITCH_KEY: 'maker:pi-cli:switch-key',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',

@@ -15,7 +15,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -63,8 +63,9 @@ export interface PiCliModelView {
  * 密钥池里的一把 key —— **只带遮罩串,不带真值**。
  *
  * pi-web-switch 的面板把整池 key 列出来、标出当前生效的那把,并支持逐把明文显形。
- * Cindy 还原前两者(列表 + active 标记),但**不提供显形**:Renderer 是不可信环境,
- * 见本文件顶部的安全边界说明。
+ * Cindy 还原列表 + active 标记 + **切换生效**(点击即改 `activeKeyId` 并同步 `apiKey`
+ * 镜像,见 `applyPiCliKeySwitch`),但**不提供显形**:Renderer 是不可信环境,见本
+ * 文件顶部的安全边界说明。
  */
 export interface PiCliApiKeyView {
   id: string;
@@ -592,6 +593,7 @@ export const __testing = {
   toCompatView,
   resolveKeyRef,
   resolveProviderRuntimeConfigFromRaw,
+  applyPiCliKeySwitch,
   readPiCliRuntimeProviders,
   buildPiCliCatalogProviders,
 };
@@ -707,4 +709,68 @@ export async function testPiCliModel(
   if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
   if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
   return testModel(config.baseUrl, modelId, config.apiKey);
+}
+
+// ─── Key pool 切换（面板唯一写路径，真值不出主进程）────────────────────
+
+/**
+ * 纯函数：在 models.json 原始 JSON 里切换供应商的生效 key，返回写回用整文档。
+ *
+ * 语义对齐 pi-web-switch 的 `persistKeys`：`activeKeyId` 指向池里选中的那把，
+ * `apiKey` 镜像该条**原值**（`$VAR` 引用原样保留，由 pi 自己解引用）—— pi 的
+ * `ProviderConfigSchema` 只读 `apiKey`，池与指针只是 pws/本面板的管理层约定。
+ * 停用供应商（`_disabledProviders`）同样支持切换，便于重新启用前先换 key。
+ *
+ * 抛类型化错误：`PI_CLI_PROVIDER_NOT_FOUND` / `PI_CLI_KEY_NOT_FOUND`。
+ * 池条目缺 `id` 的文件（非 pws 写入的旧文件）无法按 id 定位，面板对它们
+ * 不提供切换入口；这里也一律按 id 精确匹配，不做下标猜测。
+ */
+export function applyPiCliKeySwitch(
+  modelsJson: unknown,
+  providerId: string,
+  keyId: string,
+): Record<string, unknown> {
+  const id = providerId.trim();
+  const targetKeyId = keyId.trim();
+  if (!id || !targetKeyId || !isRecord(modelsJson)) {
+    throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  }
+  const block = isRecord(modelsJson.providers)
+    ? modelsJson.providers[id]
+    : undefined;
+  const disabledBlock = isRecord(modelsJson._disabledProviders)
+    ? modelsJson._disabledProviders[id]
+    : undefined;
+  const provider = isRecord(block) ? block : isRecord(disabledBlock) ? disabledBlock : null;
+  if (!provider) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const pool = Array.isArray(provider.apiKeys) ? provider.apiKeys : [];
+  const entry = pool.find(
+    (e): e is Record<string, unknown> & { id: string; key: string } =>
+      isRecord(e) && e.id === targetKeyId && typeof e.key === 'string' && e.key.trim().length > 0,
+  );
+  if (!entry) throw new Error('PI_CLI_KEY_NOT_FOUND');
+  provider.activeKeyId = entry.id;
+  provider.apiKey = entry.key;
+  return modelsJson as Record<string, unknown>;
+}
+
+/**
+ * 面板「切换生效 key」：读 models.json → applyPiCliKeySwitch → 整文档写回。
+ * 真值（池里的 key 原文）只在这条主进程路径里流转，不进 IPC 返回值。
+ */
+export function switchPiCliProviderKey(providerId: string, keyId: string): void {
+  const modelsPath = join(PI_DIR, 'models.json');
+  const models = readJsonFile<unknown>(modelsPath);
+  if ('error' in models) {
+    // 文件缺失 = 没有任何供应商可切；解析失败不能拿半份文件去覆盖。
+    throw new Error(
+      models.error === 'missing' ? 'PI_CLI_PROVIDER_NOT_FOUND' : 'PI_CLI_WRITE_FAILED',
+    );
+  }
+  const next = applyPiCliKeySwitch(models.value, providerId, keyId);
+  try {
+    writeFileSync(modelsPath, JSON.stringify(next, null, 2), 'utf-8');
+  } catch {
+    throw new Error('PI_CLI_WRITE_FAILED');
+  }
 }

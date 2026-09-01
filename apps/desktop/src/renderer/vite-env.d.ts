@@ -6361,6 +6361,8 @@ interface ElectronAPI {
         }>;
         error?: string;
       }>;
+      /** 面板「切换生效 key」:唯一写通道,只传 providerId + keyId,不回传 key 真值。 */
+      switchCliKey: (providerId: string, keyId: string) => Promise<{ success: boolean }>;
       readSettings: () => Promise<unknown>;
       writeSettings: (settings: unknown) => Promise<unknown>;
       readUsage: () => Promise<unknown>;
