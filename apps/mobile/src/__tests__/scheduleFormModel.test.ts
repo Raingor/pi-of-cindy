@@ -58,7 +58,7 @@ describe('mobile schedule form model', () => {
       recurring: true,
       manual: false,
       intervalMs: 900_000,
-      agentKind: 'claude-code',
+      agentKind: 'pi',
       workspaceKind: 'project',
       workingDir: '/repo/xdt-maker',
       useWorktree: false,

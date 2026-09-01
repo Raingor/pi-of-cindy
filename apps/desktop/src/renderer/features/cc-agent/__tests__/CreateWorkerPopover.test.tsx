@@ -27,6 +27,14 @@ const mocks = vi.hoisted(() => ({
       defaultEffort: string | null;
       supportsFastMode?: boolean;
     }>,
+    // Phase C(7d991fe7c)后 worker 创建默认引擎是 pi(prefs.lastAgent='pi'),
+    // mock 必须供齐三个引擎,否则组件在渲染首帧 activeModels 为 undefined 崩。
+    pi: [] as Array<{
+      id: string;
+      efforts: string[];
+      defaultEffort: string | null;
+      supportsFastMode?: boolean;
+    }>,
   },
   capabilitiesByAgent: {
     codex: null as {
@@ -34,6 +42,10 @@ const mocks = vi.hoisted(() => ({
       supportsOrcaWorkerPermissionMode?: boolean;
     } | null,
     'claude-code': null as {
+      availableModels: Array<{ id: string }>;
+      supportsOrcaWorkerPermissionMode?: boolean;
+    } | null,
+    pi: null as {
       availableModels: Array<{ id: string }>;
       supportsOrcaWorkerPermissionMode?: boolean;
     } | null,
@@ -91,7 +103,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/hooks/useAgentCapabilities', () => ({
-  useAgentCapabilities: (agent: 'codex' | 'claude-code') => ({
+  useAgentCapabilities: (agent: 'codex' | 'claude-code' | 'pi') => ({
     capabilities: mocks.capabilitiesByAgent[agent],
     loading: mocks.capabilitiesLoading,
     error: null,
@@ -213,7 +225,8 @@ vi.mock('@/state/modelVisibilityPrefs', () => ({
 }));
 
 vi.mock('../workerModelAvailability', () => ({
-  selectWorkerModels: ({ agent }: { agent: 'codex' | 'claude-code' }) => mocks.modelsByAgent[agent],
+  selectWorkerModels: ({ agent }: { agent: 'codex' | 'claude-code' | 'pi' }) =>
+    mocks.modelsByAgent[agent],
 }));
 
 describe('CreateWorkerPopover', () => {
@@ -223,10 +236,12 @@ describe('CreateWorkerPopover', () => {
     resetProviderModelMemoryForTest();
     mocks.modelsByAgent.codex = [model('codex/gpt-5.5')];
     mocks.modelsByAgent['claude-code'] = [model('claude-opus-4-7')];
+    mocks.modelsByAgent.pi = [model('pi/glm-5.3-flash')];
     mocks.capabilitiesByAgent.codex = { availableModels: [{ id: 'codex/gpt-5.5' }] };
     mocks.capabilitiesByAgent['claude-code'] = {
       availableModels: [{ id: 'claude-opus-4-7' }],
     };
+    mocks.capabilitiesByAgent.pi = { availableModels: [{ id: 'pi/glm-5.3-flash' }] };
     mocks.capabilitiesLoading = false;
     mocks.providersLoading = false;
     mocks.localProviders = [];
@@ -600,6 +615,10 @@ describe('CreateWorkerPopover', () => {
   });
 
   it('explains why creation stays disabled when no local model is available', async () => {
+    window.localStorage.setItem(
+      'workerCreationPrefs',
+      JSON.stringify({ lastAgent: 'codex' }),
+    );
     mocks.modelsByAgent.codex = [];
     mocks.capabilitiesByAgent.codex = { availableModels: [] };
 
@@ -634,6 +653,11 @@ describe('CreateWorkerPopover', () => {
   });
 
   it('submits the provider picked from a source section row', async () => {
+    // Phase C 后 worker prefs 默认 lastAgent='pi';本用例锁定 codex 来源行交互,显式预置。
+    window.localStorage.setItem(
+      'workerCreationPrefs',
+      JSON.stringify({ lastAgent: 'codex' }),
+    );
     mocks.localProviders = [
       {
         id: 'openai',
@@ -720,6 +744,11 @@ describe('CreateWorkerPopover', () => {
   it('restores remembered effort and Fast for the picked row when the panel omits them', async () => {
     // 真组件选行只回传 (providerId, modelId);目标模型 hover 配置过的 effort/Fast
     // 存在模型级全局预设里,选中后必须恢复,不能沿用上一个模型的值。
+    // Phase C 后 worker prefs 默认 lastAgent='pi';本用例锁定 codex 行恢复,显式预置。
+    window.localStorage.setItem(
+      'workerCreationPrefs',
+      JSON.stringify({ lastAgent: 'codex' }),
+    );
     setProviderModelChoice('codex', 'openai', 'gpt-5.5', 'low');
     setProviderModelFast('codex', 'openai', 'gpt-5.5', true);
     mocks.localProviders = [
@@ -760,6 +789,11 @@ describe('CreateWorkerPopover', () => {
   it('drops Fast when the picked provider does not support it for the model', async () => {
     // per-provider Fast 能力:同一 model id 在选中来源的条目上不支持 Fast 时,
     // 不能沿用拍平并集的首来源能力继续提交 fast=true。
+    // Phase C 后 worker prefs 默认 lastAgent='pi';本用例锁定 codex 交互,显式预置。
+    window.localStorage.setItem(
+      'workerCreationPrefs',
+      JSON.stringify({ lastAgent: 'codex' }),
+    );
     setProviderModelFast('codex', 'openai', 'gpt-5.5', true);
     mocks.localProviders = [
       {
@@ -930,6 +964,11 @@ describe('CreateWorkerPopover', () => {
   it('persists active-row effort edits into the shared model memory', async () => {
     // 活跃行编辑走 onEffortChange 而非 modelMemory,必须写回全局预设 ——
     // 否则切走再切回按旧值恢复,编辑被静默丢弃(codex review)。
+    // Phase C 后 worker prefs 默认 lastAgent='pi';本用例锁定 codex 交互,显式预置。
+    window.localStorage.setItem(
+      'workerCreationPrefs',
+      JSON.stringify({ lastAgent: 'codex' }),
+    );
     mocks.localProviders = [
       {
         id: 'openai',

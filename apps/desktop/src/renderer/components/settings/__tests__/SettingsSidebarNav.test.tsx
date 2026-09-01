@@ -22,23 +22,26 @@ describe('SettingsSidebarNav', () => {
 
     render(<SettingsSidebarNav tabIds={TAB_IDS} activeTab="general" onSelectTab={onSelectTab} />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Billing' }));
+    // 计费 tab 已随 pi-only 下架(tabLabels.ts 注释),改用常驻「模型供应商」验证选中态。
+    fireEvent.click(screen.getByRole('tab', { name: 'settings.tabs.providers' }));
 
-    expect(onSelectTab).toHaveBeenCalledWith('billing');
+    expect(onSelectTab).toHaveBeenCalledWith('providers');
     expect(screen.getByRole('tab', { name: 'General' }).getAttribute('aria-selected')).toBe(
       'true',
     );
-    expect(screen.getByRole('tab', { name: 'Billing' }).getAttribute('aria-selected')).toBe(
+    expect(screen.getByRole('tab', { name: 'settings.tabs.providers' }).getAttribute('aria-selected')).toBe(
       'false',
     );
   });
 
-  // 2026-08-29 Pi-first 改造:六个入口下架(后端保留),侧栏不再渲染。
-  it('does not render the retired Usage / Voice Input / IM Bot / Import / Plugins / Tools entries', () => {
+  // Pi-first 改造下架的入口(后端保留),侧栏不再渲染。计费(billing)与
+  // 工具密钥(api-keys)、第三方平台(connections)同批下架;task-import/
+  // plugins(ghosts)/builtin-tools 于 09-01 重新上栏,已从本清单移除。
+  it('does not render the retired Usage / Voice Input / IM Bot / Billing / Import entries', () => {
     render(<SettingsSidebarNav tabIds={TAB_IDS} activeTab="general" onSelectTab={vi.fn()} />);
 
     const tabIds = screen.getAllByRole('tab').map((tab) => tab.id);
-    for (const retired of ['usage', 'voice-input', 'im-bot', 'import', 'ghosts', 'builtin-tools']) {
+    for (const retired of ['usage', 'voice-input', 'im-bot', 'billing', 'api-keys', 'connections']) {
       expect(tabIds).not.toContain(`settings-tab-${retired}`);
     }
   });

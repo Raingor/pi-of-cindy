@@ -1047,10 +1047,10 @@ describe('new session model', () => {
       firstMessage: 'hello',
       extraDirs: [' /repo/docs ', '/repo/docs', ''],
     })).toEqual({
-      agentKind: 'claude-code',
+      agentKind: 'pi',
       workingDir: '/repo/xdt-maker',
       workspaceKind: 'project',
-      model: 'claude-sonnet-4-6',
+      model: 'gpt-5.4',
       effort: 'medium',
       permissionMode: 'auto',
       fastMode: false,
@@ -1066,9 +1066,9 @@ describe('new session model', () => {
       firstMessage: 'hello',
       extraDirs: ['/repo/docs'],
     })).toEqual({
-      agentKind: 'claude-code',
+      agentKind: 'pi',
       workspaceKind: 'dialogue',
-      model: 'claude-sonnet-4-6',
+      model: 'gpt-5.4',
       effort: 'medium',
       permissionMode: 'auto',
       fastMode: false,
@@ -1083,7 +1083,7 @@ describe('new session model', () => {
       model: 'claude-haiku-4-6',
       effort: '',
     })).toEqual({
-      agentKind: 'claude-code',
+      agentKind: 'pi',
       workingDir: '/repo/xdt-maker',
       workspaceKind: 'project',
       model: 'claude-haiku-4-6',
@@ -1122,10 +1122,9 @@ describe('new session model', () => {
     });
   });
 
-  it('exposes Pi as a first-class agent and preserves Fast for Pi sessions', () => {
-    expect(NEW_SESSION_AGENT_OPTIONS.map((option) => option.kind)).toEqual([
-      'claude-code', 'codex', 'pi',
-    ]);
+  it('exposes Pi as the only new-session agent and preserves Fast for Pi sessions', () => {
+    // 第三轮 pi-only:NEW_SESSION_AGENT_OPTIONS 收缩到 ['pi'](注册表驱动)。
+    expect(NEW_SESSION_AGENT_OPTIONS.map((option) => option.kind)).toEqual(['pi']);
     const pi = withAgentDefaults({ ...DEFAULT_NEW_SESSION_DRAFT, fastMode: true }, 'pi');
     expect(pi).toMatchObject({ agentKind: 'pi', model: 'gpt-5.4', fastMode: true });
     expect(buildRemoteCreateSessionOptions({
@@ -1137,17 +1136,14 @@ describe('new session model', () => {
 
   it('filters the new-session agent options by the controlled device runtime-registered set', () => {
     // null(未拉到)→ fail-open,全部保留。
-    expect(availableNewSessionAgentOptions(null).map((o) => o.kind)).toEqual([
-      'claude-code', 'codex', 'pi',
-    ]);
-    // 被控端无 Pi(二进制缺失)→ 隐藏 Pi,避免建出 requireAgent 报 not-registered 的会话。
+    expect(availableNewSessionAgentOptions(null).map((o) => o.kind)).toEqual(['pi']);
+    // 被控端无 Pi(二进制缺失)→ 过滤后为空,回落 pi-only 清单(不把入口清空)。
     expect(
       availableNewSessionAgentOptions(new Set(['claude-code', 'codex'])).map((o) => o.kind),
-    ).toEqual(['claude-code', 'codex']);
-    // 只有 Pi 注册(理论)→ 只留 Pi。
+    ).toEqual(['pi']);
     expect(availableNewSessionAgentOptions(new Set(['pi'])).map((o) => o.kind)).toEqual(['pi']);
-    // 空集(被控端异常)→ 退回至少 Claude,不把入口清空到无法创建。
-    expect(availableNewSessionAgentOptions(new Set()).map((o) => o.kind)).toEqual(['claude-code']);
+    // 空集(被控端异常)→ 回落 pi-only 清单,不把入口清空到无法创建。
+    expect(availableNewSessionAgentOptions(new Set()).map((o) => o.kind)).toEqual(['pi']);
   });
 
   it('wires the new-session screen to gate agents by list-available-agents and coerce off unavailable', () => {
@@ -1201,9 +1197,10 @@ describe('new session model', () => {
       workingDir: '',
       firstMessage: '',
     })).toMatchObject({
-      agentLabel: 'Claude',
+      // pi-only 后默认 draft 的 agent 是 Pi,种子模型 gpt-5.4。
+      agentLabel: 'Pi',
       canCreate: false,
-      runtimeLabel: 'Claude · claude-sonnet-4-6 · medium',
+      runtimeLabel: 'Pi · gpt-5.4 · medium',
       scopeLabel: '未选择项目路径',
       validationMessage: '请输入电脑端项目路径。',
       workspaceLabel: '项目',
@@ -1257,7 +1254,7 @@ describe('new session model', () => {
       details: [
         '设备：Carol Mac',
         '位置：未选择项目路径',
-        '运行：Claude · claude-sonnet-4-6 · medium',
+        '运行：Pi · gpt-5.4 · medium',
         '首条：未填写',
       ],
     });
@@ -1274,7 +1271,7 @@ describe('new session model', () => {
       details: [
         '设备：Carol Mac',
         '位置：对话工作区',
-        '运行：Claude · claude-sonnet-4-6 · medium',
+        '运行：Pi · claude-sonnet-4-6 · medium',
         '首条：请帮我总结这个项目，并给出下一步建议。',
       ],
     });
@@ -1288,7 +1285,7 @@ describe('new session model', () => {
       details: [
         '设备：Carol Mac',
         '位置：/repo/xdt-maker',
-        '运行：Claude · claude-sonnet-4-6 · medium',
+        '运行：Pi · gpt-5.4 · medium',
         '首条：仅发送附件',
         '附件：2 个',
       ],

@@ -45,10 +45,11 @@ async function loadModule() {
 }
 
 describe('newMakerDraft store', () => {
-  it('默认状态:vendor=cc,workingDir=null,lastByVendor 各 vendor 的硬默认填齐', async () => {
+  it('默认状态:vendor=pi(pi-only 默认),workingDir=null,lastByVendor 各 vendor 的硬默认填齐', async () => {
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('cc');
+    // 远端 Phase C(7d991fe7c):新建任务默认引擎 pi 化,cc/codex 保留为可切换选项。
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
     expect(d.lastByVendor.cc.permissionMode).toBe('auto');
     expect(d.lastByVendor.cc.effort).toBe('medium');
@@ -109,7 +110,8 @@ describe('newMakerDraft store', () => {
         effort: 'high',
       }),
     ).toBe(false);
-    expect(getDraft().vendor).toBe('cc');
+    // markDefaultTupleCustomized 只打标记不切引擎;默认引擎是 pi。
+    expect(getDraft().vendor).toBe('pi');
     expect(getDraft().defaultTupleCustomized).toBe(true);
     expect(getDraft().defaultTupleSelectionCustomized).toBe(true);
   });
@@ -452,8 +454,10 @@ describe('newMakerDraft store', () => {
 
   it('系统可用性回退本身不标记用户自定义', async () => {
     const { fallbackUnavailableVendor, getDraft } = await loadModule();
-    expect(fallbackUnavailableVendor(new Set(['codex', 'pi']))).toBe(true);
-    expect(getDraft().vendor).toBe('codex');
+    // 默认引擎 pi 不在可用集 → 按回落序 ['pi','cc','codex'] 切到 cc;仅系统行为,
+    // 不打用户自定义标记。
+    expect(fallbackUnavailableVendor(new Set(['cc', 'codex']))).toBe(true);
+    expect(getDraft().vendor).toBe('cc');
     expect(getDraft().defaultTupleCustomized).toBe(false);
   });
 
@@ -657,17 +661,17 @@ describe('newMakerDraft store', () => {
     switchVendor('codex');
     const d = getDraft();
     expect(d.vendor).toBe('codex');
-    // 旧 vendor(cc)的 prefs 被落地为传入的值
-    expect(d.lastByVendor.cc.model).toBe('claude-opus-4-7');
-    expect(d.lastByVendor.cc.effort).toBe('high');
-    expect(d.lastByVendor.cc.permissionMode).toBe('bypassPermissions');
+    // 旧 vendor(默认 pi)的 prefs 被落地为传入的值
+    expect(d.lastByVendor.pi.model).toBe('claude-opus-4-7');
+    expect(d.lastByVendor.pi.effort).toBe('high');
+    expect(d.lastByVendor.pi.permissionMode).toBe('bypassPermissions');
     // 新 vendor(codex)的 prefs 不变(等待用户在 codex 下继续操作)
     expect(d.lastByVendor.codex.permissionMode).toBe('auto');
   });
 
   it('switchVendor:选中的引擎跨重启保留(模拟 app 重启后仍是上次选的)', async () => {
     const m1 = await loadModule();
-    expect(m1.getDraft().vendor).toBe('cc');
+    expect(m1.getDraft().vendor).toBe('pi');
     m1.switchVendor('codex');
     expect(m1.getDraft().vendor).toBe('codex');
 
@@ -692,7 +696,7 @@ describe('newMakerDraft store', () => {
       memStorage.setItem('xdt:newMakerDraft:v1', JSON.stringify({ vendor }));
       vi.resetModules();
       const { getDraft } = await loadModule();
-      expect(getDraft().vendor).toBe('cc');
+      expect(getDraft().vendor).toBe('pi');
     }
   });
 
@@ -706,11 +710,14 @@ describe('newMakerDraft store', () => {
   it('patchCurrentVendorPrefs:只改当前 vendor,不影响另一个', async () => {
     const { getDraft, patchCurrentVendorPrefs } = await loadModule();
     const codexBefore = getDraft().lastByVendor.codex;
+    const ccBefore = getDraft().lastByVendor.cc;
     patchCurrentVendorPrefs({ effort: 'xhigh', model: 'claude-opus-4-7' });
     const d = getDraft();
-    expect(d.lastByVendor.cc.effort).toBe('xhigh');
-    expect(d.lastByVendor.cc.model).toBe('claude-opus-4-7');
+    // 默认引擎 pi:写入 pi 槽,其余 vendor 不动
+    expect(d.lastByVendor.pi.effort).toBe('xhigh');
+    expect(d.lastByVendor.pi.model).toBe('claude-opus-4-7');
     expect(d.lastByVendor.codex).toEqual(codexBefore);
+    expect(d.lastByVendor.cc).toEqual(ccBefore);
   });
 
   it('modelChosenByVendor:显式选 model 打标记并持久化;只改 effort 不打;种子默认不算选择', async () => {
@@ -719,23 +726,23 @@ describe('newMakerDraft store', () => {
     //（即使 patchDraft 已把含种子默认 model 的快照落盘)
     m1.patchDraft({ workingDir: '/foo' });
     expect(m1.getDraft().modelChosenByVendor).toEqual({});
-    expect(m1.getPersistedVendorModel('cc')).toBe('');
+    expect(m1.getPersistedVendorModel('pi')).toBe('');
 
     // 只改 effort → 仍不算选过 model
     m1.patchCurrentVendorPrefs({ effort: 'xhigh' });
-    expect(m1.getPersistedVendorModel('cc')).toBe('');
+    expect(m1.getPersistedVendorModel('pi')).toBe('');
 
     // 显式选 model → 打标记,getPersistedVendorModel 返回该值
     m1.patchCurrentVendorPrefs({ model: 'claude-opus-4-8' });
-    expect(m1.getDraft().modelChosenByVendor).toEqual({ cc: true });
-    expect(m1.getPersistedVendorModel('cc')).toBe('claude-opus-4-8');
+    expect(m1.getDraft().modelChosenByVendor).toEqual({ pi: true });
+    expect(m1.getPersistedVendorModel('pi')).toBe('claude-opus-4-8');
     expect(m1.getPersistedVendorModel('codex')).toBe('');
 
     // 模拟 app 重启 → 标记与值都恢复
     vi.resetModules();
     const m2 = await loadModule();
-    expect(m2.getDraft().modelChosenByVendor).toEqual({ cc: true });
-    expect(m2.getPersistedVendorModel('cc')).toBe('claude-opus-4-8');
+    expect(m2.getDraft().modelChosenByVendor).toEqual({ pi: true });
+    expect(m2.getPersistedVendorModel('pi')).toBe('claude-opus-4-8');
   });
 
   it('patchVendorPrefsPreservingModelChoice:只改思考档不打显式选择标记', async () => {
@@ -852,7 +859,7 @@ describe('newMakerDraft store', () => {
     expect(getDraft().workingDir).toBe('/foo');
     clearDraft();
     expect(getDraft().workingDir).toBeNull();
-    expect(getDraft().vendor).toBe('cc');
+    expect(getDraft().vendor).toBe('pi');
   });
 
   it('Fast Mode:按模型记忆,缺省 false', async () => {
@@ -883,7 +890,7 @@ describe('newMakerDraft store', () => {
     vi.resetModules();
     const { getDraft } = await loadModule();
     const d = getDraft();
-    expect(d.vendor).toBe('cc');
+    expect(d.vendor).toBe('pi');
     expect(d.workingDir).toBeNull();
   });
 
@@ -1106,6 +1113,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口的无关写入不会复活另一窗口已恢复推荐的 tuple', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1137,6 +1147,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口在恢复推荐后明确选模时，只写入这次新的 tuple 意图', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1170,6 +1183,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口在恢复推荐后切 Harness 时，不用旧闭包污染最新来源槽', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1210,6 +1226,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口选择界面所示 Harness 时，仍按最新持久状态执行切换', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1255,6 +1274,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口的内联控件按界面 Harness 写入，不串到最新持久 Harness', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1304,6 +1326,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口切 Fast 时回到界面 Harness，并保留最新 Pi 默认', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1341,6 +1366,9 @@ describe('newMakerDraft store', () => {
 
   it('旧窗口改权限等非 tuple 字段时，只更新界面 Harness 槽', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1374,6 +1402,9 @@ describe('newMakerDraft store', () => {
 
   it('preserving 活动同步基于恢复后的 tuple，不带回旧 marker 和调档', async () => {
     const activeWindow = await loadModule();
+    // 显式把 A 窗口定在 cc:模拟「界面仍渲染 cc、后台默认已迁移」的 stale 场景
+    // (默认引擎 pi 化后,'cc' 不再是无干预时的初始值)。
+    activeWindow.switchVendor('cc');
     activeWindow.setEffortForModel('legacy-model', 'high');
     activeWindow.markDefaultTupleCustomized(false);
     vi.resetModules();
@@ -1574,11 +1605,11 @@ describe('newMakerDraft store', () => {
     expect(subscriber).not.toHaveBeenCalled();
   });
 
-  it('vendor 字段非合法值(非 cc/codex)→ 回退 cc', async () => {
+  it('vendor 字段非合法值(非 cc/codex)→ 回退默认引擎 pi', async () => {
     memStorage.setItem('xdt:newMakerDraft:v1', JSON.stringify({ vendor: 'gemini' }));
     vi.resetModules();
     const { getDraft } = await loadModule();
-    expect(getDraft().vendor).toBe('cc');
+    expect(getDraft().vendor).toBe('pi');
   });
 
   it('schema:fastModeByModel 只把 true 当作 enabled,其余值归一为 false', async () => {
