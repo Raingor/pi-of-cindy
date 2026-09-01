@@ -109,14 +109,14 @@ export function PiConfigImportExport() {
     >
       <div className="mb-2.5 flex items-center gap-2">
         <span
-          className="text-[13px] font-medium"
+          className="text-13 font-medium"
           style={{ color: 'var(--settings-section-title)' }}
         >
           {t('settings.piConfig.title')}
         </span>
       </div>
       <p
-        className="mb-3 text-[12px] leading-[1.5]"
+        className="mb-3 text-12 leading-[1.5]"
         style={{ color: 'var(--settings-section-sublabel)' }}
       >
         {t('settings.piConfig.description')}
@@ -135,7 +135,7 @@ export function PiConfigImportExport() {
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-12 font-medium transition-colors hover:opacity-80 disabled:opacity-50"
           style={{
             background: 'var(--accent-color)',
             color: '#fff',
@@ -149,7 +149,7 @@ export function PiConfigImportExport() {
           type="button"
           onClick={handleImport}
           disabled={importing}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-12 font-medium transition-colors hover:opacity-80 disabled:opacity-50"
           style={{
             borderColor: 'var(--settings-theme-card-border)',
             color: 'var(--settings-section-title)',
@@ -164,7 +164,7 @@ export function PiConfigImportExport() {
           type="button"
           onClick={handleReset}
           disabled={resetting}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors hover:opacity-80 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-12 font-medium transition-colors hover:opacity-80 disabled:opacity-50"
           style={{
             borderColor: confirmReset ? 'var(--danger, #e5484d)' : 'var(--settings-theme-card-border)',
             color: confirmReset ? 'var(--danger, #e5484d)' : 'var(--settings-section-sublabel)',
@@ -182,7 +182,7 @@ export function PiConfigImportExport() {
 
       {confirmReset && (
         <p
-          className="mt-2 text-[11px] leading-[1.5]"
+          className="mt-2 text-11 leading-[1.5]"
           style={{ color: 'var(--danger, #e5484d)' }}
         >
           {t('settings.piConfig.resetWarning')}
@@ -191,7 +191,7 @@ export function PiConfigImportExport() {
 
       {toast && (
         <div
-          className="mt-2.5 flex items-center gap-1.5 text-[11px]"
+          className="mt-2.5 flex items-center gap-1.5 text-11"
           style={{ color: toast.type === 'success' ? 'var(--success, #30a46c)' : 'var(--danger, #e5484d)' }}
         >
           {toast.type === 'success' ? <CheckCircle size={12} /> : <AlertCircle size={12} />}

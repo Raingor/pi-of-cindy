@@ -107,7 +107,7 @@ function StatCard({
         </p>
         <div className="rounded-lg bg-[var(--surface)] p-1.5">{icon}</div>
       </div>
-      <p className="text-20 font-bold tracking-tight text-[var(--settings-section-title)]">{value}</p>
+      <p className="text-20 font-semibold tracking-tight text-[var(--settings-section-title)]">{value}</p>
       {subtitle && (
         <p className="mt-0.5 text-11 text-[var(--settings-section-sublabel)]">{subtitle}</p>
       )}

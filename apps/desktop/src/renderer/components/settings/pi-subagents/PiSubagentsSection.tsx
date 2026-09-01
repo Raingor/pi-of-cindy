@@ -273,7 +273,7 @@ function AgentList({
               <Brain className="h-4 w-4 shrink-0" style={{ color: 'var(--accent, var(--text-link))' }} />
               <span className="truncate text-sm font-medium">{agent.name}</span>
               <span
-                className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                className="rounded-full px-1.5 py-0.5 text-10 font-medium"
                 style={{
                   backgroundColor:
                     agent.package === 'custom'

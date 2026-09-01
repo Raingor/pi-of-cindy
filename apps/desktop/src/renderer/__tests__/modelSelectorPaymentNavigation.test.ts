@@ -17,9 +17,16 @@ describe('ModelSelector paid model navigation', () => {
     expect(end).toBeGreaterThan(start);
 
     const paymentRequiredBlock = modelSelectorSource.slice(start, end);
+    // 付费模型仍要如实告知「这个模型需要付费才能用」—— 弹窗改纯告知(b7067fcc7,
+    // 计费页随本机 Pi 工作台下架,没有可跳的页面),断言对齐这一有意变更。
+    expect(paymentRequiredBlock).toContain('confirmDialog.confirm({');
     expect(paymentRequiredBlock).toContain(
-      "window.location.hash = '#/settings?tab=billing';",
+      "t('newChat.modelSelector.paymentRequired.title')",
     );
+    expect(paymentRequiredBlock).toContain(
+      "t('newChat.modelSelector.paymentRequired.description')",
+    );
+    expect(paymentRequiredBlock).not.toContain('window.location.hash');
     expect(paymentRequiredBlock).not.toContain('window.history');
   });
 

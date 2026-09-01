@@ -340,14 +340,14 @@ export function RequestActivityChart({ data, range, className }: ActivityChartPr
             <CartesianGrid vertical={false} stroke="var(--settings-theme-card-border)" strokeDasharray="3 3" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 9, fill: 'var(--settings-section-sublabel)' }}
+              tick={{ fontSize: 10, fill: 'var(--settings-section-sublabel)' }}
               axisLine={false}
               tickLine={false}
               interval="preserveStartEnd"
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fontSize: 9, fill: 'var(--settings-section-sublabel)' }}
+              tick={{ fontSize: 10, fill: 'var(--settings-section-sublabel)' }}
               axisLine={false}
               tickLine={false}
             />

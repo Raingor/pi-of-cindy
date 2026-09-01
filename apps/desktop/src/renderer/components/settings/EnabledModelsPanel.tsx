@@ -89,13 +89,13 @@ export function EnabledModelsPanel() {
           )}
           <Zap size={14} className="text-[var(--success, #30a46c)]" />
           <span
-            className="text-[13px] font-medium"
+            className="text-13 font-medium"
             style={{ color: 'var(--settings-section-title)' }}
           >
             {t('settings.providers.enabledModels.title')}
           </span>
           <span
-            className="rounded-full border px-1.5 py-0.5 text-[11px]"
+            className="rounded-full border px-1.5 py-0.5 text-11"
             style={{
               borderColor: 'var(--settings-theme-card-border)',
               color: 'var(--settings-section-sublabel)',
@@ -109,7 +109,7 @@ export function EnabledModelsPanel() {
           <button
             type="button"
             onClick={disableAll}
-            className="rounded-md border px-2 py-1 text-[11px] font-medium transition-colors hover:opacity-80"
+            className="rounded-md border px-2 py-1 text-11 font-medium transition-colors hover:opacity-80"
             style={{
               borderColor: 'var(--settings-theme-card-border)',
               color: 'var(--danger, #e5484d)',
@@ -124,7 +124,7 @@ export function EnabledModelsPanel() {
         <div className="px-3.5 pb-3">
           {enabledModels.length === 0 ? (
             <p
-              className="text-[12px] leading-[1.5]"
+              className="text-12 leading-[1.5]"
               style={{ color: 'var(--settings-section-sublabel)', opacity: 0.7 }}
             >
               {t('settings.providers.enabledModels.empty')}
@@ -134,7 +134,7 @@ export function EnabledModelsPanel() {
               {enabledModels.map((entry) => (
                 <span
                   key={entry.ref}
-                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]"
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-11"
                   style={{
                     borderColor: 'var(--settings-theme-card-border)',
                     background: 'var(--surface-subtle, rgba(0,0,0,0.03))',
@@ -145,7 +145,7 @@ export function EnabledModelsPanel() {
                     {entry.modelId}
                   </span>
                   <span
-                    className="shrink-0 rounded px-1 py-0.5 text-[10px]"
+                    className="shrink-0 rounded px-1 py-0.5 text-10"
                     style={{
                       background: 'var(--settings-theme-card-bg)',
                       color: 'var(--settings-section-sublabel)',
