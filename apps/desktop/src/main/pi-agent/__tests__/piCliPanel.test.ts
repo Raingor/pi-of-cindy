@@ -431,3 +431,136 @@ describe('applyPiCliAddModel', () => {
     expect(added).toBe(true);
   });
 });
+
+describe('pi provider semantic mutations (pws parity)', () => {
+  const {
+    sanitizePiProviderId,
+    derivePiProviderId,
+    applyPiCliUpsertProvider,
+    applyPiCliRenameProvider,
+    applyPiCliRemoveProvider,
+    applyPiCliSetProviderDisabled,
+    applyPiCliUpsertModel,
+    applyPiCliRemoveModel,
+    applyPiCliUpdateEnabledModels,
+  } = __testing;
+
+  it('sanitizes provider ids like pws (unicode letters, digits, hyphens)', () => {
+    expect(sanitizePiProviderId('  My  Provider! ')).toBe('my-provider');
+    expect(sanitizePiProviderId('百灵 中转')).toBe('百灵-中转');
+    expect(sanitizePiProviderId('--a--b--')).toBe('a-b');
+    expect(derivePiProviderId('', 'https://api.example.com/v1')).toBe('');
+    // 非空但全是符号 → 回落 hostname（pws 同款）
+    expect(derivePiProviderId('!!!', 'https://api.example.com/v1')).toBe('example');
+    expect(derivePiProviderId('!!!', 'https://api.platform.openai.com/v1')).toBe('openai');
+  });
+
+  it('upsert creates then patches a provider with apiKey mirroring', () => {
+    const doc: Record<string, unknown> = {};
+    applyPiCliUpsertProvider(doc, 'myprov', {
+      name: 'MyProv',
+      baseUrl: 'https://api.example.com/v1/',
+      api: 'openai-completions',
+      apiKey: 'sk-value-0000000001',
+    });
+    const created = (doc.providers as Record<string, Record<string, unknown>>).myprov!;
+    expect(created.name).toBe('MyProv');
+    expect(created.baseUrl).toBe('https://api.example.com/v1'); // trailing slash stripped
+    expect(created.apiKey).toBe('sk-value-0000000001');
+    // second upsert with pool: apiKey mirrors active entry
+    applyPiCliUpsertProvider(doc, 'myprov', {
+      apiKeys: [
+        { id: 'k1', key: 'sk-a-000000000000001' },
+        { id: 'k2', key: 'sk-b-000000000000002' },
+      ],
+      activeKeyId: 'k2',
+    });
+    expect(created.activeKeyId).toBe('k2');
+    expect(created.apiKey).toBe('sk-b-000000000000002');
+    // adopting an extra single key into an existing pool appends and activates
+    applyPiCliUpsertProvider(doc, 'myprov', { apiKey: 'sk-c-000000000000003' });
+    expect((created.apiKeys as unknown[]).length).toBe(3);
+    expect(created.apiKey).toBe('sk-c-000000000000003');
+    // invalid baseUrl rejected
+    expect(() =>
+      applyPiCliUpsertProvider(doc, 'myprov', { baseUrl: 'ftp://x' }),
+    ).toThrow('PI_CLI_MODEL_INVALID');
+  });
+
+  it('rename moves the block between buckets and rewrites enabledModels refs', () => {
+    const doc = { providers: { old: { apiKey: 'k', models: [{ id: 'm1' }] } } };
+    const settings = { enabledModels: ['old/m1', 'other/m2'] };
+    const { doc: nextDoc, settings: nextSettings } = applyPiCliRenameProvider(
+      doc,
+      settings,
+      'old',
+      'new',
+      { name: 'Renamed' },
+    );
+    expect((nextDoc.providers as Record<string, unknown>).old).toBeUndefined();
+    const moved = (nextDoc.providers as Record<string, Record<string, unknown>>).new!;
+    expect(moved.name).toBe('Renamed');
+    expect(nextSettings.enabledModels).toEqual(['new/m1', 'other/m2']);
+    // duplicate target rejected
+    expect(() => applyPiCliRenameProvider(nextDoc, nextSettings, 'new', 'new2')).not.toThrow();
+    const dup = { providers: { a: {}, b: {} } };
+    expect(() => applyPiCliRenameProvider(dup, {}, 'a', 'b')).toThrow('PI_CLI_PROVIDER_EXISTS');
+  });
+
+  it('remove deletes from either bucket', () => {
+    const doc = {
+      providers: { a: { apiKey: 'k' } },
+      _disabledProviders: { b: { apiKey: 'k' } },
+    };
+    applyPiCliRemoveProvider(doc, 'a');
+    applyPiCliRemoveProvider(doc, 'b');
+    expect(Object.keys(doc.providers as object)).toHaveLength(0);
+    expect(Object.keys(doc._disabledProviders as object)).toHaveLength(0);
+    expect(() => applyPiCliRemoveProvider(doc, 'ghost')).toThrow('PI_CLI_PROVIDER_NOT_FOUND');
+  });
+
+  it('set-disabled moves the block to/from _disabledProviders idempotently', () => {
+    const doc: Record<string, unknown> = { providers: { a: { apiKey: 'k' } } };
+    applyPiCliSetProviderDisabled(doc, 'a', true);
+    expect((doc._disabledProviders as Record<string, unknown>).a).toBeDefined();
+    expect((doc.providers as Record<string, unknown>).a).toBeUndefined();
+    // idempotent
+    applyPiCliSetProviderDisabled(doc, 'a', true);
+    applyPiCliSetProviderDisabled(doc, 'a', false);
+    expect((doc.providers as Record<string, Record<string, unknown>>).a!.apiKey).toBe('k');
+    applyPiCliSetProviderDisabled(doc, 'a', false); // already active, no-op
+    // unknown provider
+    expect(() => applyPiCliSetProviderDisabled(doc, 'ghost', true)).toThrow(
+      'PI_CLI_PROVIDER_NOT_FOUND',
+    );
+  });
+
+  it('upsert-model merges in place; remove-model filters', () => {
+    const doc = { providers: { p: { models: [{ id: 'm1', name: 'Old' }] } } };
+    const r1 = applyPiCliUpsertModel(doc, 'p', { id: 'm1', contextWindow: 1000 });
+    expect(r1.added).toBe(false);
+    expect((doc.providers as Record<string, Record<string, unknown>>).p!.models).toEqual([
+      { id: 'm1', name: 'Old', contextWindow: 1000 },
+    ]);
+    const r2 = applyPiCliUpsertModel(doc, 'p', { id: 'm2' });
+    expect(r2.added).toBe(true);
+    applyPiCliRemoveModel(doc, 'p', 'm1');
+    expect(
+      ((doc.providers as Record<string, Record<string, unknown>>).p!.models as unknown[]).map(
+        (m) => (m as { id: string }).id,
+      ),
+    ).toEqual(['m2']);
+  });
+
+  it('enabledModels add/remove/replaceAll with empty-means-unset semantics', () => {
+    expect(applyPiCliUpdateEnabledModels({}, { add: ['a/1', 'b/2', 'a/1'] })).toEqual({
+      enabledModels: ['a/1', 'b/2'],
+    });
+    expect(
+      applyPiCliUpdateEnabledModels({ enabledModels: ['a/1', 'b/2'] }, { remove: ['a/1'] }),
+    ).toEqual({ enabledModels: ['b/2'] });
+    // empty list = unset (pi treats absent/empty as no filtering)
+    const out = applyPiCliUpdateEnabledModels({ enabledModels: ['a/1'] }, { replaceAll: [] });
+    expect(out.enabledModels).toBeUndefined();
+  });
+});

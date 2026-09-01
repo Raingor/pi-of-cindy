@@ -41,11 +41,19 @@ import {
   fetchPiCliProviderModels,
   readPiCliExtensions,
   readPiCliProviders,
+  removePiCliProvider,
+  renamePiCliProvider,
   runPiCliPackageCommand,
+  setPiCliProviderDisabled,
   switchPiCliProviderKey,
   testPiCliModel,
   testPiCliProviderConnection,
+  removePiCliProviderModel,
+  updatePiCliEnabledModels,
+  upsertPiCliProvider,
+  upsertPiCliProviderModel,
   type PiCliModelInput,
+  type PiCliProviderPatch,
 } from '../pi-agent/piCliPanel.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
@@ -58,6 +66,101 @@ import {
 import { MAKER_INVOKE } from './channels.js';
 
 const log = createLogger('maker-ipc/pi-agent');
+
+/** mutate 通道的补丁字段白名单：未知键不进 models.json。 */
+function parseProviderPatch(raw: Record<string, unknown>): PiCliProviderPatch {
+  const patch: PiCliProviderPatch = {};
+  if (raw.name !== undefined) {
+    if (typeof raw.name !== 'string' || raw.name.length > 200) {
+      throwIpcError('INVALID_PARAMS', 'patch.name must be a short string');
+    }
+    patch.name = raw.name;
+  }
+  if (raw.baseUrl !== undefined) {
+    if (typeof raw.baseUrl !== 'string' || raw.baseUrl.length > 2000) {
+      throwIpcError('INVALID_PARAMS', 'patch.baseUrl must be a string');
+    }
+    patch.baseUrl = raw.baseUrl;
+  }
+  if (raw.api !== undefined) {
+    if (typeof raw.api !== 'string' || raw.api.length > 60) {
+      throwIpcError('INVALID_PARAMS', 'patch.api must be a string');
+    }
+    patch.api = raw.api as PiCliProviderPatch['api'];
+  }
+  if (raw.apiKey !== undefined) {
+    if (typeof raw.apiKey !== 'string' || raw.apiKey.length > 2000) {
+      throwIpcError('INVALID_PARAMS', 'patch.apiKey must be a string');
+    }
+    patch.apiKey = raw.apiKey;
+  }
+  if (raw.apiKeys !== undefined) {
+    if (!Array.isArray(raw.apiKeys) || raw.apiKeys.length > 100) {
+      throwIpcError('INVALID_PARAMS', 'patch.apiKeys must be an array');
+    }
+    patch.apiKeys = (raw.apiKeys as unknown[]).map((e) => {
+      if (typeof e !== 'object' || e === null) {
+        throwIpcError('INVALID_PARAMS', 'patch.apiKeys entries must be objects');
+      }
+      const entry = e as Record<string, unknown>;
+      if (typeof entry.id !== 'string' || typeof entry.key !== 'string') {
+        throwIpcError('INVALID_PARAMS', 'patch.apiKeys entries need id and key strings');
+      }
+      return { id: entry.id.slice(0, 64), key: entry.key };
+    });
+  }
+  if (raw.activeKeyId !== undefined) {
+    if (typeof raw.activeKeyId !== 'string' || raw.activeKeyId.length > 64) {
+      throwIpcError('INVALID_PARAMS', 'patch.activeKeyId must be a string');
+    }
+    patch.activeKeyId = raw.activeKeyId;
+  }
+  if (raw.headers !== undefined) {
+    if (typeof raw.headers !== 'object' || raw.headers === null || Array.isArray(raw.headers)) {
+      throwIpcError('INVALID_PARAMS', 'patch.headers must be an object');
+    }
+    patch.headers = raw.headers as Record<string, string>;
+  }
+  if (raw.compat !== undefined) {
+    if (typeof raw.compat !== 'object' || raw.compat === null || Array.isArray(raw.compat)) {
+      throwIpcError('INVALID_PARAMS', 'patch.compat must be an object');
+    }
+    patch.compat = raw.compat as PiCliProviderPatch['compat'];
+  }
+  if (raw.models !== undefined) {
+    if (!Array.isArray(raw.models) || raw.models.length > 2000) {
+      throwIpcError('INVALID_PARAMS', 'patch.models must be an array');
+    }
+    patch.models = (raw.models as unknown[]).map((m) => parseModelInput(m as Record<string, unknown>));
+  }
+  return patch;
+}
+
+/** 模型定义字段白名单。 */
+function parseModelInput(raw: Record<string, unknown>): PiCliModelInput {
+  const input: PiCliModelInput = { id: requireString(raw.id, 'model.id') };
+  if (input.id.length > 200) throwIpcError('INVALID_PARAMS', 'model.id too long');
+  if (typeof raw.name === 'string' && raw.name.length <= 200) input.name = raw.name;
+  if (raw.reasoning === true) input.reasoning = true;
+  if (Array.isArray(raw.input)) {
+    const vals = raw.input.filter((x): x is string => typeof x === 'string');
+    if (vals.length > 0) input.input = vals;
+  }
+  for (const k of ['contextWindow', 'maxTokens'] as const) {
+    if (typeof raw[k] === 'number' && Number.isFinite(raw[k])) input[k] = raw[k];
+  }
+  if (raw.cost && typeof raw.cost === 'object' && !Array.isArray(raw.cost)) {
+    const c = raw.cost as Record<string, unknown>;
+    const cost: PiCliModelInput['cost'] = {};
+    for (const k of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) {
+      if (typeof c[k] === 'number' && Number.isFinite(c[k])) {
+        cost[k] = c[k];
+      }
+    }
+    if (Object.keys(cost).length > 0) input.cost = cost;
+  }
+  return input;
+}
 
 export function registerPiAgentIpc(): void {
   // ── Installation probe ──────────────────────────────────────────────────
@@ -246,6 +349,93 @@ export function registerPiAgentIpc(): void {
         throwIpcError('PI_AGENT_IMPORT_FAILED', 'failed to write ~/.pi/agent/models.json');
       }
       log.warn('pi cli add-model failed', { providerId });
+      throwIpcError('INTERNAL', message.slice(0, 500));
+    }
+  });
+
+  // 供应商/模型语义化变更：action 白名单分发,字段白名单校验,响应永不回传 key 真值。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_MUTATE, (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const action = requireEnum(payload.action, [
+      'upsert-provider',
+      'rename-provider',
+      'remove-provider',
+      'set-provider-disabled',
+      'upsert-model',
+      'remove-model',
+      'update-enabled',
+    ] as const, 'action');
+    try {
+      switch (action) {
+        case 'upsert-provider': {
+          const id = requireString(payload.id, 'id');
+          upsertPiCliProvider(id, parseProviderPatch(requireObject(payload.patch, 'patch')));
+          return { success: true };
+        }
+        case 'rename-provider': {
+          const fromId = requireString(payload.fromId, 'fromId');
+          const toId = requireString(payload.toId, 'toId');
+          const patch = payload.patch ? parseProviderPatch(requireObject(payload.patch, 'patch')) : undefined;
+          renamePiCliProvider(fromId, toId, patch);
+          return { success: true };
+        }
+        case 'remove-provider': {
+          removePiCliProvider(requireString(payload.id, 'id'));
+          return { success: true };
+        }
+        case 'set-provider-disabled': {
+          const id = requireString(payload.id, 'id');
+          if (typeof payload.disabled !== 'boolean') {
+            throwIpcError('INVALID_PARAMS', 'disabled must be a boolean');
+          }
+          setPiCliProviderDisabled(id, payload.disabled);
+          return { success: true };
+        }
+        case 'upsert-model': {
+          const providerId = requireString(payload.providerId, 'providerId');
+          const model = parseModelInput(requireObject(payload.model, 'model'));
+          upsertPiCliProviderModel(providerId, model);
+          return { success: true };
+        }
+        case 'remove-model': {
+          removePiCliProviderModel(
+            requireString(payload.providerId, 'providerId'),
+            requireString(payload.modelId, 'modelId'),
+          );
+          return { success: true };
+        }
+        case 'update-enabled': {
+          const change = requireObject(payload.change, 'change');
+          const clean: { add?: string[]; remove?: string[]; replaceAll?: string[] } = {};
+          for (const k of ['add', 'remove', 'replaceAll'] as const) {
+            if (Array.isArray(change[k])) {
+              const vals = (change[k] as unknown[]).filter(
+                (x): x is string => typeof x === 'string' && x.trim().length > 0 && x.length <= 300,
+              );
+              if (vals.length > 0) clean[k] = vals.slice(0, 2000);
+            }
+          }
+          updatePiCliEnabledModels(clean);
+          return { success: true };
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_CLI_PROVIDER_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'provider not found in ~/.pi/agent/models.json');
+      }
+      if (message === 'PI_CLI_PROVIDER_EXISTS') {
+        throwIpcError('INVALID_PARAMS', 'a provider with this id already exists');
+      }
+      if (message === 'PI_CLI_MODEL_INVALID') {
+        throwIpcError('INVALID_PARAMS', 'invalid provider or model payload');
+      }
+      if (message === 'PI_CLI_WRITE_FAILED') {
+        log.warn('pi cli mutate write failed', { action });
+        throwIpcError('PI_AGENT_IMPORT_FAILED', 'failed to write ~/.pi/agent config');
+      }
+      log.warn('pi cli mutate failed', { action });
       throwIpcError('INTERNAL', message.slice(0, 500));
     }
   });

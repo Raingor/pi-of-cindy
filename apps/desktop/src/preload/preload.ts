@@ -7119,6 +7119,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
         },
       ): Promise<{ success: boolean; added: boolean }> =>
         ipcRenderer.invoke('maker:pi-cli:add-model', { providerId, model }),
+      // 供应商/模型语义化变更（对齐 pws config-store）:action 分发,字段白名单。
+      // 密钥明文只从用户输入流入 main 落盘,响应不回传真值。
+      mutateCli: (payload: {
+        action:
+          | 'upsert-provider'
+          | 'rename-provider'
+          | 'remove-provider'
+          | 'set-provider-disabled'
+          | 'upsert-model'
+          | 'remove-model'
+          | 'update-enabled';
+        id?: string;
+        fromId?: string;
+        toId?: string;
+        providerId?: string;
+        modelId?: string;
+        disabled?: boolean;
+        patch?: Record<string, unknown>;
+        model?: Record<string, unknown>;
+        change?: Record<string, unknown>;
+      }): Promise<{ success: boolean }> =>
+        ipcRenderer.invoke('maker:pi-cli:mutate', payload),
       readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
       writeSettings: (settings: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:write-settings', settings),

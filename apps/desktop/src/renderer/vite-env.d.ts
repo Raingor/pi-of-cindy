@@ -6376,6 +6376,26 @@ interface ElectronAPI {
           cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
         },
       ) => Promise<{ success: boolean; added: boolean }>;
+      /** 供应商/模型语义化变更:action 分发,字段白名单,响应不回传 key 真值。 */
+      mutateCli: (payload: {
+        action:
+          | 'upsert-provider'
+          | 'rename-provider'
+          | 'remove-provider'
+          | 'set-provider-disabled'
+          | 'upsert-model'
+          | 'remove-model'
+          | 'update-enabled';
+        id?: string;
+        fromId?: string;
+        toId?: string;
+        providerId?: string;
+        modelId?: string;
+        disabled?: boolean;
+        patch?: Record<string, unknown>;
+        model?: Record<string, unknown>;
+        change?: Record<string, unknown>;
+      }) => Promise<{ success: boolean }>;
       readSettings: () => Promise<unknown>;
       writeSettings: (settings: unknown) => Promise<unknown>;
       readUsage: () => Promise<unknown>;

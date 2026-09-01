@@ -125,6 +125,7 @@ describe('pi cli package mutation contract', () => {
       'PI_CLI_TEST_MODEL',
       'PI_CLI_SWITCH_KEY',
       'PI_CLI_ADD_MODEL',
+      'PI_CLI_MUTATE',
     ]) {
       const start = handlers.indexOf(`MAKER_INVOKE.${channel}`);
       expect(start, channel).toBeGreaterThan(-1);
@@ -182,5 +183,30 @@ describe('pi cli package mutation contract', () => {
     expect(body).toContain("for (const k of ['contextWindow', 'maxTokens'] as const)");
     // models.json 写路径不携带 apiKey/credential 字段。
     expect(body).not.toMatch(/apiKey/);
+  });
+
+  it('mutate channel dispatches a whitelisted action set with payload validation', () => {
+    const handlers = readSource('src/main/maker-ipc/piAgentHandlers.ts');
+    const start = handlers.indexOf('MAKER_INVOKE.PI_CLI_MUTATE');
+    expect(start).toBeGreaterThan(-1);
+    const body = handlers.slice(start, handlers.indexOf('  // ── Settings', start));
+    expect(body).toContain('assertTrustedAppRendererEvent(event)');
+    // action 白名单与 pws config-store 动作一一对应。
+    for (const action of [
+      'upsert-provider',
+      'rename-provider',
+      'remove-provider',
+      'set-provider-disabled',
+      'upsert-model',
+      'remove-model',
+      'update-enabled',
+    ]) {
+      expect(body.includes(`'${action}'`), action).toBe(true);
+    }
+    // 字段白名单解析存在（未知键不进 models.json）。
+    expect(handlers).toContain('function parseProviderPatch');
+    expect(handlers).toContain('function parseModelInput');
+    // 响应只回 success 布尔,永不回传 key 真值。
+    expect(body.match(/return \{ success: true \};/g)?.length).toBeGreaterThanOrEqual(7);
   });
 });

@@ -586,6 +586,472 @@ export function buildPiCliCatalogProviders(): Provider[] {
   }));
 }
 
+// ─── 供应商/模型语义化写路径（对齐 pi-web-switch config-store）────────────
+
+/** 与 pws API_TYPES 一致的 9 种 pi 原生接口形态。 */
+export const PI_CLI_API_TYPES = [
+  'openai-completions',
+  'openai-responses',
+  'openai-codex-responses',
+  'azure-openai-responses',
+  'anthropic-messages',
+  'google-generative-ai',
+  'google-vertex',
+  'bedrock-converse-stream',
+  'mistral-conversations',
+] as const;
+export type PiCliApiType = (typeof PI_CLI_API_TYPES)[number];
+
+/** pws 同款：字母(任意文字)、数字与连字号的配置安全 id。 */
+export function sanitizePiProviderId(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+/** 名称取不出 id 时回落到端点 hostname 的有意义段。 */
+export function derivePiProviderId(name: string, baseUrl: string): string {
+  const fromName = sanitizePiProviderId(name);
+  if (fromName || !name.trim()) return fromName;
+  try {
+    const host = new URL(baseUrl.trim()).hostname;
+    const skip = new Set(['api', 'www', 'app', 'gateway', 'open', 'openapi', 'platform']);
+    const part = host.split('.').find((p) => p && !skip.has(p.toLowerCase()));
+    return sanitizePiProviderId(part ?? '');
+  } catch {
+    return '';
+  }
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** 供应商字段补丁 —— 白名单字段，未知键不进 models.json。 */
+export interface PiCliProviderPatch {
+  name?: string;
+  baseUrl?: string;
+  api?: PiCliApiType;
+  /** 单把 key（无池时直接写 apiKey 镜像；有池时归一化采纳进池）。 */
+  apiKey?: string;
+  apiKeys?: Array<{ id: string; key: string }>;
+  activeKeyId?: string;
+  headers?: Record<string, string>;
+  compat?: { supportsDeveloperRole?: boolean; supportsFinishReason?: boolean };
+  models?: PiCliModelInput[];
+}
+
+function findProviderBlock(
+  doc: Record<string, unknown>,
+  id: string,
+): { bucket: Record<string, unknown> } | null {
+  if (isRecord(doc.providers) && isRecord(doc.providers[id])) {
+    return { bucket: doc.providers as Record<string, unknown> };
+  }
+  if (isRecord(doc._disabledProviders) && isRecord(doc._disabledProviders[id])) {
+    return { bucket: doc._disabledProviders as Record<string, unknown> };
+  }
+  return null;
+}
+
+/** 把补丁合并进 provider 块（不落盘）。 apiKey 镜像语义与 pws persistKeys 一致。 */
+function mergeProviderPatch(block: Record<string, unknown>, patch: PiCliProviderPatch): void {
+  if (patch.name !== undefined) {
+    const name = patch.name.trim();
+    if (name) block.name = name;
+  }
+  if (patch.baseUrl !== undefined) {
+    const baseUrl = patch.baseUrl.trim();
+    if (!isValidHttpUrl(baseUrl)) throw new Error('PI_CLI_MODEL_INVALID');
+    block.baseUrl = baseUrl.replace(/\/+$/, '');
+  }
+  if (patch.api !== undefined) {
+    if (!(PI_CLI_API_TYPES as readonly string[]).includes(patch.api)) {
+      throw new Error('PI_CLI_MODEL_INVALID');
+    }
+    block.api = patch.api;
+  }
+  if (patch.headers !== undefined) {
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(patch.headers)) {
+      if (typeof k === 'string' && k.trim() && typeof v === 'string') headers[k.trim()] = v;
+    }
+    if (Object.keys(headers).length > 0) block.headers = headers;
+  }
+  if (patch.compat !== undefined) {
+    const compat: Record<string, boolean> = {};
+    if (typeof patch.compat.supportsDeveloperRole === 'boolean') {
+      compat.supportsDeveloperRole = patch.compat.supportsDeveloperRole;
+    }
+    if (typeof patch.compat.supportsFinishReason === 'boolean') {
+      compat.supportsFinishReason = patch.compat.supportsFinishReason;
+    }
+    block.compat = compat;
+  }
+  if (patch.models !== undefined) {
+    const models: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
+    for (const m of patch.models) {
+      const modelId = typeof m?.id === 'string' ? m.id.trim() : '';
+      if (!modelId || seen.has(modelId)) continue;
+      seen.add(modelId);
+      models.push(buildModelDefinition(m));
+    }
+    block.models = models;
+  }
+  // 密钥池：与 pws normalizeKeyPool/persistKeys 同语义 —— 池存在时 apiKey
+  // 镜像 activeKeyId 指向的那把（pi 只读 apiKey）。
+  if (patch.apiKeys !== undefined) {
+    const pool = patch.apiKeys.filter(
+      (k) => k && typeof k.id === 'string' && k.id.trim() && typeof k.key === 'string' && k.key.trim(),
+    );
+    if (pool.length > 0) {
+      block.apiKeys = pool;
+      const activeId =
+        typeof patch.activeKeyId === 'string' && pool.some((k) => k.id === patch.activeKeyId)
+          ? patch.activeKeyId
+          : pool[0]!.id;
+      block.activeKeyId = activeId;
+      block.apiKey = pool.find((k) => k.id === activeId)!.key;
+    } else {
+      delete block.apiKeys;
+      delete block.activeKeyId;
+    }
+  } else if (patch.apiKey !== undefined && patch.apiKey.trim()) {
+    // 单把 key：无池时直接镜像；有池时归一化采纳（同值不重复入库）。
+    const pool = Array.isArray(block.apiKeys)
+      ? (block.apiKeys as Array<Record<string, unknown>>).filter(
+          (e) => isRecord(e) && typeof e.id === 'string' && typeof e.key === 'string' && e.key.trim(),
+        )
+      : [];
+    const value = patch.apiKey.trim();
+    if (pool.length === 0) {
+      block.apiKey = value;
+    } else if (!pool.some((e) => e.key === value)) {
+      const entryId = `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      pool.push({ id: entryId, key: value });
+      block.apiKeys = pool;
+      block.activeKeyId = entryId;
+      block.apiKey = value;
+    }
+  }
+}
+
+function buildModelDefinition(m: PiCliModelInput): Record<string, unknown> {
+  const modelId = typeof m?.id === 'string' ? m.id.trim() : '';
+  if (!modelId) throw new Error('PI_CLI_MODEL_INVALID');
+  const cost =
+    isRecord(m.cost)
+      ? {
+          input: optionalNumber(m.cost.input) ?? 0,
+          output: optionalNumber(m.cost.output) ?? 0,
+          cacheRead: optionalNumber(m.cost.cacheRead) ?? 0,
+          cacheWrite: optionalNumber(m.cost.cacheWrite) ?? 0,
+        }
+      : undefined;
+  const input = Array.isArray(m.input)
+    ? m.input.filter((x): x is string => typeof x === 'string')
+    : undefined;
+  return {
+    id: modelId,
+    ...(typeof m.name === 'string' && m.name.trim() ? { name: m.name.trim() } : {}),
+    ...(m.reasoning === true ? { reasoning: true } : {}),
+    ...(input && input.length > 0 ? { input } : {}),
+    ...(optionalNumber(m.contextWindow) !== undefined
+      ? { contextWindow: optionalNumber(m.contextWindow) }
+      : {}),
+    ...(optionalNumber(m.maxTokens) !== undefined
+      ? { maxTokens: optionalNumber(m.maxTokens) }
+      : {}),
+    ...(cost ? { cost } : {}),
+  };
+}
+
+/**
+ * 纯函数：创建或更新供应商。id 必须已过 sanitize（不代猜）；目标在
+ * providers 或 _disabledProviders 任一桶均可（停用状态下也能编辑）。
+ */
+export function applyPiCliUpsertProvider(
+  modelsJson: unknown,
+  id: string,
+  patch: PiCliProviderPatch,
+): Record<string, unknown> {
+  if (!isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const safeId = sanitizePiProviderId(id);
+  if (!safeId || safeId !== id.trim()) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const ensureBucket = (key: string): Record<string, unknown> => {
+    if (!isRecord(modelsJson[key])) modelsJson[key] = {};
+    return modelsJson[key] as Record<string, unknown>;
+  };
+  const found = findProviderBlock(modelsJson, safeId);
+  const block = found
+    ? (found.bucket[safeId] as Record<string, unknown>)
+    : (ensureBucket('providers')[safeId] = {});
+  mergeProviderPatch(block, patch);
+  return modelsJson as Record<string, unknown>;
+}
+
+/**
+ * 纯函数：重命名供应商（id 是 pi 模型选择器徽标与 enabledModels 引用的前缀），
+ * 同步改写 settings.enabledModels 里的 `oldId/…` 引用。
+ */
+export function applyPiCliRenameProvider(
+  modelsJson: unknown,
+  settings: unknown,
+  fromId: string,
+  toId: string,
+  patch?: PiCliProviderPatch,
+): { doc: Record<string, unknown>; settings: Record<string, unknown> } {
+  if (!isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const from = sanitizePiProviderId(fromId);
+  const to = sanitizePiProviderId(toId);
+  if (!from || !to || to !== toId.trim() || from !== fromId.trim()) {
+    throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  }
+  if (from === to) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const found = findProviderBlock(modelsJson, from);
+  if (!found) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  if (findProviderBlock(modelsJson, to)) throw new Error('PI_CLI_PROVIDER_EXISTS');
+  const block = found.bucket[from] as Record<string, unknown>;
+  delete found.bucket[from];
+  found.bucket[to] = block;
+  if (patch) mergeProviderPatch(block, patch);
+  // enabledModels 引用改写（settings 可能没有该键）。
+  const s = isRecord(settings) ? settings : {};
+  if (Array.isArray(s.enabledModels)) {
+    s.enabledModels = (s.enabledModels as unknown[]).map((ref) =>
+      typeof ref === 'string' && ref.startsWith(`${from}/`) ? `${to}/${ref.slice(from.length + 1)}` : ref,
+    );
+  }
+  return { doc: modelsJson as Record<string, unknown>, settings: s };
+}
+
+/** 纯函数：从两个桶里彻底删除供应商。 */
+export function applyPiCliRemoveProvider(modelsJson: unknown, id: string): Record<string, unknown> {
+  if (!isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const safeId = sanitizePiProviderId(id);
+  const found = findProviderBlock(modelsJson, safeId);
+  if (!found) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  delete found.bucket[safeId];
+  return modelsJson as Record<string, unknown>;
+}
+
+/**
+ * 纯函数：停用/重新启用供应商 —— pi 的语义是把整块配置在 providers 与
+ * _disabledProviders 之间搬运。已在目标桶时幂等返回。
+ */
+export function applyPiCliSetProviderDisabled(
+  modelsJson: unknown,
+  id: string,
+  disabled: boolean,
+): Record<string, unknown> {
+  if (!isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const safeId = sanitizePiProviderId(id);
+  const providers = isRecord(modelsJson.providers) ? modelsJson.providers : undefined;
+  const disabledProviders = isRecord(modelsJson._disabledProviders)
+    ? modelsJson._disabledProviders
+    : undefined;
+  if (disabled) {
+    if (providers && isRecord(providers[safeId])) {
+      const dp = (modelsJson._disabledProviders =
+        modelsJson._disabledProviders && isRecord(modelsJson._disabledProviders)
+          ? modelsJson._disabledProviders
+          : {}) as Record<string, unknown>;
+      dp[safeId] = providers[safeId];
+      delete providers[safeId];
+    } else if (!disabledProviders || !isRecord(disabledProviders[safeId])) {
+      throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+    }
+  } else {
+    if (disabledProviders && isRecord(disabledProviders[safeId])) {
+      const pv = (modelsJson.providers = providers ?? {}) as Record<string, unknown>;
+      pv[safeId] = disabledProviders[safeId];
+      delete disabledProviders[safeId];
+    } else if (!providers || !isRecord(providers[safeId])) {
+      throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+    }
+  }
+  return modelsJson as Record<string, unknown>;
+}
+
+/** 纯函数：创建或更新单个模型（同 id 原地合并，未提供的字段保留）。 */
+export function applyPiCliUpsertModel(
+  modelsJson: unknown,
+  providerId: string,
+  model: PiCliModelInput,
+): { doc: Record<string, unknown>; added: boolean } {
+  if (!isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const found = findProviderBlock(modelsJson, sanitizePiProviderId(providerId));
+  if (!found) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const provider = found.bucket[sanitizePiProviderId(providerId)] as Record<string, unknown>;
+  const definition = buildModelDefinition(model);
+  const modelId = definition.id as string;
+  const existing = Array.isArray(provider.models) ? provider.models : [];
+  const at = existing.findIndex(
+    (m) => isRecord(m) && typeof m.id === 'string' && m.id === modelId,
+  );
+  if (at >= 0) {
+    existing[at] = { ...(existing[at] as Record<string, unknown>), ...definition };
+    provider.models = existing;
+    return { doc: modelsJson as Record<string, unknown>, added: false };
+  }
+  provider.models = [...existing, definition];
+  return { doc: modelsJson as Record<string, unknown>, added: true };
+}
+
+/** 纯函数：删除供应商下的单个模型。 */
+export function applyPiCliRemoveModel(
+  modelsJson: unknown,
+  providerId: string,
+  modelId: string,
+): Record<string, unknown> {
+  if (!isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const safeId = sanitizePiProviderId(providerId);
+  const found = findProviderBlock(modelsJson, safeId);
+  if (!found) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const provider = found.bucket[safeId] as Record<string, unknown>;
+  if (!Array.isArray(provider.models)) throw new Error('PI_CLI_MODEL_INVALID');
+  provider.models = provider.models.filter(
+    (m) => !(isRecord(m) && m.id === modelId),
+  );
+  return modelsJson as Record<string, unknown>;
+}
+
+/** 纯函数：settings.enabledModels 白名单增删（replaceAll = 直接替换整个名单）。 */
+export function applyPiCliUpdateEnabledModels(
+  settings: unknown,
+  change: { add?: string[]; remove?: string[]; replaceAll?: string[] },
+): Record<string, unknown> {
+  const s = isRecord(settings) ? settings : {};
+  const current = Array.isArray(s.enabledModels)
+    ? (s.enabledModels as unknown[]).filter((x): x is string => typeof x === 'string')
+    : [];
+  let next: string[];
+  if (Array.isArray(change.replaceAll)) {
+    next = [...new Set(change.replaceAll.map((r) => r.trim()).filter(Boolean))];
+  } else {
+    const set = new Set(current);
+    for (const ref of change.add ?? []) {
+      if (typeof ref === 'string' && ref.trim()) set.add(ref.trim());
+    }
+    for (const ref of change.remove ?? []) set.delete(ref);
+    next = [...set];
+  }
+  if (next.length > 0) s.enabledModels = next;
+  else delete s.enabledModels;
+  return s;
+}
+
+// ─── 上述纯函数的文件 IO 包装（models.json / settings.json / auth.json）────
+
+function readModelsDoc(): Record<string, unknown> {
+  const models = readJsonFile<unknown>(join(PI_DIR, 'models.json'));
+  if ('error' in models) {
+    throw new Error(
+      models.error === 'missing' ? 'PI_CLI_PROVIDER_NOT_FOUND' : 'PI_CLI_WRITE_FAILED',
+    );
+  }
+  return models.value as Record<string, unknown>;
+}
+
+function writeModelsDoc(doc: Record<string, unknown>): void {
+  try {
+    writeFileSync(join(PI_DIR, 'models.json'), JSON.stringify(doc, null, 2), 'utf-8');
+  } catch {
+    throw new Error('PI_CLI_WRITE_FAILED');
+  }
+}
+
+function withSettingsDoc(fn: (settings: Record<string, unknown>) => Record<string, unknown>): void {
+  const settingsPath = join(PI_DIR, 'settings.json');
+  const settings = readJsonFile<unknown>(settingsPath);
+  const value = 'error' in settings ? {} : (settings.value as Record<string, unknown>);
+  const next = fn(value);
+  try {
+    writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
+  } catch {
+    throw new Error('PI_CLI_WRITE_FAILED');
+  }
+}
+
+export function upsertPiCliProvider(id: string, patch: PiCliProviderPatch): void {
+  writeModelsDoc(applyPiCliUpsertProvider(readModelsDoc(), id, patch));
+}
+
+export function renamePiCliProvider(fromId: string, toId: string, patch?: PiCliProviderPatch): void {
+  const doc = readModelsDoc();
+  const settingsPath = join(PI_DIR, 'settings.json');
+  const settings = readJsonFile<unknown>(settingsPath);
+  const settingsValue = 'error' in settings ? {} : (settings.value as Record<string, unknown>);
+  const { doc: nextDoc, settings: nextSettings } = applyPiCliRenameProvider(
+    doc,
+    settingsValue,
+    fromId,
+    toId,
+    patch,
+  );
+  writeModelsDoc(nextDoc);
+  try {
+    writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2), 'utf-8');
+  } catch {
+    throw new Error('PI_CLI_WRITE_FAILED');
+  }
+}
+
+export function removePiCliProvider(id: string): void {
+  writeModelsDoc(applyPiCliRemoveProvider(readModelsDoc(), id));
+  // auth.json 里的同名凭证一并清掉（pws removeCustomProvider 同语义）。
+  const authPath = join(PI_DIR, 'auth.json');
+  const auth = readJsonFile<unknown>(authPath);
+  if ('error' in auth) return;
+  const value = auth.value;
+  if (isRecord(value) && isRecord(value[id])) {
+    delete value[id];
+    try {
+      writeFileSync(authPath, JSON.stringify(value, null, 2), 'utf-8');
+    } catch {
+      throw new Error('PI_CLI_WRITE_FAILED');
+    }
+  }
+}
+
+export function setPiCliProviderDisabled(id: string, disabled: boolean): void {
+  writeModelsDoc(applyPiCliSetProviderDisabled(readModelsDoc(), id, disabled));
+}
+
+export function updatePiCliEnabledModels(change: {
+  add?: string[];
+  remove?: string[];
+  replaceAll?: string[];
+}): void {
+  withSettingsDoc((settings) => applyPiCliUpdateEnabledModels(settings, change));
+}
+
+/** 创建或更新单个模型（同 id 原地合并）。 */
+export function upsertPiCliProviderModel(providerId: string, model: PiCliModelInput): void {
+  const { doc, added } = applyPiCliUpsertModel(readModelsDoc(), providerId, model);
+  if (!added) {
+    // 原地合并也写回（字段可能被部分更新）。
+    writeModelsDoc(doc);
+    return;
+  }
+  writeModelsDoc(doc);
+}
+
+/** 删除供应商下的单个模型。 */
+export function removePiCliProviderModel(providerId: string, modelId: string): void {
+  writeModelsDoc(applyPiCliRemoveModel(readModelsDoc(), providerId, modelId));
+}
+
 export const __testing = {
   maskApiKey,
   toModelView,
@@ -595,6 +1061,15 @@ export const __testing = {
   resolveProviderRuntimeConfigFromRaw,
   applyPiCliKeySwitch,
   applyPiCliAddModel,
+  sanitizePiProviderId,
+  derivePiProviderId,
+  applyPiCliUpsertProvider,
+  applyPiCliRenameProvider,
+  applyPiCliRemoveProvider,
+  applyPiCliSetProviderDisabled,
+  applyPiCliUpsertModel,
+  applyPiCliRemoveModel,
+  applyPiCliUpdateEnabledModels,
   readPiCliRuntimeProviders,
   buildPiCliCatalogProviders,
 };

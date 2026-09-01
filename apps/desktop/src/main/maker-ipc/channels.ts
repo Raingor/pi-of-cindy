@@ -769,6 +769,13 @@ export const MAKER_INVOKE = {
   PI_CLI_SWITCH_KEY: 'maker:pi-cli:switch-key',
   /** 测速页「添加模型到正式配置」：providerId + 模型定义（无凭证字段），幂等。 */
   PI_CLI_ADD_MODEL: 'maker:pi-cli:add-model',
+  /**
+   * 供应商/模型语义化变更（对齐 pws config-store）：action 分发,单一通道。
+   * action ∈ upsert-provider|rename-provider|remove-provider|set-provider-disabled|
+   * upsert-model|remove-model|update-enabled。密钥明文只允许从 Renderer 的
+   * 用户输入流入 main（写盘),响应永不回传真值。
+   */
+  PI_CLI_MUTATE: 'maker:pi-cli:mutate',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',
