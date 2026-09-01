@@ -40,9 +40,11 @@ import {
   writeSettings,
 } from '../pi-agent/piReader.js';
 import {
+  fetchPiCliProviderModels,
   readPiCliExtensions,
   readPiCliProviders,
   runPiCliPackageCommand,
+  testPiCliProviderConnection,
 } from '../pi-agent/piCliPanel.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
@@ -99,6 +101,47 @@ export function registerPiAgentIpc(): void {
       }
       log.warn('pi cli package mutation failed', { action });
       throwIpcError('PI_AGENT_IMPORT_FAILED', message.slice(0, 500));
+    }
+  });
+
+  // ── Local Pi CLI: provider live test(真值 key 全程留在主进程)──────────────
+  // Renderer 只传 providerId;主进程现读 models.json/auth.json 取 baseUrl + 生效
+  // key 发请求,只把测试结果(状态/延迟/模型清单)投影回 Renderer。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_TEST_PROVIDER, async (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const providerId = requireString(payload.providerId, 'providerId');
+    try {
+      return await testPiCliProviderConnection(providerId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_CLI_PROVIDER_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'provider not found in ~/.pi/agent/models.json');
+      }
+      if (message === 'PI_CLI_PROVIDER_NO_BASEURL') {
+        throwIpcError('INVALID_PARAMS', 'provider has no baseUrl configured');
+      }
+      log.warn('pi cli provider test failed', { providerId });
+      throwIpcError('INTERNAL', message.slice(0, 500));
+    }
+  });
+
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_FETCH_MODELS, async (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const providerId = requireString(payload.providerId, 'providerId');
+    try {
+      return await fetchPiCliProviderModels(providerId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'PI_CLI_PROVIDER_NOT_FOUND') {
+        throwIpcError('NOT_FOUND', 'provider not found in ~/.pi/agent/models.json');
+      }
+      if (message === 'PI_CLI_PROVIDER_NO_BASEURL') {
+        throwIpcError('INVALID_PARAMS', 'provider has no baseUrl configured');
+      }
+      log.warn('pi cli provider fetch-models failed', { providerId });
+      throwIpcError('INTERNAL', message.slice(0, 500));
     }
   });
 

@@ -754,6 +754,12 @@ export const MAKER_INVOKE = {
   PI_CLI_LIST_EXTENSIONS: 'maker:pi-cli:list-extensions',
   /** 对用户自己的 ~/.pi/agent 执行 pi install|remove(与终端手敲等效)。 */
   PI_CLI_PACKAGE_MUTATE: 'maker:pi-cli:package-mutate',
+  /**
+   * 供应商详情「测连接 / 拉取模型」—— 主进程按 providerId 现取 ~/.pi/agent 里的
+   * 真 key 后发探测请求,Renderer 全程只收结果(状态码/延迟/模型清单),不回传 key。
+   */
+  PI_CLI_TEST_PROVIDER: 'maker:pi-cli:test-provider',
+  PI_CLI_FETCH_MODELS: 'maker:pi-cli:fetch-models',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',

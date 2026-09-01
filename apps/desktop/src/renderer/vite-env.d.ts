@@ -6335,6 +6335,25 @@ interface ElectronAPI {
         action: 'install' | 'remove';
         source: string;
       }) => Promise<{ success: boolean }>;
+      /** 供应商详情「测连接」:主进程按 providerId 现取真 key,Renderer 只收结果。 */
+      testCliProvider: (providerId: string) => Promise<{
+        success: boolean;
+        status?: number;
+        latencyMs?: number;
+        message?: string;
+      }>;
+      /** 供应商详情「拉取模型」:真 key 不出主进程,只回模型清单。 */
+      fetchCliProviderModels: (providerId: string) => Promise<{
+        models: Array<{
+          id: string;
+          name?: string;
+          contextWindow?: number;
+          maxTokens?: number;
+          reasoning?: boolean;
+          source: 'openai' | 'openrouter' | 'ollama' | 'heuristic';
+        }>;
+        error?: string;
+      }>;
       readSettings: () => Promise<unknown>;
       writeSettings: (settings: unknown) => Promise<unknown>;
       readUsage: () => Promise<unknown>;

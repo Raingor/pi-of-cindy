@@ -7075,6 +7075,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
         source: string;
       }): Promise<{ success: boolean }> =>
         ipcRenderer.invoke('maker:pi-cli:package-mutate', payload),
+      // 供应商详情「测连接」:主进程按 providerId 现取真 key 发探测请求,
+      // 这里只收结果(状态/延迟/错误),没有 key 真值参与。
+      testCliProvider: (providerId: string): Promise<{
+        success: boolean;
+        status?: number;
+        latencyMs?: number;
+        message?: string;
+      }> => ipcRenderer.invoke('maker:pi-cli:test-provider', { providerId }),
+      // 供应商详情「拉取模型」:同样真 key 不出主进程,只回模型清单。
+      fetchCliProviderModels: (providerId: string): Promise<{
+        models: Array<{
+          id: string;
+          name?: string;
+          contextWindow?: number;
+          maxTokens?: number;
+          reasoning?: boolean;
+          source: 'openai' | 'openrouter' | 'ollama' | 'heuristic';
+        }>;
+        error?: string;
+      }> => ipcRenderer.invoke('maker:pi-cli:fetch-models', { providerId }),
       readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
       writeSettings: (settings: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:write-settings', settings),

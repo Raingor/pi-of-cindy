@@ -8,7 +8,9 @@
  *
  * 与 Cindy 自己的「模型供应商」页(`ProvidersSection`)是两套数据:那页读 Cindy 的
  * provider 注册表并管理 Cindy 网关凭证;本页只读用户自己的 Pi CLI 配置,面板性质,
- * 不写不改 —— 所有交互控件都是只读呈现,增删改走 Pi CLI。
+ * 不写不改 —— 增删改走 Pi CLI。唯二的「活」动作是测连接与拉取模型:两者都是只读
+ * 探测请求,providerId 交给主进程、由主进程现取真 key 发请求,结果(状态/延迟/
+ * 模型清单)投影回来,配置文件不会被修改。
  *
  * 凭证:主进程已剥掉 apiKey / apiKeys 真值,这里只拿到遮罩串与 `hasApiKey`。
  * pi-web-switch 支持逐把明文显形,本面板**刻意不做**:Renderer 会渲染 agent 输出、
@@ -23,7 +25,9 @@ import {
   Brain,
   Image as ImageIcon,
   KeyRound,
+  ListPlus,
   Mic,
+  PlugZap,
   RefreshCw,
   Server,
 } from 'lucide-react';
@@ -69,6 +73,16 @@ const BADGE_CLASS = cn(
 );
 
 type LoadState = 'loading' | 'ready' | 'error';
+
+type ProviderTestResult = Awaited<
+  ReturnType<NonNullable<Window['electronAPI']>['maker']['piAgent']['testCliProvider']>
+>;
+type ProviderFetchResult = Awaited<
+  ReturnType<NonNullable<Window['electronAPI']>['maker']['piAgent']['fetchCliProviderModels']>
+>;
+
+/** 详情面板一次最多展示的拉取模型条数,超出折叠为「还有 N 个」。 */
+const FETCHED_MODELS_DISPLAY_CAP = 40;
 
 /** 与 pi-web-switch `formatTokens` 一致:1.05M / 262.1K / 999。 */
 function formatTokens(tokens: number | undefined): string {
@@ -187,10 +201,47 @@ function ProviderRailItem({
 
 function ProviderDetail({ provider }: { provider: PiCliProvider }) {
   const { t } = useTranslation();
+  const api = window.electronAPI?.maker?.piAgent;
   const enabledCount = useMemo(
     () => provider.models.filter((m) => m.enabled).length,
     [provider.models],
   );
+
+  // 测连接 / 拉取模型:providerId 交给主进程,真 key 由主进程现取,这里只收结果。
+  const [testState, setTestState] = useState<'idle' | 'testing'>('idle');
+  const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [fetchState, setFetchState] = useState<'idle' | 'fetching'>('idle');
+  const [fetchResult, setFetchResult] = useState<ProviderFetchResult | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const runTest = useCallback(async () => {
+    if (!api?.testCliProvider || testState === 'testing') return;
+    setTestState('testing');
+    setTestResult(null);
+    setTestError(null);
+    try {
+      setTestResult(await api.testCliProvider(provider.id));
+    } catch (err: unknown) {
+      setTestError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTestState('idle');
+    }
+  }, [api, provider.id, testState]);
+
+  const runFetch = useCallback(async () => {
+    if (!api?.fetchCliProviderModels || fetchState === 'fetching') return;
+    setFetchState('fetching');
+    setFetchResult(null);
+    setFetchError(null);
+    try {
+      setFetchResult(await api.fetchCliProviderModels(provider.id));
+    } catch (err: unknown) {
+      setFetchError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFetchState('idle');
+    }
+  }, [api, provider.id, fetchState]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -211,6 +262,121 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
           {provider.id}
         </span>
       </div>
+
+      {/* Live actions — 只读探测:测连接 / 拉取模型,真 key 全程留在主进程。 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void runTest()}
+          disabled={!provider.baseUrl || testState === 'testing'}
+          title={
+            provider.baseUrl ? undefined : t('settings.piCliProviders.testNeedBaseUrl')
+          }
+          className={cn(ACTION_CLASS)}
+        >
+          {testState === 'testing' ? <Spinner size={14} /> : <PlugZap size={14} />}
+          {testState === 'testing'
+            ? t('settings.piCliProviders.testRunning')
+            : t('settings.piCliProviders.testConnection')}
+        </button>
+        <button
+          type="button"
+          onClick={() => void runFetch()}
+          disabled={!provider.baseUrl || fetchState === 'fetching'}
+          title={
+            provider.baseUrl ? undefined : t('settings.piCliProviders.testNeedBaseUrl')
+          }
+          className={cn(ACTION_CLASS)}
+        >
+          {fetchState === 'fetching' ? <Spinner size={14} /> : <ListPlus size={14} />}
+          {fetchState === 'fetching'
+            ? t('settings.piCliProviders.fetchRunning')
+            : t('settings.piCliProviders.fetchModels')}
+        </button>
+
+        {testResult && (
+          <span
+            role="status"
+            className={cn(
+              'rounded-md px-2 py-0.5 text-11',
+              testResult.success
+                ? 'bg-emerald-500/10 text-emerald-500'
+                : 'bg-red-500/10 text-red-500',
+            )}
+          >
+            {testResult.success
+              ? t('settings.piCliProviders.testOk', {
+                  latency: testResult.latencyMs ?? 0,
+                })
+              : `${t('settings.piCliProviders.testFailed')} · ${testResult.message ?? '—'}`}
+          </span>
+        )}
+        {testError && (
+          <span
+            role="alert"
+            className="max-w-full truncate rounded-md bg-red-500/10 px-2 py-0.5 text-11 text-red-500"
+            title={testError}
+          >
+            {t('settings.piCliProviders.testFailed')} · {testError}
+          </span>
+        )}
+
+        {fetchResult && !fetchResult.error && fetchResult.models.length > 0 && (
+          <span
+            role="status"
+            className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-11 text-emerald-500"
+          >
+            {t('settings.piCliProviders.fetchOk', { count: fetchResult.models.length })}
+          </span>
+        )}
+        {fetchResult?.error && (
+          <span
+            role="alert"
+            className="max-w-full truncate rounded-md bg-red-500/10 px-2 py-0.5 text-11 text-red-500"
+            title={fetchResult.error}
+          >
+            {t('settings.piCliProviders.fetchFailed')} · {fetchResult.error}
+          </span>
+        )}
+        {fetchError && (
+          <span
+            role="alert"
+            className="max-w-full truncate rounded-md bg-red-500/10 px-2 py-0.5 text-11 text-red-500"
+            title={fetchError}
+          >
+            {t('settings.piCliProviders.fetchFailed')} · {fetchError}
+          </span>
+        )}
+      </div>
+
+      {/* 拉取到的远端模型清单(只展示,不写回 models.json)。 */}
+      {fetchResult && !fetchResult.error && fetchResult.models.length > 0 && (
+        <div>
+          <div className="flex flex-wrap gap-1.5">
+            {fetchResult.models.slice(0, FETCHED_MODELS_DISPLAY_CAP).map((m) => (
+              <span
+                key={m.id}
+                className={BADGE_CLASS}
+                title={provider.models.some((local) => local.id === m.id) ? undefined : t('settings.piCliProviders.fetchedNotInConfig')}
+              >
+                {m.id}
+              </span>
+            ))}
+            {fetchResult.models.length > FETCHED_MODELS_DISPLAY_CAP && (
+              <span className={BADGE_CLASS}>
+                {t('settings.piCliProviders.fetchMore', {
+                  count: fetchResult.models.length - FETCHED_MODELS_DISPLAY_CAP,
+                })}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {fetchResult && !fetchResult.error && fetchResult.models.length === 0 && (
+        <p className="text-11 text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.fetchEmpty')}
+        </p>
+      )}
 
       {/* Base URL */}
       <div>

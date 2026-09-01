@@ -144,3 +144,55 @@ describe('pi cli api key pool projection', () => {
     expect(views[0]!.id).toBe('k2');
   });
 });
+
+describe('pi cli provider runtime config resolution (live test source)', () => {
+  const { resolveProviderRuntimeConfigFromRaw } = __testing;
+
+  it('resolves baseUrl and the inline apiKey from models.json', () => {
+    const config = resolveProviderRuntimeConfigFromRaw(
+      'agentrouter-a1',
+      {
+        providers: {
+          'agentrouter-a1': { baseUrl: 'https://agentrouter.org/v1', apiKey: 'sk-2AwW…real' },
+        },
+      },
+      {},
+    );
+    expect(config).toEqual({ baseUrl: 'https://agentrouter.org/v1', apiKey: 'sk-2AwW…real' });
+  });
+
+  it('falls back to auth.json when models.json has no inline key', () => {
+    const config = resolveProviderRuntimeConfigFromRaw(
+      'p1',
+      { providers: { p1: { baseUrl: 'https://x.example/v1' } } },
+      { p1: { key: 'sk-auth-json-key-000' } },
+    );
+    expect(config?.apiKey).toBe('sk-auth-json-key-000');
+  });
+
+  it('treats a provider known only to auth.json as existing (no baseUrl)', () => {
+    const config = resolveProviderRuntimeConfigFromRaw('p1', {}, { p1: { key: 'k' } });
+    expect(config).toEqual({ apiKey: 'k' });
+  });
+
+  it('returns null for an unknown provider id', () => {
+    expect(resolveProviderRuntimeConfigFromRaw('ghost', { providers: { p1: {} } }, {})).toBeNull();
+    expect(resolveProviderRuntimeConfigFromRaw('', { providers: { p1: {} } }, {})).toBeNull();
+  });
+
+  it('keeps whitespace-only keys out of the resolved config', () => {
+    const config = resolveProviderRuntimeConfigFromRaw(
+      'p1',
+      { providers: { p1: { baseUrl: '  https://x.example  ', apiKey: '   ' } } },
+      { p1: { key: '   ' } },
+    );
+    expect(config).toEqual({ baseUrl: 'https://x.example' });
+  });
+
+  it('tolerates malformed json shapes without throwing', () => {
+    expect(resolveProviderRuntimeConfigFromRaw('p1', null, 'garbage')).toBeNull();
+    expect(
+      resolveProviderRuntimeConfigFromRaw('p1', { providers: 'not-an-object' }, []),
+    ).toBeNull();
+  });
+});

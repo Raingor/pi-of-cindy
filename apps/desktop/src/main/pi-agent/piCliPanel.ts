@@ -21,6 +21,8 @@ import { join } from 'node:path';
 
 import { getReadyBinaryPath } from '../agent-binaries/index.js';
 import { createLogger } from '../logger.js';
+import type { PiFetchModelsResult, PiProviderTestResult } from './piTypes.js';
+import { fetchProviderModels, testProviderConnection } from './piReader.js';
 
 const log = createLogger('pi-cli-panel');
 
@@ -341,4 +343,80 @@ export async function runPiCliPackageCommand(
   });
 }
 
-export const __testing = { maskApiKey, toModelView, toApiKeyViews };
+export const __testing = { maskApiKey, toModelView, toApiKeyViews, resolveProviderRuntimeConfigFromRaw };
+
+// ─── Provider live test（主进程持真值,Renderer 只收结果）───────────────────
+
+/** 请求端点缺失等主进程侧可直接判定的失败,handler 映射成对应 IPC 错误码。 */
+export type PiCliProviderTestFailure =
+  | 'PI_CLI_PROVIDER_NOT_FOUND'
+  | 'PI_CLI_PROVIDER_NO_BASEURL';
+
+interface PiCliProviderRuntimeConfig {
+  baseUrl?: string;
+  apiKey?: string;
+}
+
+/**
+ * 从已解析的 models.json / auth.json 原始 JSON 里解析供应商的运行时配置。
+ * 独立成纯函数便于单测;文件读取包装在 readPiCliProviderRuntimeConfig 里。
+ * 供应商"存在"的判定:models.json 或 auth.json 任一里有该 id。
+ */
+function resolveProviderRuntimeConfigFromRaw(
+  providerId: string,
+  modelsJson: unknown,
+  authJson: unknown,
+): PiCliProviderRuntimeConfig | null {
+  const id = providerId.trim();
+  if (!id) return null;
+  const rawProviders = isRecord(modelsJson) && isRecord(modelsJson.providers)
+    ? modelsJson.providers
+    : {};
+  const raw = isRecord(rawProviders[id]) ? rawProviders[id] : null;
+  const authMap = isRecord(authJson) ? authJson : {};
+  const authEntry = isRecord(authMap[id]) ? authMap[id] : null;
+  if (!raw && !authEntry) return null;
+  return {
+    ...(typeof raw?.baseUrl === 'string' && raw.baseUrl.trim()
+      ? { baseUrl: raw.baseUrl.trim() }
+      : {}),
+    // models.json 的 apiKey 镜像当前生效的那把;auth.json 是 pi 自己读的凭证源。
+    apiKey:
+      (typeof raw?.apiKey === 'string' && raw.apiKey.trim()) ||
+      (typeof authEntry?.key === 'string' && authEntry.key.trim()) ||
+      undefined,
+  };
+}
+
+/**
+ * 按 providerId 现读该供应商的 baseUrl 与生效 key(models.json 的 apiKey 镜像
+ * 当前生效的那把)。**真值不出主进程**:调用方(piAgentHandlers 的测试/拉取
+ * handler)只把请求结果投影给 Renderer,本函数的返回值不进 IPC。
+ */
+function readPiCliProviderRuntimeConfig(providerId: string): PiCliProviderRuntimeConfig | null {
+  const models = readJsonFile<unknown>(join(PI_DIR, 'models.json'));
+  const auth = readJsonFile<unknown>(join(PI_DIR, 'auth.json'));
+  return resolveProviderRuntimeConfigFromRaw(
+    providerId,
+    'value' in models ? models.value : null,
+    'value' in auth ? auth.value : null,
+  );
+}
+
+/** 供应商详情「测连接」:GET {baseUrl}/models(带生效 key),结果同 SpeedTest 面板。 */
+export async function testPiCliProviderConnection(
+  providerId: string,
+): Promise<PiProviderTestResult> {
+  const config = readPiCliProviderRuntimeConfig(providerId);
+  if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
+  return testProviderConnection(config.baseUrl, config.apiKey);
+}
+
+/** 供应商详情「拉取模型」:GET {baseUrl}/models 解析模型清单,真值 key 只在主进程。 */
+export async function fetchPiCliProviderModels(providerId: string): Promise<PiFetchModelsResult> {
+  const config = readPiCliProviderRuntimeConfig(providerId);
+  if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
+  return fetchProviderModels(config.baseUrl, config.apiKey);
+}
