@@ -1061,6 +1061,7 @@ export const __testing = {
   resolveProviderRuntimeConfigFromRaw,
   applyPiCliKeySwitch,
   applyPiCliAddModel,
+  applyPiCliRemoveKey,
   sanitizePiProviderId,
   derivePiProviderId,
   applyPiCliUpsertProvider,
@@ -1249,6 +1250,49 @@ export function switchPiCliProviderKey(providerId: string, keyId: string): void 
   } catch {
     throw new Error('PI_CLI_WRITE_FAILED');
   }
+}
+
+/** 纯函数：从池里移除一把 key；移除生效 key 时回落到剩余第一把（pws 同语义）。 */
+export function applyPiCliRemoveKey(
+  modelsJson: unknown,
+  providerId: string,
+  keyId: string,
+): Record<string, unknown> {
+  const id = providerId.trim();
+  if (!id || !isRecord(modelsJson)) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const block = isRecord(modelsJson.providers) ? modelsJson.providers[id] : undefined;
+  const disabledBlock = isRecord(modelsJson._disabledProviders)
+    ? modelsJson._disabledProviders[id]
+    : undefined;
+  const provider = isRecord(block) ? block : isRecord(disabledBlock) ? disabledBlock : null;
+  if (!provider) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
+  const pool = Array.isArray(provider.apiKeys)
+    ? (provider.apiKeys as unknown[]).filter(
+        (e): e is Record<string, unknown> => isRecord(e),
+      )
+    : [];
+  const entry = pool.find((e) => e.id === keyId);
+  if (!entry) throw new Error('PI_CLI_KEY_NOT_FOUND');
+  const next = pool.filter((e) => e.id !== keyId);
+  if (next.length > 0) {
+    provider.apiKeys = next;
+    if (provider.activeKeyId === keyId) {
+      const first = next[0]!;
+      provider.activeKeyId = first.id;
+      provider.apiKey = first.key;
+    }
+  } else {
+    // 池空:整个池结构撤销,apiKey 镜像一并清掉。
+    delete provider.apiKeys;
+    delete provider.activeKeyId;
+    delete provider.apiKey;
+  }
+  return modelsJson as Record<string, unknown>;
+}
+
+/** 面板「移除池里的 key」：读 models.json → applyPiCliRemoveKey → 整文档写回。 */
+export function removePiCliProviderKey(providerId: string, keyId: string): void {
+  writeModelsDoc(applyPiCliRemoveKey(readModelsDoc(), providerId, keyId));
 }
 
 // ─── 模型追加（测速页「添加到正式配置」）──────────────────────────

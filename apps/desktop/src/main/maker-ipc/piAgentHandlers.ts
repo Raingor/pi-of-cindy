@@ -42,6 +42,7 @@ import {
   readPiCliExtensions,
   readPiCliProviders,
   removePiCliProvider,
+  removePiCliProviderKey,
   renamePiCliProvider,
   runPiCliPackageCommand,
   setPiCliProviderDisabled,
@@ -55,8 +56,10 @@ import {
   type PiCliModelInput,
   type PiCliProviderPatch,
 } from '../pi-agent/piCliPanel.js';
+import { fetchProviderModels } from '../pi-agent/piReader.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
+  optionalString,
   requireEnum,
   requireNonNegativeInt,
   requireObject,
@@ -364,6 +367,7 @@ export function registerPiAgentIpc(): void {
       'set-provider-disabled',
       'upsert-model',
       'remove-model',
+      'remove-key',
       'update-enabled',
     ] as const, 'action');
     try {
@@ -405,6 +409,14 @@ export function registerPiAgentIpc(): void {
           );
           return { success: true };
         }
+        case 'remove-key': {
+          // 密钥真值不出主进程:renderer 只有遮罩视图,移除靠 id 定位。
+          removePiCliProviderKey(
+            requireString(payload.id, 'id'),
+            requireString(payload.keyId, 'keyId'),
+          );
+          return { success: true };
+        }
         case 'update-enabled': {
           const change = requireObject(payload.change, 'change');
           const clean: { add?: string[]; remove?: string[]; replaceAll?: string[] } = {};
@@ -438,6 +450,18 @@ export function registerPiAgentIpc(): void {
       log.warn('pi cli mutate failed', { action });
       throwIpcError('INTERNAL', message.slice(0, 500));
     }
+  });
+
+  // 供应商/模型语义化变更：action 白名单分发,字段白名单校验,响应永不回传 key 真值。
+  // handler 本体在下方 PI_CLI_MUTATE 分支。
+
+  // 导入弹窗 adhoc 拉取：表单未保存值仅内存透传 main → 上游,不落盘不回显。
+  ipcMain.handle(MAKER_INVOKE.PI_CLI_FETCH_MODELS_ADHOC, async (event, raw: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const payload = requireObject(raw, 'payload');
+    const baseUrl = requireString(payload.baseUrl, 'baseUrl');
+    const apiKey = optionalString(payload.apiKey);
+    return fetchProviderModels(baseUrl, apiKey);
   });
 
   // ── Settings ────────────────────────────────────────────────────────────

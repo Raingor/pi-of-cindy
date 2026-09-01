@@ -180,7 +180,22 @@
   - 添加到正式配置：maker:pi-cli:add-model（主进程写 models.json，payload 无凭证字段、字段白名单、同 id 幂等）+ 单行添加 + 全部通过 + 已在配置状态 + loadProviders 重同步
   - fetch 成功条 + 清空、rail 计数徽标、操作列、kicker 排版；列出口径改为「有 baseUrl 即列」（pws 同口径，取代 R1 的 hasApiKey 过滤）
   - 实机验证：27 模型拉取/全量测速/429·410·timeout 分类/添加 6 个通过模型写盘/UI 已在配置闭环；测试后已恢复用户 models.json
-- [ ] P2 供应商页补齐
+- [x] P2 供应商页补齐（P2a 骨架 `9b7dcbbe9` + P2b UI，见 git log）
+  - 主进程语义化写骨架：upsert/rename(重写 enabledModels 引用)/remove(+auth 清理)/
+    set-provider-disabled(桶间搬运)/upsert-model(原地合并)/remove-model/update-enabled/
+    remove-key(移除生效 key 回落第一把)——纯函数 + 单测，字段白名单，apiKey 镜像语义同 pws
+  - maker:pi-cli:mutate 统一变更通道（action 白名单 = pws config-store 动作集，
+    trusted gate + parseProviderPatch/parseModelInput 字段白名单，响应只回 success）
+  - fetch-models-adhoc：导入弹窗用表单未保存值探测端点（仅内存透传，不落盘）
+  - UI 全 CRUD：已启用模型汇总面板(逐项移除/全部停用)、添加供应商表单(id 推导/校验/
+    9 API 类型/种子密钥)、粘贴导入弹窗(pws parseProviderImport 逐行移植 + 字段可编辑 +
+    模型 chips + adhoc 拉取勾选导入 + 导入模型默认启用)、详情可编辑(名称=改名同步重写引用、
+    端点、接口、compat 双开关、dirty 保存)、密钥池增删切换、供应商 停用/复制(副本清凭证)/
+    删除(确认)、模型行启用开关 + 全部启用/停用 + 快捷添加 + 悬停删除
+  - 刻意差异登记：密钥明文显形不做（Cindy 凭证边界红线）
+  - 实机验证：创建供应商落盘(名称/端点/api/种子密钥)、删除供应商(确认后桶+auth 清理)、
+    汇总面板数据正确、表单校验渲染；导入弹窗解析已单测覆盖（UI 选择器驱动未走通，
+    parse→upsert→update-enabled 链路各段均已独立验证）
 - [ ] P3 会话页补齐
 - [ ] P4 记忆页补齐
 - [ ] P5 仪表盘补齐

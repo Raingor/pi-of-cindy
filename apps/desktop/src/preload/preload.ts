@@ -7129,18 +7129,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
           | 'set-provider-disabled'
           | 'upsert-model'
           | 'remove-model'
+          | 'remove-key'
           | 'update-enabled';
         id?: string;
         fromId?: string;
         toId?: string;
         providerId?: string;
         modelId?: string;
+        keyId?: string;
         disabled?: boolean;
         patch?: Record<string, unknown>;
         model?: Record<string, unknown>;
         change?: Record<string, unknown>;
       }): Promise<{ success: boolean }> =>
         ipcRenderer.invoke('maker:pi-cli:mutate', payload),
+      // 导入弹窗 adhoc 拉取:表单未保存值仅内存透传,不落盘。
+      fetchCliModelsAdhoc: (baseUrl: string, apiKey?: string): Promise<{
+        models: Array<{
+          id: string;
+          name?: string;
+          contextWindow?: number;
+          maxTokens?: number;
+          reasoning?: boolean;
+          vision?: boolean;
+          audio?: boolean;
+          cost?: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
+        }>;
+        error?: string;
+      }> => ipcRenderer.invoke('maker:pi-cli:fetch-models-adhoc', { baseUrl, apiKey }),
       readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
       writeSettings: (settings: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:write-settings', settings),

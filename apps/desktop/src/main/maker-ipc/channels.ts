@@ -776,6 +776,8 @@ export const MAKER_INVOKE = {
    * 用户输入流入 main（写盘),响应永不回传真值。
    */
   PI_CLI_MUTATE: 'maker:pi-cli:mutate',
+  /** 导入弹窗 adhoc 拉取：用表单里刚粘贴的 baseUrl+apiKey 探测端点（仅内存透传，不落盘）。 */
+  PI_CLI_FETCH_MODELS_ADHOC: 'maker:pi-cli:fetch-models-adhoc',
   PI_AGENT_READ_SETTINGS: 'maker:pi-agent:read-settings',
   PI_AGENT_WRITE_SETTINGS: 'maker:pi-agent:write-settings',
   PI_AGENT_READ_USAGE: 'maker:pi-agent:read-usage',

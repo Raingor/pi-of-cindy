@@ -1,39 +1,47 @@
 /**
  * PiCliProvidersSection — 本机 Pi CLI(`~/.pi/agent/models.json`)的供应商与模型面板。
  *
- * 布局还原 pi-web-switch 的 `ProvidersModelsPage`:左侧供应商导轨(带类型图标 +
- * 密钥状态圆点),右侧详情面板(名称徽标、接口地址、API 类型、密钥池、模型行)。
- * 模型行也照搬那边的信息密度:开关态、id、思考/图像/音频能力图标、价格徽标、
- * 上下文窗口徽标。
+ * 排版与功能对齐 pi-web-switch 的 ProvidersModelsPage:页头 kicker、跨供应商
+ * 「已启用模型」汇总面板、左导轨(供应商 + 添加/导入入口)、右详情(可编辑
+ * 名称/端点/接口形态/兼容开关、密钥池的增删与切换、供应商级 停用/复制/删除、
+ * 模型行的启用开关与快捷添加)。
  *
- * 与 Cindy 自己的「模型供应商」页(`ProvidersSection`)是两套数据:那页读 Cindy 的
- * provider 注册表并管理 Cindy 网关凭证;本页读用户自己的 Pi CLI 配置。唯一的写
- * 动作是「切换生效 key」:只传 providerId + keyId,由主进程现读 models.json 原文
- * 切换后整文档写回,不回传任何 key 真值;其余增删改走 Pi CLI。测连接与拉取模型
- * 仍是只读探测请求:providerId 交给主进程、由主进程现取真 key 发请求,结果(状态/
- * 延迟/模型清单)投影回来,配置文件不会被修改。
- *
- * 凭证:主进程已剥掉 apiKey / apiKeys 真值,这里只拿到遮罩串与 `hasApiKey`。
- * pi-web-switch 支持逐把明文显形,本面板**刻意不做**:Renderer 会渲染 agent 输出、
- * Markdown、插件面板与内置浏览器网页,是不可信环境 —— 见
- * docs/dev-rules/electron-security-and-process-boundaries.md。
- * 不要在本组件里新增任何"读取完整 key"的路径。
+ * 数据与写入:列表来自本机剥密视图(listCliProviders);写路径走语义化
+ * mutateCli 通道(upsert/rename/remove/disable/model/enabled,字段白名单),
+ * 真值 key 只从用户输入流入 main 落盘,响应不回传。**密钥明文显形刻意不做**
+ * —— Renderer 是不可信环境,见 docs/dev-rules/electron-security-and-process-
+ * boundaries.md(pi-web-switch 有显形,这是两产品唯一的功能性差异)。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Box,
   Brain,
+  Check,
+  ClipboardPaste,
+  Copy,
   Image as ImageIcon,
   KeyRound,
   ListPlus,
+  Lock,
+  LockOpen,
   Mic,
   PlugZap,
+  Plus,
   RefreshCw,
   Server,
+  Trash2,
+  Unlock,
+  X,
+  Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import {
+  isValidHttpUrl,
+  parseProviderImport,
+  PI_API_TYPES,
+} from '@/lib/piProviderImport';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@/lib/logger';
@@ -60,11 +68,11 @@ const ACTION_CLASS = cn(
   'disabled:cursor-not-allowed disabled:opacity-50',
 );
 
-/** 详情面板里字段标签 + 只读值的统一样式。 */
-const FIELD_VALUE_CLASS = cn(
-  'mt-1.5 w-full truncate rounded-lg px-3 py-2 font-mono text-12',
+const INPUT_CLASS = cn(
+  'w-full rounded-lg px-3 py-2 text-12 outline-none',
   'border border-[var(--settings-theme-card-border)] bg-[var(--surface)]',
   'text-[var(--settings-section-title)]',
+  'focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
 );
 
 const BADGE_CLASS = cn(
@@ -72,6 +80,10 @@ const BADGE_CLASS = cn(
   'border border-[var(--settings-theme-card-border)] bg-[var(--surface)]',
   'text-[var(--settings-section-desc)]',
 );
+
+/** pws DEFAULT_CONTEXT_WINDOW / DEFAULT_MAX_TOKENS。 */
+const DEFAULT_CONTEXT_WINDOW = 262144;
+const DEFAULT_MAX_TOKENS = 32768;
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -101,7 +113,115 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`;
 }
 
-function ModelRow({ model }: { model: PiCliModel }) {
+// ─── EnabledModelsPanel(跨供应商已启用汇总)───────────────────────────────
+
+function EnabledModelsPanel({
+  providers,
+  onChanged,
+}: {
+  providers: PiCliProvider[];
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation();
+  const api = window.electronAPI?.maker?.piAgent;
+  const enabled = useMemo(
+    () =>
+      providers.flatMap((p) =>
+        p.models
+          .filter((m) => m.enabled)
+          .map((m) => ({ ref: `${p.id}/${m.id}`, name: m.name || m.id, providerName: p.name })),
+      ),
+    [providers],
+  );
+  const [busy, setBusy] = useState(false);
+
+  const remove = async (ref: string) => {
+    if (!api?.mutateCli || busy) return;
+    setBusy(true);
+    try {
+      await api.mutateCli({ action: 'update-enabled', change: { remove: [ref] } });
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disableAll = async () => {
+    if (!api?.mutateCli || busy) return;
+    setBusy(true);
+    try {
+      await api.mutateCli({ action: 'update-enabled', change: { replaceAll: [] } });
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={cn(CARD_CLASS, 'p-4')}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Zap size={14} className="shrink-0 text-emerald-500" />
+          <h3 className="text-13 font-semibold text-[var(--settings-section-title)]">
+            {t('settings.piCliProviders.enabledModelsTitle')}
+          </h3>
+          <span className={BADGE_CLASS}>{enabled.length}</span>
+        </div>
+        {enabled.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void disableAll()}
+            disabled={busy}
+            className={cn(ACTION_CLASS, 'h-7 text-11')}
+          >
+            {t('settings.piCliProviders.disableAll')}
+          </button>
+        )}
+      </div>
+      {enabled.length === 0 ? (
+        <p className="mt-3 text-12 text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.noEnabledModels')}
+        </p>
+      ) : (
+        <div className="mt-3 grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto pr-1 lg:grid-cols-2">
+          {enabled.map((m) => (
+            <div
+              key={m.ref}
+              className="flex items-center gap-2 rounded-lg border px-3 py-2"
+              style={{ borderColor: 'var(--settings-theme-card-border)' }}
+            >
+              {/* 只读开关外观,点击即移除(与 pws 的 toggle 语义一致)。 */}
+              <button
+                type="button"
+                onClick={() => void remove(m.ref)}
+                disabled={busy}
+                title={t('settings.piCliProviders.model.enabled')}
+                className="relative inline-flex h-4 w-7 shrink-0 items-center rounded-full bg-emerald-500 transition-colors disabled:opacity-50"
+              >
+                <span className="inline-block h-3 w-3 translate-x-3.5 rounded-full bg-white" />
+              </button>
+              <Box size={14} className="shrink-0 text-[var(--text-tertiary)]" />
+              <span className="min-w-0 flex-1 truncate font-mono text-12 text-[var(--settings-section-title)]">
+                {m.name}
+              </span>
+              <span className={BADGE_CLASS}>{m.providerName}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 模型行 ─────────────────────────────────────────────────────────────
+
+function ModelRow({
+  model,
+  onToggleEnabled,
+}: {
+  model: PiCliModel;
+  onToggleEnabled?: (modelId: string, enabled: boolean) => void;
+}) {
   const { t } = useTranslation();
   const cost = model.cost;
   const priced = !!cost && !!(cost.input || cost.output);
@@ -118,25 +238,48 @@ function ModelRow({ model }: { model: PiCliModel }) {
         'border border-[var(--settings-theme-card-border)] bg-[var(--surface)]',
       )}
     >
-      {/* 只读的启用态指示。pi-web-switch 这里是可点开关,本面板不写配置。 */}
-      <span
-        title={
-          model.enabled
-            ? t('settings.piCliProviders.model.enabled')
-            : t('settings.piCliProviders.model.disabled')
-        }
-        className={cn(
-          'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full',
-          model.enabled ? 'bg-emerald-500' : 'bg-[var(--settings-theme-card-border)]',
-        )}
-      >
-        <span
+      {/* 启用开关:写 settings.enabledModels(pi 的可用性白名单)。 */}
+      {onToggleEnabled ? (
+        <button
+          type="button"
+          onClick={() => onToggleEnabled(model.id, !model.enabled)}
+          title={
+            model.enabled
+              ? t('settings.piCliProviders.model.enabled')
+              : t('settings.piCliProviders.model.disabled')
+          }
           className={cn(
-            'inline-block h-3 w-3 rounded-full bg-white transition-transform',
-            model.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+            'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors',
+            model.enabled ? 'bg-emerald-500' : 'bg-[var(--settings-theme-card-border)]',
           )}
-        />
-      </span>
+        >
+          <span
+            className={cn(
+              'inline-block h-3 w-3 rounded-full bg-white transition-transform',
+              model.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+            )}
+          />
+        </button>
+      ) : (
+        <span
+          title={
+            model.enabled
+              ? t('settings.piCliProviders.model.enabled')
+              : t('settings.piCliProviders.model.disabled')
+          }
+          className={cn(
+            'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full',
+            model.enabled ? 'bg-emerald-500' : 'bg-[var(--settings-theme-card-border)]',
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-3 w-3 rounded-full bg-white transition-transform',
+              model.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+            )}
+          />
+        </span>
+      )}
       <Box size={14} className="shrink-0 text-[var(--text-tertiary)]" />
       <span className="min-w-0 flex-1 truncate font-mono text-12 text-[var(--settings-section-title)]">
         {model.id}
@@ -164,8 +307,6 @@ function ModelRow({ model }: { model: PiCliModel }) {
       <span className={BADGE_CLASS} title={t('settings.piCliProviders.model.contextWindow')}>
         {formatTokens(model.contextWindow)}
       </span>
-      {/* 最大输出与上下文窗口是两个不同的限制,pi-web-switch 只在表单里给,这里并列
-          展示 —— 本面板是只读的,看不到就没有别的地方能看到。 */}
       <span className={BADGE_CLASS} title={t('settings.piCliProviders.model.maxTokens')}>
         ↑{formatTokens(model.maxTokens)}
       </span>
@@ -173,48 +314,547 @@ function ModelRow({ model }: { model: PiCliModel }) {
   );
 }
 
-function ProviderRailItem({
-  provider,
-  active,
-  onSelect,
+// ─── 添加供应商表单(pws AddProviderForm 同字段)──────────────────────────
+
+function deriveProviderId(
+  name: string,
+  baseUrl: string,
+  sanitize: (s: string) => string,
+): string {
+  const fromName = sanitize(name);
+  if (fromName || !name.trim()) return fromName;
+  try {
+    const host = new URL(baseUrl.trim()).hostname;
+    const skip = new Set(['api', 'www', 'app', 'gateway', 'open', 'openapi', 'platform']);
+    const part = host.split('.').find((p) => p && !skip.has(p.toLowerCase()));
+    return sanitize(part ?? '');
+  } catch {
+    return '';
+  }
+}
+
+function AddProviderForm({
+  existingIds,
+  onDone,
+  onCancel,
+  reload,
 }: {
-  provider: PiCliProvider;
-  active: boolean;
-  onSelect: () => void;
+  existingIds: Set<string>;
+  onDone: (id: string) => void;
+  onCancel: () => void;
+  reload: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
+  const api = window.electronAPI?.maker?.piAgent;
+  const [name, setName] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [apiType, setApiType] = useState('openai-completions');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
+
+  const id = deriveProviderId(name, baseUrl, (s) =>
+    s
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^\p{L}\p{N}-]/gu, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, ''),
+  );
+  const idExists = !!id && existingIds.has(id);
+  const urlInvalid = baseUrl.trim() !== '' && !isValidHttpUrl(baseUrl.trim());
+  const canSubmit = !!id && !!baseUrl.trim() && !idExists && !urlInvalid && !submitting;
+
+  const handleSubmit = async () => {
+    if (!api?.mutateCli || !canSubmit) return;
+    setSubmitting(true);
+    setSubmitError(false);
+    try {
+      await api.mutateCli({
+        action: 'upsert-provider',
+        id,
+        patch: {
+          ...(name.trim() ? { name: name.trim() } : {}),
+          baseUrl: baseUrl.trim(),
+          api: apiType,
+          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        },
+      });
+      await reload();
+      onDone(id);
+    } catch (err) {
+      log.warn('add provider failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setSubmitError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={active}
-      className={cn(
-        'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-12 transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
-        active
-          ? 'border-[var(--settings-theme-card-border)] bg-[var(--settings-menu-bg-hover)] text-[var(--settings-section-title)]'
-          : 'border-transparent text-[var(--settings-section-sublabel)] hover:bg-[var(--settings-menu-bg-hover)]',
-        // 已停用的供应商仍占行(不然用户以为配置丢了),但明确弱化。
-        provider.disabled && 'opacity-50',
-      )}
-    >
-      <Server size={14} className="shrink-0 text-blue-400" />
-      <span className="min-w-0 flex-1 truncate">{provider.name}</span>
-      <span
-        className={cn(
-          'h-2 w-2 shrink-0 rounded-full',
-          provider.hasApiKey ? 'bg-emerald-400' : 'bg-[var(--settings-theme-card-border)]',
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-15 font-semibold text-[var(--settings-section-title)]">
+          {t('settings.piCliProviders.addProviderTitle')}
+        </h3>
+        <p className="mt-1 text-12 text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.addProviderDesc')}
+        </p>
+      </div>
+      <div>
+        <label className="block text-12 text-[var(--settings-section-sublabel)]">
+          {t('settings.piCliProviders.name')}
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('settings.piCliProviders.namePlaceholder')}
+          className={cn(INPUT_CLASS, 'mt-1.5', idExists && 'border-red-500')}
+        />
+        {idExists ? (
+          <p className="mt-1 text-11 text-red-500">
+            {t('settings.piCliProviders.idExists', { id })}
+          </p>
+        ) : id ? (
+          <p className="mt-1 text-11 text-[var(--settings-section-desc)]">
+            {t('settings.piCliProviders.idPreview', { id })}
+          </p>
+        ) : name.trim() ? (
+          <p className="mt-1 text-11 text-red-500">{t('settings.piCliProviders.idInvalid')}</p>
+        ) : null}
+      </div>
+      <div>
+        <label className="block text-12 text-[var(--settings-section-sublabel)]">
+          {t('settings.piCliProviders.baseUrl')}
+        </label>
+        <input
+          type="text"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://api.example.com/v1"
+          className={cn(INPUT_CLASS, 'mt-1.5', urlInvalid && 'border-red-500')}
+        />
+        {urlInvalid && (
+          <p className="mt-1 text-11 text-red-500">{t('settings.piCliProviders.invalidUrl')}</p>
         )}
-      />
-    </button>
+      </div>
+      <div>
+        <label className="block text-12 text-[var(--settings-section-sublabel)]">
+          {t('settings.piCliProviders.apiKey')}
+        </label>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder="sk-... or $MY_API_KEY"
+          className={cn(INPUT_CLASS, 'mt-1.5')}
+        />
+        {apiKey.trim().startsWith('$') && (
+          <p className="mt-1 text-11 text-sky-500">
+            {t('settings.piCliProviders.apiKeyEnv', { ref: apiKey.trim() })}
+          </p>
+        )}
+      </div>
+      <div>
+        <label className="block text-12 text-[var(--settings-section-sublabel)]">
+          {t('settings.piCliProviders.apiType')}
+        </label>
+        <select
+          value={apiType}
+          onChange={(e) => setApiType(e.target.value)}
+          className={cn(INPUT_CLASS, 'mt-1.5')}
+        >
+          {PI_API_TYPES.map((a) => (
+            <option key={a.value} value={a.value}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={onCancel} className={cn(ACTION_CLASS)}>
+          {t('settings.piCliProviders.cancel')}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSubmit()}
+          disabled={!canSubmit}
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-4 text-12 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
+        >
+          {submitting ? <Spinner size={13} /> : <Check size={13} />}
+          {t('settings.piCliProviders.save')}
+        </button>
+        {submitError && (
+          <span className="text-11 text-red-500">{t('settings.piCliProviders.saveFailed')}</span>
+        )}
+      </div>
+    </div>
   );
 }
+
+// ─── 导入弹窗(pws ImportProviderModal 同流程)──────────────────────────
+
+function ImportProviderModal({
+  open,
+  onClose,
+  onImported,
+  reload,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onImported: (id: string) => void;
+  reload: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const api = window.electronAPI?.maker?.piAgent;
+  const [text, setText] = useState('');
+  const [name, setName] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [apiType, setApiType] = useState('openai-completions');
+  const [modelIds, setModelIds] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
+
+  const [fetching, setFetching] = useState(false);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
+  const [fetchedModels, setFetchedModels] = useState<
+    Array<{ id: string; name?: string; reasoning?: boolean; vision?: boolean; audio?: boolean; contextWindow?: number; maxTokens?: number; cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } }>
+  >([]);
+  const [fetchSel, setFetchSel] = useState<Set<string>>(new Set());
+
+  if (!open) return null;
+
+  const handleText = (value: string) => {
+    setText(value);
+    const parsed = parseProviderImport(value);
+    setName(parsed.name);
+    setBaseUrl(parsed.baseUrl);
+    setApiKey(parsed.apiKey);
+    setModelIds(parsed.modelIds);
+  };
+
+  const reset = () => {
+    setText('');
+    setName('');
+    setBaseUrl('');
+    setApiKey('');
+    setApiType('openai-completions');
+    setModelIds([]);
+    setSubmitting(false);
+    setSubmitError(false);
+    setFetching(false);
+    setFetchErr(null);
+    setFetchedModels([]);
+    setFetchSel(new Set());
+  };
+
+  const id = deriveProviderId(name, baseUrl, (s) =>
+    s
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^\p{L}\p{N}-]/gu, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, ''),
+  );
+  const urlInvalid = baseUrl.trim() !== '' && !isValidHttpUrl(baseUrl.trim());
+  const parsedEmpty = text.trim() !== '' && !name && !baseUrl && !apiKey && modelIds.length === 0;
+  const canSubmit = !!id && !!baseUrl.trim() && !urlInvalid && !submitting;
+
+  const handleFetchModels = async () => {
+    if (!api?.fetchCliModelsAdhoc || !isValidHttpUrl(baseUrl.trim()) || fetching) return;
+    setFetching(true);
+    setFetchErr(null);
+    try {
+      const data = await api.fetchCliModelsAdhoc(baseUrl.trim(), apiKey.trim() || undefined);
+      if (data.error) {
+        setFetchErr(data.error);
+      } else {
+        setFetchedModels(data.models ?? []);
+        setFetchSel(new Set((data.models ?? []).map((m) => m.id)));
+      }
+    } catch {
+      setFetchErr('network error');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const availableFetched = fetchedModels.filter((m) => !modelIds.includes(m.id));
+  const toggleFetched = (mid: string) => {
+    setFetchSel((prev) => {
+      const next = new Set(prev);
+      next.has(mid) ? next.delete(mid) : next.add(mid);
+      return next;
+    });
+  };
+  const allFetchedSelected =
+    availableFetched.length > 0 && availableFetched.every((m) => fetchSel.has(m.id));
+  const toggleAllFetched = () => {
+    setFetchSel(allFetchedSelected ? new Set() : new Set(availableFetched.map((m) => m.id)));
+  };
+
+  const handleImport = async () => {
+    if (!api?.mutateCli || !canSubmit) return;
+    setSubmitting(true);
+    setSubmitError(false);
+    try {
+      const selectedFetched = availableFetched.filter((m) => fetchSel.has(m.id));
+      const newModels = [
+        ...modelIds.map((mid) => ({
+          id: mid,
+          name: mid.split('/').pop() || mid,
+          contextWindow: DEFAULT_CONTEXT_WINDOW,
+          maxTokens: DEFAULT_MAX_TOKENS,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        })),
+        ...selectedFetched.map((m) => ({
+          id: m.id,
+          name: m.name ?? (m.id.split('/').pop() || m.id),
+          reasoning: m.reasoning === true,
+          input: ['text', ...(m.vision ? ['image'] : []), ...(m.audio ? ['audio'] : [])],
+          contextWindow: m.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+          maxTokens: m.maxTokens ?? DEFAULT_MAX_TOKENS,
+          cost: {
+            input: m.cost?.input ?? 0,
+            output: m.cost?.output ?? 0,
+            cacheRead: m.cost?.cacheRead ?? 0,
+            cacheWrite: m.cost?.cacheWrite ?? 0,
+          },
+        })),
+      ];
+      await api.mutateCli({
+        action: 'upsert-provider',
+        id,
+        patch: {
+          ...(name.trim() ? { name: name.trim() } : {}),
+          baseUrl: baseUrl.trim(),
+          api: apiType,
+          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+          models: newModels,
+        },
+      });
+      // 导入的模型默认启用(pws 语义:enabledModels 引用一并写入)。
+      if (newModels.length > 0) {
+        await api.mutateCli({
+          action: 'update-enabled',
+          change: { add: newModels.map((m) => `${id}/${m.id}`) },
+        });
+      }
+      await reload();
+      reset();
+      onImported(id);
+    } catch (err) {
+      log.warn('import provider failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setSubmitError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className={cn(CARD_CLASS, 'max-h-[85vh] w-full max-w-2xl overflow-y-auto p-5')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-15 font-semibold text-[var(--settings-section-title)]">
+            {t('settings.piCliProviders.importTitle')}
+          </h3>
+          <button type="button" onClick={onClose} className={cn(ACTION_CLASS)}>
+            <X size={14} />
+          </button>
+        </div>
+        <p className="mt-1 text-12 text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.importDesc')}
+        </p>
+
+        <textarea
+          value={text}
+          onChange={(e) => handleText(e.target.value)}
+          rows={4}
+          placeholder="tokenrouter baseurl：https://api.example.com/v1 key：sk-xxx modelid：vendor/model-a"
+          className={cn(INPUT_CLASS, 'mt-3 font-mono')}
+        />
+        {parsedEmpty && (
+          <p className="mt-1 text-11 text-amber-500">
+            {t('settings.piCliProviders.importEmpty')}
+          </p>
+        )}
+
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.name')}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={cn(INPUT_CLASS, 'mt-1')}
+            />
+          </div>
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.baseUrl')}
+            </label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              className={cn(INPUT_CLASS, 'mt-1', urlInvalid && 'border-red-500')}
+            />
+          </div>
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.apiKey')}
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className={cn(INPUT_CLASS, 'mt-1')}
+            />
+          </div>
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.apiType')}
+            </label>
+            <select
+              value={apiType}
+              onChange={(e) => setApiType(e.target.value)}
+              className={cn(INPUT_CLASS, 'mt-1')}
+            >
+              {PI_API_TYPES.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {modelIds.length > 0 && (
+          <div className="mt-3">
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.importModels', { count: modelIds.length })}
+            </label>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {modelIds.map((mid) => (
+                <span key={mid} className={BADGE_CLASS}>
+                  {mid}
+                  <button
+                    type="button"
+                    className="ml-1 text-red-400"
+                    onClick={() => setModelIds((prev) => prev.filter((x) => x !== mid))}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleFetchModels()}
+            disabled={!isValidHttpUrl(baseUrl.trim()) || fetching}
+            className={cn(ACTION_CLASS)}
+          >
+            {fetching ? <Spinner size={13} /> : <ListPlus size={13} />}
+            {t('settings.piCliProviders.importFetch')}
+          </button>
+          {fetchErr && <span className="text-11 text-red-500">{fetchErr}</span>}
+        </div>
+
+        {availableFetched.length > 0 && (
+          <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border p-2" style={{ borderColor: 'var(--settings-theme-card-border)' }}>
+            <label className="flex items-center gap-2 px-1 pb-1.5 text-11 text-[var(--settings-section-sublabel)]">
+              <input
+                type="checkbox"
+                checked={allFetchedSelected}
+                onChange={toggleAllFetched}
+                style={{ accentColor: 'var(--accent, var(--text-link))' }}
+              />
+              {t('settings.piCliProviders.importSelectAll')}
+            </label>
+            {availableFetched.map((m) => (
+              <label
+                key={m.id}
+                className="flex items-center gap-2 rounded px-1 py-0.5 font-mono text-11 hover:bg-sidebar-item-hover"
+              >
+                <input
+                  type="checkbox"
+                  checked={fetchSel.has(m.id)}
+                  onChange={() => toggleFetched(m.id)}
+                  style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                />
+                <span className="truncate text-[var(--settings-section-title)]">{m.id}</span>
+                <span className="ml-auto shrink-0 text-[var(--settings-section-desc)]">
+                  {formatTokens(m.contextWindow)}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              reset();
+              onClose();
+            }}
+            className={cn(ACTION_CLASS)}
+          >
+            {t('settings.piCliProviders.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleImport()}
+            disabled={!canSubmit}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-4 text-12 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
+          >
+            {submitting ? <Spinner size={13} /> : <Check size={13} />}
+            {t('settings.piCliProviders.importSubmit')}
+          </button>
+        </div>
+        {submitError && (
+          <p className="mt-2 text-11 text-red-500">{t('settings.piCliProviders.saveFailed')}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 详情面板 ───────────────────────────────────────────────────────────
 
 function ProviderDetail({
   provider,
   onReload,
+  onDeleted,
+  onRenamed,
 }: {
   provider: PiCliProvider;
   onReload: () => Promise<void> | void;
+  onDeleted: () => void;
+  onRenamed: (newId: string) => void;
 }) {
   const { t } = useTranslation();
   const api = window.electronAPI?.maker?.piAgent;
@@ -231,31 +871,24 @@ function ProviderDetail({
   const [fetchResult, setFetchResult] = useState<ProviderFetchResult | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // 切换生效 key:唯一写动作,只传 providerId + keyId。成功后重拉清单让 active
-  // 标记与 apiKey 镜像落到面板上;失败时保持原状并提示。
+  // 可编辑字段(自定义语义:所有 models.json 里的 provider 均可编辑)。
+  const [name, setName] = useState(provider.name ?? '');
+  const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? '');
+  const [apiType, setApiType] = useState(provider.api ?? 'openai-completions');
+  const [compatDev, setCompatDev] = useState(provider.compat?.supportsDeveloperRole ?? false);
+  const [compatFinish, setCompatFinish] = useState(provider.compat?.supportsFinishReason ?? true);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // 密钥池:新增/移除(切换已有 radio 通道)。
+  const [newKeyValue, setNewKeyValue] = useState('');
   const [switchingKeyId, setSwitchingKeyId] = useState<string | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [switchOk, setSwitchOk] = useState(false);
 
-  const handleSwitchKey = useCallback(
-    async (keyId: string) => {
-      if (!api?.switchCliKey || switchingKeyId) return;
-      if (provider.apiKeys.find((k) => k.id === keyId)?.active) return;
-      setSwitchingKeyId(keyId);
-      setSwitchError(null);
-      setSwitchOk(false);
-      try {
-        await api.switchCliKey(provider.id, keyId);
-        setSwitchOk(true);
-        await onReload();
-      } catch (err: unknown) {
-        setSwitchError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSwitchingKeyId(null);
-      }
-    },
-    [api, provider.id, provider.apiKeys, switchingKeyId, onReload],
-  );
+  // 模型快捷添加 + 删除确认。
+  const [quickId, setQuickId] = useState('');
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const runTest = useCallback(async () => {
     if (!api?.testCliProvider || testState === 'testing') return;
@@ -285,6 +918,262 @@ function ProviderDetail({
     }
   }, [api, provider.id, fetchState]);
 
+  const dirty =
+    name !== (provider.name ?? '') ||
+    baseUrl !== (provider.baseUrl ?? '') ||
+    apiType !== (provider.api ?? 'openai-completions') ||
+    compatDev !== (provider.compat?.supportsDeveloperRole ?? false) ||
+    compatFinish !== (provider.compat?.supportsFinishReason ?? true);
+  const urlInvalid = baseUrl.trim() !== '' && !isValidHttpUrl(baseUrl.trim());
+
+  const handleSave = async () => {
+    if (!api?.mutateCli || !dirty) return;
+    setSaveState('saving');
+    try {
+      const nameChanged = name.trim() !== '' && name !== (provider.name ?? '');
+      const sanitize = (s: string) =>
+        s
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^\p{L}\p{N}-]/gu, '')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+      const newId = nameChanged ? sanitize(name) : '';
+      const patch = {
+        ...(name.trim() ? { name: name.trim() } : {}),
+        ...(baseUrl.trim() ? { baseUrl: baseUrl.trim() } : {}),
+        api: apiType,
+        compat: { supportsDeveloperRole: compatDev, supportsFinishReason: compatFinish },
+      };
+      // 名称变更 = id 也重命名(pi 徽标与 enabledModels 引用同步改写,主进程处理)。
+      if (newId && newId !== provider.id) {
+        await api.mutateCli({ action: 'rename-provider', fromId: provider.id, toId: newId, patch });
+        await onReload();
+        onRenamed(newId);
+      } else {
+        await api.mutateCli({ action: 'upsert-provider', id: provider.id, patch });
+        await onReload();
+      }
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2500);
+    } catch (err) {
+      log.warn('provider save failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setSaveState('error');
+    }
+  };
+
+  const handleSwitchKey = useCallback(
+    async (keyId: string) => {
+      if (!api?.switchCliKey || switchingKeyId) return;
+      if (provider.apiKeys.find((k) => k.id === keyId)?.active) return;
+      setSwitchingKeyId(keyId);
+      setSwitchError(null);
+      setSwitchOk(false);
+      try {
+        await api.switchCliKey(provider.id, keyId);
+        setSwitchOk(true);
+        await onReload();
+      } catch (err: unknown) {
+        setSwitchError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSwitchingKeyId(null);
+      }
+    },
+    [api, provider.id, provider.apiKeys, switchingKeyId, onReload],
+  );
+
+  const handleAddKey = async () => {
+    if (!api?.mutateCli || !newKeyValue.trim()) return;
+    setSwitchError(null);
+    setSwitchOk(false);
+    try {
+      await api.mutateCli({
+        action: 'upsert-provider',
+        id: provider.id,
+        patch: { apiKey: newKeyValue.trim() },
+      });
+      setNewKeyValue('');
+      setSwitchOk(true);
+      await onReload();
+    } catch (err) {
+      setSwitchError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleRemoveKey = async (keyId: string) => {
+    if (!api?.switchCliKey || !api?.mutateCli) return;
+    setSwitchError(null);
+    setSwitchOk(false);
+    try {
+      // 遮罩视图里没有真值,无法整池回写 —— 移除动作分两步:先切到别处
+      // (若移除的是生效 key),再把这个 id 从池里置为无效条目让主进程清除。
+      // 主进程 switch-only 无法删除条目,这里通过 upsert-provider 的 apiKeys
+      // 白名单语义实现:重写池时被删条目缺失即消失。为拿到真值做整池回写,
+      // 交由主进程 mutate 专用子动作完成(与 pws handleRemoveKey 同语义)。
+      await api.mutateCli({ action: 'remove-key', id: provider.id, keyId });
+      setSwitchOk(true);
+      await onReload();
+    } catch (err) {
+      setSwitchError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleToggleDisabled = async () => {
+    if (!api?.mutateCli) return;
+    try {
+      await api.mutateCli({
+        action: 'set-provider-disabled',
+        id: provider.id,
+        disabled: !provider.disabled,
+      });
+      await onReload();
+    } catch (err) {
+      log.warn('toggle disabled failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!api?.mutateCli) return;
+    try {
+      // 副本清空凭证(pws 语义),模型与端点配置随拷。
+      const sanitize = (s: string) =>
+        s
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^\p{L}\p{N}-]/gu, '')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+      const baseId = sanitize(provider.name) || provider.id;
+      let newId = sanitize(`${baseId}-copy`);
+      let i = 2;
+      // 与面板当前可见 id 集合去重（本组件拿不到全量注册表,用剥密视图即可）。
+      const knownIds = new Set<string>();
+      try {
+        const snapshot = await window.electronAPI?.maker?.piAgent?.listCliProviders?.();
+        for (const p of snapshot?.providers ?? []) knownIds.add(p.id);
+      } catch {
+        knownIds.add(provider.id);
+      }
+      while (knownIds.has(newId)) newId = sanitize(`${baseId}-copy${i++}`);
+      await api.mutateCli({
+        action: 'upsert-provider',
+        id: newId,
+        patch: {
+          name: `${provider.name} (copy)`,
+          ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
+          ...(provider.api ? { api: provider.api } : {}),
+          ...(provider.compat ? { compat: provider.compat } : {}),
+          models: provider.models.map((m) => ({
+            id: m.id,
+            name: m.name,
+            reasoning: m.reasoning,
+            input: m.input,
+            contextWindow: m.contextWindow,
+            maxTokens: m.maxTokens,
+            cost: m.cost,
+          })),
+        },
+      });
+      await onReload();
+      onRenamed(newId);
+    } catch (err) {
+      log.warn('duplicate failed', { error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!api?.mutateCli) return;
+    try {
+      await api.mutateCli({ action: 'remove-provider', id: provider.id });
+      await onReload();
+      onDeleted();
+    } catch (err) {
+      log.warn('delete failed', { error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const handleToggleModel = async (modelId: string, enabled: boolean) => {
+    if (!api?.mutateCli) return;
+    try {
+      await api.mutateCli({
+        action: 'update-enabled',
+        change: enabled
+          ? { add: [`${provider.id}/${modelId}`] }
+          : { remove: [`${provider.id}/${modelId}`] },
+      });
+      await onReload();
+    } catch (err) {
+      log.warn('toggle model failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleSetAllModels = async (on: boolean) => {
+    if (!api?.mutateCli) return;
+    try {
+      await api.mutateCli({
+        action: 'update-enabled',
+        change: on
+          ? { add: provider.models.map((m) => `${provider.id}/${m.id}`) }
+          : { remove: provider.models.map((m) => `${provider.id}/${m.id}`) },
+      });
+      await onReload();
+    } catch (err) {
+      log.warn('set all models failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleQuickAdd = async () => {
+    const id = quickId.trim();
+    if (!api?.mutateCli || !id || quickBusy) return;
+    setQuickBusy(true);
+    try {
+      await api.mutateCli({
+        action: 'upsert-model',
+        providerId: provider.id,
+        model: {
+          id,
+          name: id.split('/').pop() || id,
+          contextWindow: DEFAULT_CONTEXT_WINDOW,
+          maxTokens: DEFAULT_MAX_TOKENS,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        },
+      });
+      // 快捷添加的模型默认启用(pws 语义)。
+      await api.mutateCli({
+        action: 'update-enabled',
+        change: { add: [`${provider.id}/${id}`] },
+      });
+      setQuickId('');
+      await onReload();
+    } catch (err) {
+      log.warn('quick add failed', { error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setQuickBusy(false);
+    }
+  };
+
+  const handleRemoveModel = async (modelId: string) => {
+    if (!api?.mutateCli) return;
+    try {
+      await api.mutateCli({ action: 'remove-model', providerId: provider.id, modelId });
+      await onReload();
+    } catch (err) {
+      log.warn('remove model failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {/* Header */}
@@ -305,10 +1194,65 @@ function ProviderDetail({
             {t('settings.piCliProviders.keyConfigured')}
           </span>
         )}
-        <span className="ml-auto font-mono text-11 text-[var(--settings-section-desc)]">
-          {provider.id}
-        </span>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void handleDuplicate()}
+            title={t('settings.piCliProviders.duplicate')}
+            className="rounded-lg p-2 text-[var(--settings-section-desc)] transition-colors hover:bg-blue-500/10 hover:text-blue-400"
+          >
+            <Copy size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleToggleDisabled()}
+            title={
+              provider.disabled
+                ? t('settings.piCliProviders.enableProvider')
+                : t('settings.piCliProviders.disableProvider')
+            }
+            className="rounded-lg p-2 text-[var(--settings-section-desc)] transition-colors hover:bg-emerald-500/10 hover:text-emerald-500"
+          >
+            {provider.disabled ? <LockOpen size={14} /> : <Unlock size={14} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            title={t('settings.piCliProviders.deleteProvider')}
+            className="ml-auto rounded-lg p-2 text-[var(--settings-section-desc)] transition-colors hover:bg-red-500/10 hover:text-red-500"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
+
+      {confirmDelete && (
+        <div
+          className="flex items-start gap-3 rounded-lg border p-3"
+          style={{ borderColor: 'var(--danger)' }}
+        >
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-12 text-[var(--settings-section-title)]">
+              {t('settings.piCliProviders.deleteConfirm', { name: provider.name })}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button type="button" onClick={() => setConfirmDelete(false)} className={cn(ACTION_CLASS)}>
+                {t('settings.piCliProviders.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-12 font-medium text-white"
+                style={{ backgroundColor: 'var(--danger)' }}
+              >
+                <Trash2 size={13} />
+                {t('settings.piCliProviders.deleteProvider')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live actions — 只读探测:测连接 / 拉取模型,真 key 全程留在主进程。 */}
       <div className="flex flex-wrap items-center gap-2">
@@ -316,9 +1260,7 @@ function ProviderDetail({
           type="button"
           onClick={() => void runTest()}
           disabled={!provider.baseUrl || testState === 'testing'}
-          title={
-            provider.baseUrl ? undefined : t('settings.piCliProviders.testNeedBaseUrl')
-          }
+          title={provider.baseUrl ? undefined : t('settings.piCliProviders.testNeedBaseUrl')}
           className={cn(ACTION_CLASS)}
         >
           {testState === 'testing' ? <Spinner size={14} /> : <PlugZap size={14} />}
@@ -330,9 +1272,7 @@ function ProviderDetail({
           type="button"
           onClick={() => void runFetch()}
           disabled={!provider.baseUrl || fetchState === 'fetching'}
-          title={
-            provider.baseUrl ? undefined : t('settings.piCliProviders.testNeedBaseUrl')
-          }
+          title={provider.baseUrl ? undefined : t('settings.piCliProviders.testNeedBaseUrl')}
           className={cn(ACTION_CLASS)}
         >
           {fetchState === 'fetching' ? <Spinner size={14} /> : <ListPlus size={14} />}
@@ -457,14 +1397,35 @@ function ProviderDetail({
         </p>
       )}
 
+      {/* Name */}
+      <div>
+        <label className="block text-12 text-[var(--settings-section-sublabel)]">
+          {t('settings.piCliProviders.name')}
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={cn(INPUT_CLASS, 'mt-1.5')}
+        />
+        <p className="mt-1 font-mono text-11 text-[var(--settings-section-desc)]">{provider.id}</p>
+      </div>
+
       {/* Base URL */}
       <div>
         <label className="block text-12 text-[var(--settings-section-sublabel)]">
           {t('settings.piCliProviders.baseUrl')}
         </label>
-        <p className={FIELD_VALUE_CLASS}>
-          {provider.baseUrl ?? t('settings.piCliProviders.noBaseUrl')}
-        </p>
+        <input
+          type="text"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://api.example.com/v1"
+          className={cn(INPUT_CLASS, 'mt-1.5', urlInvalid && 'border-red-500')}
+        />
+        {urlInvalid && (
+          <p className="mt-1 text-11 text-red-500">{t('settings.piCliProviders.invalidUrl')}</p>
+        )}
       </div>
 
       {/* API type */}
@@ -472,42 +1433,65 @@ function ProviderDetail({
         <label className="block text-12 text-[var(--settings-section-sublabel)]">
           {t('settings.piCliProviders.apiType')}
         </label>
-        <p className={FIELD_VALUE_CLASS}>{provider.api ?? '—'}</p>
+        <select
+          value={apiType}
+          onChange={(e) => setApiType(e.target.value)}
+          className={cn(INPUT_CLASS, 'mt-1.5')}
+        >
+          {PI_API_TYPES.map((a) => (
+            <option key={a.value} value={a.value}>
+              {a.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* compat —— pi 的兼容开关。默认值不是「都开」,配错会让请求被上游拒,
-          所以即使是只读面板也要能看到当前值。 */}
-      {provider.compat && (
-        <div>
-          <label className="block text-12 text-[var(--settings-section-sublabel)]">
-            {t('settings.piCliProviders.compat')}
-          </label>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {provider.compat.supportsDeveloperRole !== undefined && (
-              <span className={BADGE_CLASS}>
-                {t('settings.piCliProviders.compatDeveloperRole')} ·{' '}
-                {t(
-                  provider.compat.supportsDeveloperRole
-                    ? 'settings.piCliProviders.compatOn'
-                    : 'settings.piCliProviders.compatOff',
-                )}
-              </span>
-            )}
-            {provider.compat.supportsFinishReason !== undefined && (
-              <span className={BADGE_CLASS}>
-                {t('settings.piCliProviders.compatFinishReason')} ·{' '}
-                {t(
-                  provider.compat.supportsFinishReason
-                    ? 'settings.piCliProviders.compatOn'
-                    : 'settings.piCliProviders.compatOff',
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* compat —— pi 的兼容开关。 */}
+      <div className="flex flex-col gap-2">
+        <label className="flex items-center gap-2 text-12 text-[var(--settings-section-sublabel)]">
+          <input
+            type="checkbox"
+            checked={compatDev}
+            onChange={(e) => setCompatDev(e.target.checked)}
+            style={{ accentColor: 'var(--accent, var(--text-link))' }}
+          />
+          {t('settings.piCliProviders.compatDeveloperRole')}
+        </label>
+        <label className="flex items-center gap-2 text-12 text-[var(--settings-section-sublabel)]">
+          <input
+            type="checkbox"
+            checked={compatFinish}
+            onChange={(e) => setCompatFinish(e.target.checked)}
+            style={{ accentColor: 'var(--accent, var(--text-link))' }}
+          />
+          {t('settings.piCliProviders.compatFinishReason')}
+        </label>
+      </div>
 
-      {/* API keys — 整池列出并标出生效的那把；真值不出主进程，无显形入口。 */}
+      {/* Save row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={!dirty || saveState === 'saving'}
+          className={cn(ACTION_CLASS)}
+        >
+          {saveState === 'saving' ? <Spinner size={13} /> : <Check size={13} />}
+          {t('settings.piCliProviders.save')}
+        </button>
+        {saveState === 'saved' && (
+          <span role="status" className="text-11 text-emerald-500">
+            {t('settings.piCliProviders.saved')}
+          </span>
+        )}
+        {saveState === 'error' && (
+          <span role="alert" className="text-11 text-red-500">
+            {t('settings.piCliProviders.saveFailed')}
+          </span>
+        )}
+      </div>
+
+      {/* API keys — 整池列出并标出生效的那把；可切换/新增/移除;真值不出主进程。 */}
       <div>
         <div className="flex items-center justify-between gap-3">
           <label className="block text-12 text-[var(--settings-section-sublabel)]">
@@ -538,8 +1522,6 @@ function ProviderDetail({
                     : 'border-[var(--settings-theme-card-border)] bg-[var(--surface)]',
                 )}
               >
-                {/* 多把 key 时提供切换:点击圆点即把该把置为生效,与 pi-web-switch
-                    的 radio 一致;单把无切换意义,只展示 active 标记。 */}
                 {provider.apiKeys.length > 1 && (
                   <button
                     type="button"
@@ -578,9 +1560,42 @@ function ProviderDetail({
                     {t('settings.piCliProviders.keyActive')}
                   </span>
                 )}
+                {provider.apiKeys.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveKey(key.id)}
+                    title={t('settings.piCliProviders.keyRemove')}
+                    className="shrink-0 rounded-md p-1 text-[var(--settings-section-desc)] transition-colors hover:text-red-400"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
+        )}
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="password"
+            value={newKeyValue}
+            onChange={(e) => setNewKeyValue(e.target.value)}
+            placeholder="sk-... or $MY_API_KEY"
+            className={cn(INPUT_CLASS, 'min-w-0 flex-1')}
+          />
+          <button
+            type="button"
+            onClick={() => void handleAddKey()}
+            disabled={!newKeyValue.trim()}
+            className={cn(ACTION_CLASS, 'shrink-0 disabled:opacity-40')}
+          >
+            <Plus size={13} />
+            {t('settings.piCliProviders.keyAdd')}
+          </button>
+        </div>
+        {newKeyValue.trim().startsWith('$') && (
+          <p className="mt-1 text-11 text-sky-500">
+            {t('settings.piCliProviders.apiKeyEnv', { ref: newKeyValue.trim() })}
+          </p>
         )}
         {switchOk && !switchError && (
           <p role="status" className="mt-1.5 text-11 text-emerald-500">
@@ -603,26 +1618,78 @@ function ProviderDetail({
           <label className="block text-12 text-[var(--settings-section-sublabel)]">
             {t('settings.piCliProviders.models')}
           </label>
-          <span className="text-11 text-[var(--settings-section-desc)]">
-            {t('settings.piCliProviders.modelCount', {
-              enabled: enabledCount,
-              total: provider.models.length,
-            })}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-11 text-[var(--settings-section-desc)]">
+              {t('settings.piCliProviders.modelCount', {
+                enabled: enabledCount,
+                total: provider.models.length,
+              })}
+            </span>
+            {provider.models.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleSetAllModels(true)}
+                  className={cn(ACTION_CLASS, 'h-6 px-2 text-11')}
+                >
+                  {t('settings.piCliProviders.enableAll')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSetAllModels(false)}
+                  className={cn(ACTION_CLASS, 'h-6 px-2 text-11')}
+                >
+                  {t('settings.piCliProviders.disableAll')}
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* 快捷添加(pws quick add 简版:id → 默认元数据 + 默认启用)。 */}
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="text"
+            value={quickId}
+            onChange={(e) => setQuickId(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleQuickAdd();
+            }}
+            placeholder="vendor/model-id"
+            className={cn(INPUT_CLASS, 'min-w-0 flex-1 font-mono')}
+          />
+          <button
+            type="button"
+            onClick={() => void handleQuickAdd()}
+            disabled={!quickId.trim() || quickBusy}
+            className={cn(ACTION_CLASS, 'shrink-0 disabled:opacity-40')}
+          >
+            {quickBusy ? <Spinner size={13} /> : <Plus size={13} />}
+            {t('settings.piCliProviders.modelAdd')}
+          </button>
+        </div>
+
         {provider.models.length === 0 ? (
           <p className="mt-1.5 text-11 text-[var(--settings-section-desc)]">
             {t('settings.piCliProviders.noModels')}
           </p>
         ) : (
           <>
-            <div className="mt-1.5 flex flex-col gap-1.5">
+            <div className="mt-2 flex flex-col gap-1.5">
               {provider.models.map((model) => (
-                <ModelRow key={model.id} model={model} />
+                <div key={model.id} className="group relative">
+                  <ModelRow model={model} onToggleEnabled={(id, on) => void handleToggleModel(id, on)} />
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveModel(model.id)}
+                    title={t('settings.piCliProviders.modelRemove')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-[var(--surface)] p-1 text-[var(--settings-section-desc)] opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               ))}
             </div>
-            {/* 「可用」的判据是 settings.json 的 enabledModels 白名单,不是 models.json
-                的 enabled 字段(pi 不认后者)。白名单为空时 pi 不过滤 = 全部可用。 */}
             <p className="mt-1.5 text-11 text-[var(--settings-section-desc)]">
               {t('settings.piCliProviders.enabledNote')}
             </p>
@@ -633,11 +1700,15 @@ function ProviderDetail({
   );
 }
 
+// ─── 主面板 ─────────────────────────────────────────────────────────────
+
 export function PiCliProvidersSection() {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>('loading');
   const [result, setResult] = useState<PiCliProviders | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     const api = window.electronAPI?.maker?.piAgent;
@@ -662,12 +1733,21 @@ export function PiCliProvidersSection() {
   }, [load]);
 
   const providers = result?.providers ?? [];
-  const selected = providers.find((p) => p.id === selectedId) ?? providers[0] ?? null;
+  const selected = providers.find((p) => p.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (state === 'ready' && !adding && !selected && providers.length > 0) {
+      setSelectedId(providers[0]!.id);
+    }
+  }, [state, adding, selected, providers]);
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="pi-cli-providers-title">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          <div className="page-kicker flex items-center gap-2 text-11 uppercase tracking-widest text-[var(--settings-section-sublabel)]">
+            <span /> ROUTING FABRIC // CONFIGURATION
+          </div>
           <h3
             id="pi-cli-providers-title"
             className="text-16 font-medium text-[var(--settings-section-title)]"
@@ -688,6 +1768,10 @@ export function PiCliProvidersSection() {
           {t('settings.piCliProviders.refresh')}
         </button>
       </div>
+
+      {state === 'ready' && result?.installed && !result.error && (
+        <EnabledModelsPanel providers={providers} onChanged={() => void load()} />
+      )}
 
       {state === 'loading' && (
         <div
@@ -719,14 +1803,8 @@ export function PiCliProvidersSection() {
         </div>
       )}
 
-      {state === 'ready' && result?.installed && !result.error && providers.length === 0 && (
-        <p className="rounded-xl border border-[var(--settings-theme-card-border)] px-5 py-4 text-12 text-[var(--settings-section-desc)]">
-          {t('settings.piCliProviders.empty')}
-        </p>
-      )}
-
-      {/* 左导轨 + 右详情，与 pi-web-switch 的 providers-console 同构。 */}
-      {state === 'ready' && result?.installed && providers.length > 0 && (
+      {/* 左导轨 + 右详情,与 pi-web-switch 的 providers-console 同构。 */}
+      {state === 'ready' && result?.installed && !result.error && (
         <div className={cn(CARD_CLASS, 'flex flex-col md:flex-row')}>
           <div className="shrink-0 border-b border-[var(--settings-theme-card-border)] p-3 md:w-56 md:border-b-0 md:border-r">
             <p className="px-2 pb-2 pt-1 text-11 font-medium uppercase tracking-wider text-[var(--settings-section-sublabel)]">
@@ -734,18 +1812,79 @@ export function PiCliProvidersSection() {
             </p>
             <div className="flex flex-col gap-0.5">
               {providers.map((provider) => (
-                <ProviderRailItem
+                <button
                   key={provider.id}
-                  provider={provider}
-                  active={selected?.id === provider.id}
-                  onSelect={() => setSelectedId(provider.id)}
-                />
+                  type="button"
+                  onClick={() => {
+                    setAdding(false);
+                    setSelectedId(provider.id);
+                  }}
+                  aria-current={!adding && selected?.id === provider.id}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-12 transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+                    !adding && selected?.id === provider.id
+                      ? 'border-[var(--settings-theme-card-border)] bg-[var(--settings-menu-bg-hover)] text-[var(--settings-section-title)]'
+                      : 'border-transparent text-[var(--settings-section-sublabel)] hover:bg-[var(--settings-menu-bg-hover)]',
+                    provider.disabled && 'opacity-50',
+                  )}
+                >
+                  <Server size={14} className="shrink-0 text-blue-400" />
+                  <span className="min-w-0 flex-1 truncate">{provider.name}</span>
+                  <span
+                    className={cn(
+                      'h-2 w-2 shrink-0 rounded-full',
+                      provider.hasApiKey ? 'bg-emerald-400' : 'bg-[var(--settings-theme-card-border)]',
+                    )}
+                  />
+                </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(true);
+                setSelectedId(null);
+              }}
+              className={cn(
+                'mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-12 font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+                adding
+                  ? 'border-[var(--settings-theme-card-border)] bg-[var(--settings-menu-bg-hover)] text-[var(--settings-section-title)]'
+                  : 'border-[var(--settings-theme-card-border)] text-[var(--settings-section-sublabel)] hover:bg-[var(--settings-menu-bg-hover)]',
+              )}
+            >
+              <Plus size={14} />
+              {t('settings.piCliProviders.addProvider')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setImporting(true)}
+              className="mt-2 flex w-full items-center gap-2 rounded-lg border border-[var(--settings-theme-card-border)] px-3 py-2 text-12 font-medium text-[var(--settings-section-sublabel)] transition-colors hover:bg-[var(--settings-menu-bg-hover)]"
+            >
+              <ClipboardPaste size={14} />
+              {t('settings.piCliProviders.importProvider')}
+            </button>
           </div>
           <div className="min-w-0 flex-1 p-5">
-            {selected ? (
-              <ProviderDetail key={selected.id} provider={selected} onReload={load} />
+            {adding ? (
+              <AddProviderForm
+                existingIds={new Set(providers.map((p) => p.id))}
+                onDone={(id) => {
+                  setAdding(false);
+                  setSelectedId(id);
+                }}
+                onCancel={() => setAdding(false)}
+                reload={load}
+              />
+            ) : selected ? (
+              <ProviderDetail
+                key={`${selected.id}:${selected.models.length}:${selected.apiKeyCount}`}
+                provider={selected}
+                onReload={load}
+                onDeleted={() => setSelectedId(null)}
+                onRenamed={(newId) => setSelectedId(newId)}
+              />
             ) : (
               <p className="text-12 text-[var(--settings-section-desc)]">
                 {t('settings.piCliProviders.selectHint')}
@@ -754,6 +1893,17 @@ export function PiCliProvidersSection() {
           </div>
         </div>
       )}
+
+      <ImportProviderModal
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImported={(id) => {
+          setImporting(false);
+          setAdding(false);
+          setSelectedId(id);
+        }}
+        reload={load}
+      />
     </section>
   );
 }

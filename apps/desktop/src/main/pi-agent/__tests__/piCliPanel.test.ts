@@ -564,3 +564,47 @@ describe('pi provider semantic mutations (pws parity)', () => {
     expect(out.enabledModels).toBeUndefined();
   });
 });
+
+describe('applyPiCliRemoveKey', () => {
+  const { applyPiCliRemoveKey } = __testing;
+
+  it('removes a pool entry and falls back when the active one is removed', () => {
+    const doc = {
+      providers: {
+        p: {
+          apiKey: 'sk-b-0000000000000002',
+          activeKeyId: 'k2',
+          apiKeys: [
+            { id: 'k1', key: 'sk-a-0000000000000001' },
+            { id: 'k2', key: 'sk-b-0000000000000002' },
+          ],
+        },
+      },
+    };
+    applyPiCliRemoveKey(doc, 'p', 'k2');
+    const p = (doc.providers as Record<string, Record<string, unknown>>).p!;
+    expect((p.apiKeys as unknown[]).map((e) => (e as { id: string }).id)).toEqual(['k1']);
+    expect(p.activeKeyId).toBe('k1');
+    expect(p.apiKey).toBe('sk-a-0000000000000001');
+  });
+
+  it('dismantles the pool when the last entry is removed', () => {
+    const doc = {
+      providers: { p: { apiKey: 'sk-a', activeKeyId: 'k1', apiKeys: [{ id: 'k1', key: 'sk-a' }] } },
+    };
+    applyPiCliRemoveKey(doc, 'p', 'k1');
+    const p = (doc.providers as Record<string, Record<string, unknown>>).p!;
+    expect(p.apiKeys).toBeUndefined();
+    expect(p.activeKeyId).toBeUndefined();
+    expect(p.apiKey).toBeUndefined();
+  });
+
+  it('rejects unknown providers and unknown key ids', () => {
+    expect(() => applyPiCliRemoveKey({ providers: {} }, 'p', 'k1')).toThrow(
+      'PI_CLI_PROVIDER_NOT_FOUND',
+    );
+    expect(() =>
+      applyPiCliRemoveKey({ providers: { p: { apiKeys: [{ id: 'k1', key: 'sk-a' }] } } }, 'p', 'x'),
+    ).toThrow('PI_CLI_KEY_NOT_FOUND');
+  });
+});
