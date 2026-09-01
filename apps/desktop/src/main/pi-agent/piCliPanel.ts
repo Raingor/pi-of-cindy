@@ -47,7 +47,15 @@ export interface PiCliModelView {
   contextWindow?: number;
   maxTokens?: number;
   cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
-  /** models.json 里显式关掉的模型仍要列出,面板据此置灰。 */
+  /**
+   * pi 是否会真的把这个模型放进可选清单。
+   *
+   * **判据是 `settings.json` 的 `enabledModels`,不是 `models.json` 里的 `enabled` 字段** ——
+   * 后者不在 pi 的 ModelDefinitionSchema 里(实测 `dist/core/model-config.js`),pi 读配置时
+   * 直接丢掉,pi-web-switch 的投影也把它一律映射成 true。`enabledModels` 为空数组时 pi 不做
+   * 任何过滤(见 `agent-session.js` 与 `interactive-mode.js` 的 `!enabledModels?.length` 分支),
+   * 也就是「空 = 全开」,不是「空 = 全关」。
+   */
   enabled: boolean;
 }
 
@@ -70,6 +78,16 @@ export interface PiCliProviderView {
   name: string;
   baseUrl?: string;
   api?: string;
+  /**
+   * pi 把停用的供应商整块搬进 `models.json` 的 `_disabledProviders`。不读这个键
+   * 的话被停用的供应商会从面板里凭空消失 —— 用户既看不到它还在、也不知道为什么。
+   */
+  disabled: boolean;
+  /**
+   * `compat` 兼容开关(pi 的 ProviderCompatSchema)。面板只展示 pi-web-switch
+   * 也暴露的那两项;其余键 pi 认但两边都不展示。
+   */
+  compat?: { supportsDeveloperRole?: boolean; supportsFinishReason?: boolean };
   /** 是否配了 key。真值不出主进程。 */
   hasApiKey: boolean;
   /** 已遮罩的当前生效 key(如 `sk-2Aw…MuiA`);未配置时为 undefined。 */
@@ -152,7 +170,18 @@ function readJsonFile<T>(path: string): { value: T } | { error: string } {
   }
 }
 
-function toModelView(raw: unknown): PiCliModelView | null {
+/**
+ * 解 pi 的 `$VAR` 密钥引用。pi 支持把 `apiKey` 写成 `$OPENAI_API_KEY`,真值从
+ * 进程环境读 —— 不解引用就会把字面量当 Bearer token 发出去。变量没导出时返回空串
+ * (等价「没配 key」),不回落到字面量。
+ */
+function resolveKeyRef(raw: string | undefined): string {
+  const key = (raw ?? '').trim();
+  if (!key.startsWith('$')) return key;
+  return (process.env[key.slice(1)] ?? '').trim();
+}
+
+function toModelView(raw: unknown, enabledRefs: ReadonlySet<string> | null, providerId: string): PiCliModelView | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id) return null;
   const cost = isRecord(raw.cost)
     ? {
@@ -172,19 +201,51 @@ function toModelView(raw: unknown): PiCliModelView | null {
       : {}),
     ...(optionalNumber(raw.maxTokens) !== undefined ? { maxTokens: optionalNumber(raw.maxTokens) } : {}),
     ...(cost ? { cost } : {}),
-    // 缺省视为启用:pi 只在显式 false 时跳过该模型。
-    enabled: raw.enabled !== false,
+    // enabledRefs === null 表示 settings.enabledModels 为空/缺省 —— pi 此时不过滤,全开。
+    enabled: enabledRefs === null || enabledRefs.has(`${providerId}/${raw.id}`),
   };
+}
+
+/**
+ * 读 `settings.json` 的 `enabledModels`。返回 null 表示「没有配过白名单」——
+ * pi 在这种情况下不做任何过滤,不能误当成「一个都没启用」。
+ */
+function readEnabledModelRefs(): ReadonlySet<string> | null {
+  const settings = readJsonFile<{ enabledModels?: unknown }>(join(PI_DIR, 'settings.json'));
+  if ('error' in settings) return null;
+  const raw = settings.value.enabledModels;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const refs = raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+  return refs.length > 0 ? new Set(refs.map((r) => r.trim())) : null;
+}
+
+/** models.json 的 `compat` 里 pi-web-switch 也展示的那两项。 */
+function toCompatView(
+  raw: unknown,
+): { supportsDeveloperRole?: boolean; supportsFinishReason?: boolean } | undefined {
+  if (!isRecord(raw)) return undefined;
+  const out: { supportsDeveloperRole?: boolean; supportsFinishReason?: boolean } = {};
+  if (typeof raw.supportsDeveloperRole === 'boolean') {
+    out.supportsDeveloperRole = raw.supportsDeveloperRole;
+  }
+  if (typeof raw.supportsFinishReason === 'boolean') {
+    out.supportsFinishReason = raw.supportsFinishReason;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /**
  * 把 `~/.pi/agent/models.json` 投影成剥密后的面板视图。
  * `auth.json` 只用于补齐"这个供应商配过 key 没有",同样不回传真值。
+ * `settings.json` 只用于读 `enabledModels` 白名单(模型是否真会被 pi 选中)。
  */
 export function readPiCliProviders(): PiCliProvidersResult {
   if (!isPiCliDirPresent()) return { installed: false, providers: [] };
 
-  const models = readJsonFile<{ providers?: Record<string, unknown> }>(join(PI_DIR, 'models.json'));
+  const models = readJsonFile<{
+    providers?: Record<string, unknown>;
+    _disabledProviders?: Record<string, unknown>;
+  }>(join(PI_DIR, 'models.json'));
   if ('error' in models) {
     // 文件不存在是合法状态(装了 CLI 但还没配供应商);解析失败才是错误。
     return models.error === 'missing'
@@ -193,35 +254,48 @@ export function readPiCliProviders(): PiCliProvidersResult {
   }
   const auth = readJsonFile<Record<string, { key?: string }>>(join(PI_DIR, 'auth.json'));
   const authMap = 'value' in auth && isRecord(auth.value) ? auth.value : {};
+  const enabledRefs = readEnabledModelRefs();
 
-  const rawProviders = isRecord(models.value.providers) ? models.value.providers : {};
+  const activeProviders = isRecord(models.value.providers) ? models.value.providers : {};
+  const disabledProviders = isRecord(models.value._disabledProviders)
+    ? models.value._disabledProviders
+    : {};
+
   const providers: PiCliProviderView[] = [];
-  for (const [id, raw] of Object.entries(rawProviders)) {
-    if (providers.length >= MAX_PROVIDERS) break;
-    if (!isRecord(raw)) continue;
-    const inlineKey = typeof raw.apiKey === 'string' ? raw.apiKey : '';
-    const authKey = typeof authMap[id]?.key === 'string' ? (authMap[id].key as string) : '';
-    const effectiveKey = inlineKey || authKey;
-    const apiKeys = toApiKeyViews(raw.apiKeys, raw.activeKeyId, effectiveKey);
-    // 面板顶部展示的是当前生效的那把，与 pi 实际使用的一致。
-    const masked = apiKeys.find((k) => k.active)?.maskedKey ?? maskApiKey(effectiveKey);
-    providers.push({
-      id,
-      name: typeof raw.name === 'string' && raw.name ? raw.name : id,
-      ...(typeof raw.baseUrl === 'string' ? { baseUrl: raw.baseUrl } : {}),
-      ...(typeof raw.api === 'string' ? { api: raw.api } : {}),
-      hasApiKey: Boolean(effectiveKey) || apiKeys.length > 0,
-      ...(masked ? { maskedApiKey: masked } : {}),
-      apiKeyCount: apiKeys.length,
-      apiKeys,
-      models: Array.isArray(raw.models)
-        ? raw.models
-            .slice(0, MAX_MODELS_PER_PROVIDER)
-            .map(toModelView)
-            .filter((m): m is PiCliModelView => m !== null)
-        : [],
-    });
-  }
+  const collect = (rawProviders: Record<string, unknown>, disabled: boolean): void => {
+    for (const [id, raw] of Object.entries(rawProviders)) {
+      if (providers.length >= MAX_PROVIDERS) break;
+      if (!isRecord(raw)) continue;
+      const inlineKey = typeof raw.apiKey === 'string' ? raw.apiKey : '';
+      const authKey = typeof authMap[id]?.key === 'string' ? (authMap[id].key as string) : '';
+      const effectiveKey = inlineKey || authKey;
+      const apiKeys = toApiKeyViews(raw.apiKeys, raw.activeKeyId, effectiveKey);
+      // 面板顶部展示的是当前生效的那把，与 pi 实际使用的一致。
+      const masked = apiKeys.find((k) => k.active)?.maskedKey ?? maskApiKey(effectiveKey);
+      const compat = toCompatView(raw.compat);
+      providers.push({
+        id,
+        name: typeof raw.name === 'string' && raw.name ? raw.name : id,
+        ...(typeof raw.baseUrl === 'string' ? { baseUrl: raw.baseUrl } : {}),
+        ...(typeof raw.api === 'string' ? { api: raw.api } : {}),
+        disabled,
+        ...(compat ? { compat } : {}),
+        hasApiKey: Boolean(effectiveKey) || apiKeys.length > 0,
+        ...(masked ? { maskedApiKey: masked } : {}),
+        apiKeyCount: apiKeys.length,
+        apiKeys,
+        models: Array.isArray(raw.models)
+          ? raw.models
+              .slice(0, MAX_MODELS_PER_PROVIDER)
+              .map((m) => toModelView(m, enabledRefs, id))
+              .filter((m): m is PiCliModelView => m !== null)
+          : [],
+      });
+    }
+  };
+  collect(activeProviders, false);
+  collect(disabledProviders, true);
+
   providers.sort((a, b) => a.id.localeCompare(b.id));
   return { installed: true, providers };
 }
@@ -380,18 +454,26 @@ export interface PiCliRuntimeProvider {
   key: string;
 }
 
-function toRuntimeModels(raw: unknown): PiCliRuntimeModel[] {
+function toRuntimeModels(
+  raw: unknown,
+  enabledRefs: ReadonlySet<string> | null,
+  providerId: string,
+): PiCliRuntimeModel[] {
   if (!Array.isArray(raw)) return [];
   const out: PiCliRuntimeModel[] = [];
   for (const entry of raw) {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !entry.id.trim()) continue;
-    if (entry.enabled === false) continue; // pi 显式停用的模型不进选择器/路由
+    const id = entry.id.trim();
+    // 与 pi 同一把门:`settings.enabledModels` 是白名单,空/缺省表示不过滤。
+    // `models.json` 的 `enabled` 字段不在 pi 的 schema 里,pi 读配置时直接丢弃 ——
+    // 按它过滤会让 pi 里能选的模型在 Cindy 里凭空少掉。
+    if (enabledRefs !== null && !enabledRefs.has(`${providerId}/${id}`)) continue;
     const input = Array.isArray(entry.input)
       ? entry.input.filter((x): x is string => typeof x === 'string')
       : [];
     out.push({
-      id: entry.id.trim(),
-      name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.id.trim(),
+      id,
+      name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id,
       ...(optionalNumber(entry.contextWindow) !== undefined
         ? { contextWindow: optionalNumber(entry.contextWindow) }
         : {}),
@@ -417,6 +499,7 @@ export function readPiCliRuntimeProviders(): PiCliRuntimeProvider[] {
   if ('error' in models || !isRecord(models.value.providers)) return [];
   const auth = readJsonFile<Record<string, { key?: string }>>(join(PI_DIR, 'auth.json'));
   const authMap = 'value' in auth && isRecord(auth.value) ? auth.value : {};
+  const enabledRefs = readEnabledModelRefs();
 
   const out: PiCliRuntimeProvider[] = [];
   for (const [id, raw] of Object.entries(models.value.providers)) {
@@ -426,9 +509,11 @@ export function readPiCliRuntimeProviders(): PiCliRuntimeProvider[] {
     if (!baseUrl) continue;
     const inlineKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '';
     const authKey = typeof authMap[id]?.key === 'string' ? authMap[id].key.trim() : '';
-    const key = inlineKey || authKey;
+    // `$VAR` 是 pi 的环境变量引用写法,不是密钥本身;这里解引用后再判「有没有 key」,
+    // 否则未导出该变量的供应商会带着字面量 `$VAR` 进路由,首次请求必 401。
+    const key = resolveKeyRef(inlineKey || authKey);
     if (!key) continue;
-    const modelsList = toRuntimeModels(raw.models);
+    const modelsList = toRuntimeModels(raw.models, enabledRefs, id);
     if (modelsList.length === 0) continue;
     out.push({
       catalogId: `${PI_CLI_PROVIDER_ID_PREFIX}${id}`,
@@ -504,6 +589,8 @@ export const __testing = {
   maskApiKey,
   toModelView,
   toApiKeyViews,
+  toCompatView,
+  resolveKeyRef,
   resolveProviderRuntimeConfigFromRaw,
   readPiCliRuntimeProviders,
   buildPiCliCatalogProviders,
@@ -539,7 +626,8 @@ interface PiCliProviderRuntimeConfig {
 /**
  * 从已解析的 models.json / auth.json 原始 JSON 里解析供应商的运行时配置。
  * 独立成纯函数便于单测;文件读取包装在 readPiCliProviderRuntimeConfig 里。
- * 供应商"存在"的判定:models.json 或 auth.json 任一里有该 id。
+ * 供应商"存在"的判定:`providers`、`_disabledProviders` 或 auth.json 任一里有该 id ——
+ * 已停用的供应商在面板里仍列出,测连接这类只读探测对它照样要能用。
  */
 function resolveProviderRuntimeConfigFromRaw(
   providerId: string,
@@ -548,22 +636,32 @@ function resolveProviderRuntimeConfigFromRaw(
 ): PiCliProviderRuntimeConfig | null {
   const id = providerId.trim();
   if (!id) return null;
-  const rawProviders = isRecord(modelsJson) && isRecord(modelsJson.providers)
+  const activeProviders = isRecord(modelsJson) && isRecord(modelsJson.providers)
     ? modelsJson.providers
     : {};
-  const raw = isRecord(rawProviders[id]) ? rawProviders[id] : null;
+  const disabledProviders = isRecord(modelsJson) && isRecord(modelsJson._disabledProviders)
+    ? modelsJson._disabledProviders
+    : {};
+  const raw = isRecord(activeProviders[id])
+    ? activeProviders[id]
+    : isRecord(disabledProviders[id])
+      ? disabledProviders[id]
+      : null;
   const authMap = isRecord(authJson) ? authJson : {};
   const authEntry = isRecord(authMap[id]) ? authMap[id] : null;
   if (!raw && !authEntry) return null;
+  // `$VAR` 引用在这里就地解引用:探测请求要发的是真值,不是字面量。
+  const apiKey = resolveKeyRef(
+    (typeof raw?.apiKey === 'string' && raw.apiKey) ||
+      (typeof authEntry?.key === 'string' && authEntry.key) ||
+      undefined,
+  );
   return {
     ...(typeof raw?.baseUrl === 'string' && raw.baseUrl.trim()
       ? { baseUrl: raw.baseUrl.trim().replace(/\/+$/, '') }
       : {}),
     // models.json 的 apiKey 镜像当前生效的那把;auth.json 是 pi 自己读的凭证源。
-    apiKey:
-      (typeof raw?.apiKey === 'string' && raw.apiKey.trim()) ||
-      (typeof authEntry?.key === 'string' && authEntry.key.trim()) ||
-      undefined,
+    ...(apiKey ? { apiKey } : {}),
   };
 }
 

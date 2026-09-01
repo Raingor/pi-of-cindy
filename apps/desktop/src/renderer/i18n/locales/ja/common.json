@@ -2885,6 +2885,13 @@
       "railLabel": "ローカルのプロバイダー",
       "selectHint": "左側のプロバイダーを選ぶと詳細が表示されます。",
       "badgeLocal": "ローカル Pi CLI",
+      "providerDisabled": "無効",
+      "compat": "互換設定",
+      "compatDeveloperRole": "developer ロール",
+      "compatFinishReason": "finish_reason",
+      "compatOn": "対応",
+      "compatOff": "非対応",
+      "enabledNote": "「利用可能」は Pi の settings.json の enabledModels 許可リストで決まります。許可リストが空の場合はすべて利用可能です。",
       "baseUrl": "ベース URL",
       "noBaseUrl": "エンドポイント未設定",
       "apiType": "API タイプ",
@@ -2915,6 +2922,8 @@
         "reasoning": "思考対応",
         "imageInput": "画像入力対応",
         "audioInput": "音声入力対応",
+        "contextWindow": "コンテキストウィンドウ",
+        "maxTokens": "最大出力",
         "free": "無料"
       }
     },

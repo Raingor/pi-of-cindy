@@ -7047,6 +7047,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
           name: string;
           baseUrl?: string;
           api?: string;
+          /** pi 停用的供应商搬进 `_disabledProviders`,面板仍列出并置灰。 */
+          disabled: boolean;
+          compat?: { supportsDeveloperRole?: boolean; supportsFinishReason?: boolean };
           hasApiKey: boolean;
           maskedApiKey?: string;
           apiKeyCount: number;
@@ -7060,6 +7063,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
             contextWindow?: number;
             maxTokens?: number;
             cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+            /** 由 settings.json 的 enabledModels 白名单判定(空白名单 = 全开)。 */
             enabled: boolean;
           }>;
         }>;
@@ -7091,6 +7095,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
           contextWindow?: number;
           maxTokens?: number;
           reasoning?: boolean;
+          vision?: boolean;
+          audio?: boolean;
+          cost?: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
           source: 'openai' | 'openrouter' | 'ollama' | 'heuristic';
         }>;
         error?: string;

@@ -2885,6 +2885,13 @@
       "railLabel": "로컬 제공자",
       "selectHint": "왼쪽에서 제공자를 선택하면 상세 정보가 표시됩니다.",
       "badgeLocal": "로컬 Pi CLI",
+      "providerDisabled": "중지됨",
+      "compat": "호환 설정",
+      "compatDeveloperRole": "developer 역할",
+      "compatFinishReason": "finish_reason",
+      "compatOn": "지원",
+      "compatOff": "미지원",
+      "enabledNote": "\"사용 가능\"은 Pi settings.json의 enabledModels 허용 목록으로 결정됩니다. 목록이 비어 있으면 모두 사용 가능합니다.",
       "baseUrl": "베이스 URL",
       "noBaseUrl": "엔드포인트 미설정",
       "apiType": "API 유형",
@@ -2915,6 +2922,8 @@
         "reasoning": "추론 지원",
         "imageInput": "이미지 입력 지원",
         "audioInput": "오디오 입력 지원",
+        "contextWindow": "컨텍스트 윈도우",
+        "maxTokens": "최대 출력",
         "free": "무료"
       }
     },

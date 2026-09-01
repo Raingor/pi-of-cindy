@@ -2876,6 +2876,13 @@
       "railLabel": "Local providers",
       "selectHint": "Pick a provider on the left to see its details.",
       "badgeLocal": "Local Pi CLI",
+      "providerDisabled": "Disabled",
+      "compat": "Compatibility",
+      "compatDeveloperRole": "developer role",
+      "compatFinishReason": "finish_reason",
+      "compatOn": "supported",
+      "compatOff": "not supported",
+      "enabledNote": "Availability comes from the enabledModels allowlist in Pi settings.json; an empty allowlist means every model is available.",
       "baseUrl": "Base URL",
       "noBaseUrl": "No endpoint set",
       "apiType": "API type",
@@ -2906,6 +2913,8 @@
         "reasoning": "Reasoning",
         "imageInput": "Image input",
         "audioInput": "Audio input",
+        "contextWindow": "Context window",
+        "maxTokens": "Max output",
         "free": "Free"
       }
     },

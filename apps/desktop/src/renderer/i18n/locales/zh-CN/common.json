@@ -2885,6 +2885,13 @@
       "railLabel": "本机供应商",
       "selectHint": "在左侧选择一个供应商查看详情。",
       "badgeLocal": "本机 Pi CLI",
+      "providerDisabled": "已停用",
+      "compat": "兼容开关",
+      "compatDeveloperRole": "developer 角色",
+      "compatFinishReason": "finish_reason",
+      "compatOn": "支持",
+      "compatOff": "不支持",
+      "enabledNote": "「可用」由 Pi 的 settings.json 中 enabledModels 白名单决定；白名单为空时全部可用。",
       "baseUrl": "接口地址",
       "noBaseUrl": "未设置接口地址",
       "apiType": "接口协议",
@@ -2915,6 +2922,8 @@
         "reasoning": "支持思考",
         "imageInput": "支持图像输入",
         "audioInput": "支持音频输入",
+        "contextWindow": "上下文窗口",
+        "maxTokens": "最大输出",
         "free": "免费"
       }
     },

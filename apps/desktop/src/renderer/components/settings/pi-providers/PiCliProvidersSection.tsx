@@ -160,7 +160,14 @@ function ModelRow({ model }: { model: PiCliModel }) {
           ? `${formatCost(cost?.input ?? 0)}/${formatCost(cost?.output ?? 0)}`
           : t('settings.piCliProviders.model.free')}
       </span>
-      <span className={BADGE_CLASS}>{formatTokens(model.contextWindow)}</span>
+      <span className={BADGE_CLASS} title={t('settings.piCliProviders.model.contextWindow')}>
+        {formatTokens(model.contextWindow)}
+      </span>
+      {/* 最大输出与上下文窗口是两个不同的限制,pi-web-switch 只在表单里给,这里并列
+          展示 —— 本面板是只读的,看不到就没有别的地方能看到。 */}
+      <span className={BADGE_CLASS} title={t('settings.piCliProviders.model.maxTokens')}>
+        ↑{formatTokens(model.maxTokens)}
+      </span>
     </div>
   );
 }
@@ -185,6 +192,8 @@ function ProviderRailItem({
         active
           ? 'border-[var(--settings-theme-card-border)] bg-[var(--settings-menu-bg-hover)] text-[var(--settings-section-title)]'
           : 'border-transparent text-[var(--settings-section-sublabel)] hover:bg-[var(--settings-menu-bg-hover)]',
+        // 已停用的供应商仍占行(不然用户以为配置丢了),但明确弱化。
+        provider.disabled && 'opacity-50',
       )}
     >
       <Server size={14} className="shrink-0 text-blue-400" />
@@ -253,6 +262,11 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
         <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-11 text-blue-400">
           {t('settings.piCliProviders.badgeLocal')}
         </span>
+        {provider.disabled && (
+          <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-11 text-amber-500">
+            {t('settings.piCliProviders.providerDisabled')}
+          </span>
+        )}
         {provider.hasApiKey && (
           <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-11 text-emerald-500">
             {t('settings.piCliProviders.keyConfigured')}
@@ -352,16 +366,48 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
       {/* 拉取到的远端模型清单(只展示,不写回 models.json)。 */}
       {fetchResult && !fetchResult.error && fetchResult.models.length > 0 && (
         <div>
-          <div className="flex flex-wrap gap-1.5">
-            {fetchResult.models.slice(0, FETCHED_MODELS_DISPLAY_CAP).map((m) => (
-              <span
-                key={m.id}
-                className={BADGE_CLASS}
-                title={provider.models.some((local) => local.id === m.id) ? undefined : t('settings.piCliProviders.fetchedNotInConfig')}
-              >
-                {m.id}
-              </span>
-            ))}
+          <div className="flex flex-col gap-1.5">
+            {fetchResult.models.slice(0, FETCHED_MODELS_DISPLAY_CAP).map((m) => {
+              const known = provider.models.some((local) => local.id === m.id);
+              return (
+                <div
+                  key={m.id}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg px-3 py-2',
+                    'border border-[var(--settings-theme-card-border)] bg-[var(--surface)]',
+                    known && 'opacity-60',
+                  )}
+                  {...(known ? {} : { title: t('settings.piCliProviders.fetchedNotInConfig') })}
+                >
+                  <span className="min-w-0 flex-1 truncate font-mono text-11 text-[var(--settings-section-title)]">
+                    {m.id}
+                  </span>
+                  {m.reasoning && (
+                    <span title={t('settings.piCliProviders.model.reasoning')} className="flex shrink-0">
+                      <Brain size={12} className="text-purple-400" />
+                    </span>
+                  )}
+                  {m.vision && (
+                    <span title={t('settings.piCliProviders.model.imageInput')} className="flex shrink-0">
+                      <ImageIcon size={12} className="text-blue-400" />
+                    </span>
+                  )}
+                  {m.audio && (
+                    <span title={t('settings.piCliProviders.model.audioInput')} className="flex shrink-0">
+                      <Mic size={12} className="text-emerald-400" />
+                    </span>
+                  )}
+                  {m.cost && (
+                    <span className={BADGE_CLASS}>
+                      {formatCost(m.cost.input)}/{formatCost(m.cost.output)}
+                    </span>
+                  )}
+                  <span className={BADGE_CLASS} title={t('settings.piCliProviders.model.contextWindow')}>
+                    {formatTokens(m.contextWindow)}
+                  </span>
+                </div>
+              );
+            })}
             {fetchResult.models.length > FETCHED_MODELS_DISPLAY_CAP && (
               <span className={BADGE_CLASS}>
                 {t('settings.piCliProviders.fetchMore', {
@@ -395,6 +441,38 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
         </label>
         <p className={FIELD_VALUE_CLASS}>{provider.api ?? '—'}</p>
       </div>
+
+      {/* compat —— pi 的兼容开关。默认值不是「都开」,配错会让请求被上游拒,
+          所以即使是只读面板也要能看到当前值。 */}
+      {provider.compat && (
+        <div>
+          <label className="block text-12 text-[var(--settings-section-sublabel)]">
+            {t('settings.piCliProviders.compat')}
+          </label>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {provider.compat.supportsDeveloperRole !== undefined && (
+              <span className={BADGE_CLASS}>
+                {t('settings.piCliProviders.compatDeveloperRole')} ·{' '}
+                {t(
+                  provider.compat.supportsDeveloperRole
+                    ? 'settings.piCliProviders.compatOn'
+                    : 'settings.piCliProviders.compatOff',
+                )}
+              </span>
+            )}
+            {provider.compat.supportsFinishReason !== undefined && (
+              <span className={BADGE_CLASS}>
+                {t('settings.piCliProviders.compatFinishReason')} ·{' '}
+                {t(
+                  provider.compat.supportsFinishReason
+                    ? 'settings.piCliProviders.compatOn'
+                    : 'settings.piCliProviders.compatOff',
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* API keys — 整池列出并标出生效的那把；真值不出主进程，无显形入口。 */}
       <div>
@@ -460,11 +538,18 @@ function ProviderDetail({ provider }: { provider: PiCliProvider }) {
             {t('settings.piCliProviders.noModels')}
           </p>
         ) : (
-          <div className="mt-1.5 flex flex-col gap-1.5">
-            {provider.models.map((model) => (
-              <ModelRow key={model.id} model={model} />
-            ))}
-          </div>
+          <>
+            <div className="mt-1.5 flex flex-col gap-1.5">
+              {provider.models.map((model) => (
+                <ModelRow key={model.id} model={model} />
+              ))}
+            </div>
+            {/* 「可用」的判据是 settings.json 的 enabledModels 白名单,不是 models.json
+                的 enabled 字段(pi 不认后者)。白名单为空时 pi 不过滤 = 全部可用。 */}
+            <p className="mt-1.5 text-11 text-[var(--settings-section-desc)]">
+              {t('settings.piCliProviders.enabledNote')}
+            </p>
+          </>
         )}
       </div>
     </div>

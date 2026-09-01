@@ -981,10 +981,36 @@ export async function searchPackages(query: string): Promise<PiPackageSearchResu
 
 // ─── Provider Testing ──────────────────────────────────────────────────────
 
-export async function testProviderConnection(baseUrl: string, apiKey?: string): Promise<PiProviderTestResult> {
+/**
+ * 只允许 http/https。`baseUrl` 来自用户自己的 `models.json`,但拼进 fetch 前仍要挡住
+ * `file:` / `data:` 这类 scheme —— 主进程的 fetch 不该被配置文件里的一行字导去读本地文件。
+ */
+function toProbeUrl(baseUrl: string, path: string): URL | null {
   try {
-    const start = Date.now();
-    const resp = await fetch(`${baseUrl}/models`, {
+    const url = new URL(baseUrl.replace(/\/+$/, '') + path);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 超时在 fetch 里表现为 TimeoutError,原样抛给用户是「AbortError…」,读不懂。 */
+function probeErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') return 'timeout';
+    const code = (err as { cause?: { code?: string } }).cause?.code;
+    if (code) return code;
+    return err.message;
+  }
+  return String(err);
+}
+
+export async function testProviderConnection(baseUrl: string, apiKey?: string): Promise<PiProviderTestResult> {
+  const url = toProbeUrl(baseUrl, '/models');
+  if (!url) return { success: false, message: 'invalid URL' };
+  const start = Date.now();
+  try {
+    const resp = await fetch(url, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
       signal: AbortSignal.timeout(10_000),
     });
@@ -997,14 +1023,16 @@ export async function testProviderConnection(baseUrl: string, apiKey?: string): 
       message: resp.ok ? undefined : `HTTP ${resp.status}`,
     };
   } catch (err) {
-    return { success: false, message: err instanceof Error ? err.message : String(err) };
+    return { success: false, latencyMs: Date.now() - start, message: probeErrorMessage(err) };
   }
 }
 
 export async function testModel(baseUrl: string, modelId: string, apiKey?: string): Promise<PiProviderTestResult> {
+  const url = toProbeUrl(baseUrl, '/chat/completions');
+  if (!url) return { success: false, message: 'invalid URL' };
+  const start = Date.now();
   try {
-    const start = Date.now();
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1027,13 +1055,137 @@ export async function testModel(baseUrl: string, modelId: string, apiKey?: strin
     const ok = data.choices?.[0]?.message?.content || data.usage;
     return { success: !!ok, status: resp.status, latencyMs, message: ok ? undefined : 'Invalid response' };
   } catch (err) {
-    return { success: false, message: err instanceof Error ? err.message : String(err) };
+    return { success: false, latencyMs: Date.now() - start, message: probeErrorMessage(err) };
   }
 }
 
+// ─── Fetched-model metadata inference ──────────────────────────────────────
+// 与 pi-web-switch server/pi-reader.ts 同一套判据。端点不报能力时按 id 猜,
+// 面板的「拉取模型」才能给出可用的上下文窗口/思考/视觉标注,而不是一串裸 id。
+
+const FETCH_REASONING_RE =
+  /(^|[/_-])(r1|o1|o3|o4|z1|reasoner|reasoning|qwq|deepseek-r|think)([/_\-:]|$)/i;
+const FETCH_VISION_RE =
+  /(vision|[-_]vl\b|multimodal|gpt-4o|gpt-5|claude-(sonnet|opus)|gemini|llama-.*vision|qwen.*vl|glm-.*v\b)/i;
+const FETCH_AUDIO_RE = /(audio|whisper|tts|speech)/i;
+
+/** `"128k"` → 128000;数字原样返回。 */
+function parseTokenCount(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return undefined;
+  const m = /^([0-9]+)([KkMm]?)$/.exec(value);
+  if (!m) return undefined;
+  const n = Number.parseInt(m[1] ?? '0', 10);
+  const unit = (m[2] ?? '').toUpperCase();
+  return unit === 'K' ? n * 1000 : unit === 'M' ? n * 1_000_000 : n;
+}
+
+function heuristicModelFlags(id: string): {
+  reasoning: boolean;
+  vision: boolean;
+  audio: boolean;
+  contextWindow?: number;
+} {
+  const k = id.toLowerCase();
+  let contextWindow: number | undefined;
+  if (/deepseek[-_]v4[-_](flash|chat)(?:[-_:]|$)/i.test(k)) contextWindow = 1_048_576;
+  else if (/[-_](1m|1024k|1048576)\b/i.test(k)) contextWindow = 1_048_576;
+  else if (/[-_]256k\b/i.test(k)) contextWindow = 262_144;
+  else if (/[-_]128k\b/i.test(k)) contextWindow = 131_072;
+  else if (/[-_]64k\b/i.test(k)) contextWindow = 65_536;
+  else if (/[-_]32k\b/i.test(k)) contextWindow = 32_768;
+  else if (/[-_]16k\b/i.test(k)) contextWindow = 16_384;
+  else if (/[-_]8k\b/i.test(k)) contextWindow = 8192;
+  return {
+    reasoning: FETCH_REASONING_RE.test(k),
+    vision: FETCH_VISION_RE.test(k),
+    audio: FETCH_AUDIO_RE.test(k),
+    ...(contextWindow !== undefined ? { contextWindow } : {}),
+  };
+}
+
+function isOpenRouterHost(url: URL): boolean {
+  return url.hostname === 'openrouter.ai' || url.hostname.endsWith('.openrouter.ai');
+}
+
+/** OpenRouter 报的是每 token 单价,目录与面板都按 $/M 记。 */
+function openRouterCost(pricing: unknown): PiFetchedModel['cost'] | undefined {
+  if (!pricing || typeof pricing !== 'object') return undefined;
+  const p = pricing as Record<string, unknown>;
+  const perMillion = (v: unknown): number | undefined => {
+    const n = typeof v === 'string' ? Number.parseFloat(v) : typeof v === 'number' ? v : NaN;
+    return Number.isFinite(n) ? n * 1_000_000 : undefined;
+  };
+  const input = perMillion(p.prompt ?? p.input);
+  const output = perMillion(p.completion ?? p.output);
+  if (input === undefined && output === undefined) return undefined;
+  const cacheRead = perMillion(p.cache_read ?? p.cacheRead);
+  const cacheWrite = perMillion(p.cache_write ?? p.cacheWrite);
+  return {
+    input: input ?? 0,
+    output: output ?? 0,
+    ...(cacheRead !== undefined ? { cacheRead } : {}),
+    ...(cacheWrite !== undefined ? { cacheWrite } : {}),
+  };
+}
+
+function toFetchedModel(raw: unknown, openRouter: boolean): PiFetchedModel | null {
+  if (typeof raw === 'string') {
+    const id = raw.trim();
+    if (!id) return null;
+    const flags = heuristicModelFlags(id);
+    return { id, source: 'heuristic', ...flags };
+  }
+  if (!raw || typeof raw !== 'object') return null;
+  const m = raw as Record<string, unknown>;
+  // Google 的清单会带 `models/` 前缀,pi 与面板都按裸 id 记。
+  const rawId = typeof m.id === 'string' ? m.id : typeof m.name === 'string' ? m.name : '';
+  const id = rawId.trim().replace(/^models\//, '');
+  if (!id) return null;
+
+  const flags = heuristicModelFlags(id);
+  const displayName = typeof m.name === 'string' && m.name.trim() && m.name.trim() !== id
+    ? m.name.trim()
+    : undefined;
+  const contextWindow =
+    parseTokenCount(m.context_length) ??
+    parseTokenCount(m.max_context) ??
+    parseTokenCount(m.context_window) ??
+    parseTokenCount(m.inputTokenLimit) ??
+    parseTokenCount(m.max_tokens) ??
+    flags.contextWindow;
+  const topProvider = m.top_provider && typeof m.top_provider === 'object'
+    ? (m.top_provider as Record<string, unknown>)
+    : {};
+  const maxTokens =
+    parseTokenCount(m.max_output_tokens) ??
+    parseTokenCount(topProvider.max_completion_tokens) ??
+    parseTokenCount(m.max_completion_tokens) ??
+    parseTokenCount(m.outputTokenLimit);
+  // OpenRouter 的 architecture.modality 是唯一权威的视觉判据;其余端点只能靠 id 猜。
+  const modality = m.architecture && typeof m.architecture === 'object'
+    ? (m.architecture as Record<string, unknown>).modality
+    : undefined;
+  const vision = typeof modality === 'string' ? modality.includes('image') : flags.vision;
+
+  return {
+    id,
+    ...(displayName ? { name: displayName } : {}),
+    ...(contextWindow !== undefined ? { contextWindow } : {}),
+    ...(maxTokens !== undefined ? { maxTokens } : {}),
+    reasoning: flags.reasoning,
+    vision,
+    audio: flags.audio,
+    ...(openRouter ? { ...(openRouterCost(m.pricing) ? { cost: openRouterCost(m.pricing) } : {}) } : {}),
+    source: openRouter ? 'openrouter' : 'openai',
+  };
+}
+
 export async function fetchProviderModels(baseUrl: string, apiKey?: string): Promise<PiFetchModelsResult> {
+  const url = toProbeUrl(baseUrl, '/models');
+  if (!url) return { models: [], error: 'invalid URL' };
   try {
-    const resp = await fetch(`${baseUrl}/models`, {
+    const resp = await fetch(url, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
       signal: AbortSignal.timeout(10_000),
     });
@@ -1042,18 +1194,33 @@ export async function fetchProviderModels(baseUrl: string, apiKey?: string): Pro
       return { models: [], error: `HTTP ${resp.status}` };
     }
 
-    const data = await resp.json() as { data?: Array<{ id: string }>; models?: Array<{ id: string }> };
-    const rawModels = data.data ?? data.models ?? [];
+    // 站点根目录常把 404 当 200 返回一张 HTML 页 —— 那几乎总是 baseUrl 少了 `/v1`。
+    // 直接 JSON.parse 会抛「Unexpected token <」,对用户毫无指向性。
+    const text = await resp.text();
+    const contentType = resp.headers.get('content-type') ?? '';
+    if (text.trimStart().startsWith('<') || contentType.includes('text/html')) {
+      return { models: [], error: 'endpoint returned HTML, not JSON (check base URL)' };
+    }
+    let data: { data?: unknown[]; models?: unknown[] };
+    try {
+      data = JSON.parse(text) as { data?: unknown[]; models?: unknown[] };
+    } catch {
+      return { models: [], error: 'invalid JSON from endpoint' };
+    }
+    const rawModels = Array.isArray(data.data)
+      ? data.data
+      : Array.isArray(data.models)
+        ? data.models
+        : [];
 
-    const models: PiFetchedModel[] = rawModels.map((m) => ({
-      id: m.id,
-      name: m.id,
-      source: 'openai' as const,
-    }));
+    const openRouter = isOpenRouterHost(url);
+    const models = rawModels
+      .map((m) => toFetchedModel(m, openRouter))
+      .filter((m): m is PiFetchedModel => m !== null);
 
     return { models };
   } catch (err) {
-    return { models: [], error: err instanceof Error ? err.message : String(err) };
+    return { models: [], error: probeErrorMessage(err) };
   }
 }
 

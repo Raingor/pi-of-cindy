@@ -40,16 +40,19 @@ describe('pi cli provider redaction', () => {
 
 describe('pi cli model projection', () => {
   it('keeps the display fields the panel needs', () => {
-    const model = toModelView({
-      id: 'glm-5.3',
-      name: 'GLM-5.3',
-      reasoning: true,
-      input: ['text', 'image'],
-      contextWindow: 1_048_576,
-      maxTokens: 131_072,
-      cost: { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
-      enabled: true,
-    });
+    const model = toModelView(
+      {
+        id: 'glm-5.3',
+        name: 'GLM-5.3',
+        reasoning: true,
+        input: ['text', 'image'],
+        contextWindow: 1_048_576,
+        maxTokens: 131_072,
+        cost: { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
+      },
+      null,
+      'p1',
+    );
 
     expect(model).toMatchObject({
       id: 'glm-5.3',
@@ -62,24 +65,34 @@ describe('pi cli model projection', () => {
     });
   });
 
-  it('treats a missing enabled flag as enabled', () => {
-    // pi 只在显式 false 时跳过该模型;缺省当停用会让面板少列模型。
-    expect(toModelView({ id: 'm1' })?.enabled).toBe(true);
-    expect(toModelView({ id: 'm1', enabled: false })?.enabled).toBe(false);
+  it('reads availability from the enabledModels allowlist, not the models.json enabled flag', () => {
+    // pi 的 ModelDefinitionSchema 里没有 `enabled` —— 它读配置时直接丢弃该字段。
+    // 真正决定「能不能选到」的是 settings.json 的 enabledModels 白名单。
+    const refs = new Set(['p1/allowed']);
+    expect(toModelView({ id: 'allowed', enabled: false }, refs, 'p1')?.enabled).toBe(true);
+    expect(toModelView({ id: 'blocked', enabled: true }, refs, 'p1')?.enabled).toBe(false);
+    // 白名单属于另一个供应商时不串号。
+    expect(toModelView({ id: 'allowed' }, refs, 'p2')?.enabled).toBe(false);
+  });
+
+  it('treats an absent allowlist as "everything available"', () => {
+    // pi 在 enabledModels 为空/缺省时不做任何过滤 —— 空不等于全关。
+    expect(toModelView({ id: 'm1' }, null, 'p1')?.enabled).toBe(true);
+    expect(toModelView({ id: 'm1', enabled: false }, null, 'p1')?.enabled).toBe(true);
   });
 
   it('falls back to the id when no display name is set', () => {
-    expect(toModelView({ id: 'gpt-5.6-sol' })?.name).toBe('gpt-5.6-sol');
+    expect(toModelView({ id: 'gpt-5.6-sol' }, null, 'p1')?.name).toBe('gpt-5.6-sol');
   });
 
   it('drops entries without a usable id', () => {
-    expect(toModelView({ name: 'no id' })).toBeNull();
-    expect(toModelView({ id: '' })).toBeNull();
-    expect(toModelView('not an object')).toBeNull();
+    expect(toModelView({ name: 'no id' }, null, 'p1')).toBeNull();
+    expect(toModelView({ id: '' }, null, 'p1')).toBeNull();
+    expect(toModelView('not an object', null, 'p1')).toBeNull();
   });
 
   it('does not carry credential-shaped fields into the view', () => {
-    const model = toModelView({ id: 'm1', apiKey: 'sk-should-not-appear' });
+    const model = toModelView({ id: 'm1', apiKey: 'sk-should-not-appear' }, null, 'p1');
     expect(JSON.stringify(model)).not.toContain('sk-should-not-appear');
   });
 });
@@ -194,6 +207,68 @@ describe('pi cli provider runtime config resolution (live test source)', () => {
     expect(
       resolveProviderRuntimeConfigFromRaw('p1', { providers: 'not-an-object' }, []),
     ).toBeNull();
+  });
+
+  it('resolves a provider that pi has moved into _disabledProviders', () => {
+    // 已停用的供应商仍列在面板里,对它测连接/拉模型是合法的只读操作 ——
+    // 只看 `providers` 会让这两个按钮对停用行永远报「找不到供应商」。
+    const config = resolveProviderRuntimeConfigFromRaw(
+      'p1',
+      {
+        providers: {},
+        _disabledProviders: { p1: { baseUrl: 'https://x.example/v1', apiKey: 'sk-disabled-000' } },
+      },
+      {},
+    );
+    expect(config).toEqual({ baseUrl: 'https://x.example/v1', apiKey: 'sk-disabled-000' });
+  });
+
+  it('dereferences a $ENV key instead of sending the literal', () => {
+    // pi 支持把 apiKey 写成 $VAR;不解引用就会把字面量当 Bearer token 发出去。
+    process.env.CINDY_TEST_PI_KEY = 'sk-from-env-0001';
+    try {
+      const config = resolveProviderRuntimeConfigFromRaw(
+        'p1',
+        { providers: { p1: { baseUrl: 'https://x.example/v1', apiKey: '$CINDY_TEST_PI_KEY' } } },
+        {},
+      );
+      expect(config?.apiKey).toBe('sk-from-env-0001');
+    } finally {
+      delete process.env.CINDY_TEST_PI_KEY;
+    }
+  });
+
+  it('treats an unset $ENV reference as "no key", not as a literal', () => {
+    delete process.env.CINDY_TEST_PI_MISSING;
+    const config = resolveProviderRuntimeConfigFromRaw(
+      'p1',
+      { providers: { p1: { baseUrl: 'https://x.example/v1', apiKey: '$CINDY_TEST_PI_MISSING' } } },
+      {},
+    );
+    expect(config).toEqual({ baseUrl: 'https://x.example/v1' });
+  });
+});
+
+describe('pi cli compat projection', () => {
+  const { toCompatView } = __testing;
+
+  it('keeps the two switches the panel shows', () => {
+    expect(toCompatView({ supportsDeveloperRole: false, supportsFinishReason: true })).toEqual({
+      supportsDeveloperRole: false,
+      supportsFinishReason: true,
+    });
+  });
+
+  it('drops non-boolean and unknown keys', () => {
+    expect(
+      toCompatView({ supportsDeveloperRole: 'yes', forceAdaptiveThinking: true }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for a missing or malformed compat block', () => {
+    expect(toCompatView(undefined)).toBeUndefined();
+    expect(toCompatView('nope')).toBeUndefined();
+    expect(toCompatView({})).toBeUndefined();
   });
 });
 
