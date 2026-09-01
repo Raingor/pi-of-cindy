@@ -88,18 +88,33 @@ Cindy 的 Renderer 会渲染 agent 输出、Markdown、插件面板与内置浏�
 - 实机 `DESKTOP_DEV_VERDICT=ready` 目检：仪表盘「今天」视图有数据
   （733 请求 / 1.11 亿 token / $339.56，与纯函数核验一致）；Pi 会话 14 个项目
   名全部显示；本机 Pi 供应商双栏布局 + 密钥池 + 生效标记渲染正常。
-- **未目检**：供应商导轨手动切换第二家、Light/Dark 双模式切换
-  （CDP click 在该页超时，工具问题非代码问题；交互为纯 React state，风险低）。
+- **未目检**：无——供应商导轨切换与 Light/Dark 双模式已于 2026-09-01 补验（见下）。
+
+## 交互补验（2026-09-01，CBP CDP 只读驱动 + 主题切换）
+
+以 `pnpm restart:desktop:remote --region=global`（isolated dev 沙箱）重启后在实机补验了
+此前未覆盖的两项交互：
+
+- **供应商导轨切换**：AgentRouter-a1 → bluesminds → Seekai-a6 连续三次切换，右侧详情
+  （名称徽标、接口地址/协议、密钥池与生效标记、模型行价格/上下文徽标）全部正确跟随。
+- **Light/Dark 双模式**：设置 → 外观「深色」切到 `data-theme=cindy-dark`，供应商面板
+  标题/导轨/生效徽标均为语义色（标题 rgb(212,212,212) 于 rgb(24,24,24) 深底，生效徽标
+  emerald 语义色），无硬编码残留；验证后已切回浅色。
+- 顺带确认：Pi Subagents 新文案（「Pi Subagents」「7 个 Agent，1 条链」「Agent/链/历史」）
+  与 Pi Sessions（「Pi 会话」「全部收起」）渲染正常，7 个 agent 定义、5 个项目分组加载正常。
+
+注意：本轮登录失败排查发现此前用 `pnpm --filter desktop dev` 直启绕过了包装脚本，导致
+开发版试图升级共享正式库被 MIGRATE_FAILED 拦下（该拦截是保护，行为正确）。按
+`docs/dev-rules/desktop-development.md` 用 `restart:desktop:remote` 隔离沙箱启动即解决。
 
 ## 接下来要完成的
 
-1. **供应商面板交互补验**：实机手动点导轨切换供应商、切 Light/Dark 双模式目检。
-2. **需求 7/9 真拆 harness**（独立重构）:`base-agent.ts:1913` 构造期硬要求
+1. **需求 7/9 真拆 harness**（独立重构）:`base-agent.ts:1913` 构造期硬要求
    `binaryPath`，`getMaker()` 起动即要 Claude/Codex 二进制
    （`maker-host/index.ts:726`）。需先让两个 agent 支持 binaryPath 延迟解析，
    才能停掉预下载、真正只保留 pi harness。届时同步更新
    `localPiWorkbenchBoundary.test.ts` 的注释（现在记录了为什么锁不死）。
-3. **glossary 既有 44 处违规**：✅ 已裁决（2026-09-01）。真错改文案（zh「子代理/代理」→
+2. **glossary 既有 44 处违规**：✅ 已裁决（2026-09-01）。真错改文案（zh「子代理/代理」→
    全仓统一的 `Subagents`/`Agent` 保留英文、「折叠」→「收起」、ko「공급자」→「제공자」）；
    两类刻意保留走 glossary.json 的 exempt（不是 baseline）：
    - `session` 条目豁免 `settings.piSessions.*` 子树 + `tabs.piSessions`：Pi CLI 是外部
@@ -111,10 +126,10 @@ Cindy 的 Renderer 会渲染 agent 输出、Markdown、插件面板与内置浏�
    遗留：zh-TW 同一面板 tab 叫「Pi 工作階段」、面板标题叫「Pi 會話」，存量不一致
    （不在门禁范围），后续统一。另 18 处 proposed（harness/lead 大小写）不阻断，
    属术语未裁决状态，另行处理。
-4. **测连接 / 拉取模型列表**：pi-web-switch 供应商详情有 Test Connection 与
+3. **测连接 / 拉取模型列表**：pi-web-switch 供应商详情有 Test Connection 与
    Fetch Models，当前 Cindy 面板是只读展示。若要补，主进程已有真值可发请求，
    Renderer 只收结果——设计上可行，未实现。
-5. （远期）Pi 会话列表点击预览/回收站恢复的实机回归——本轮只改了分组命名，
+4. （远期）Pi 会话列表点击预览/回收站恢复的实机回归——本轮只改了分组命名，
    未动这些路径。
 
 ## 相关文件
