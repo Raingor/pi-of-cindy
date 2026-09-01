@@ -153,6 +153,14 @@ Cindy 的 Renderer 会渲染 agent 输出、Markdown、插件面板与内置浏�
    拉取到的模型以 chip 列表展示（cap 40，不写回 models.json）。五语文案 +12 key。
 4. （远期）Pi 会话列表点击预览/回收站恢复的实机回归——本轮只改了分组命名，
    未动这些路径。
+5. **与 pi-web-switch `codex/web-pi-chat` 的语义对齐**：第一轮已完成（`6d4a2bfaf`，
+   2026-09-01 晚）——修掉 `_disabledProviders` 未读、per-model `enabled` 错当可用性
+   判据（pi 实际读 `settings.json` 的 `enabledModels` 白名单，且空白名单=全开）、
+   `$VAR` 密钥引用当字面量发送、探测请求不校验 URL scheme；`fetchProviderModels`
+   补齐元数据与 OpenRouter 计价，面板补 `compat` 与 per-model 最大输出。
+   **余项另立台账**：`PI-PROVIDER-PARITY-NEXT.md`（R1 Pi 测速面板读了不存在的配置键
+   且明文 key 过 Renderer、R2 配置导出/导入往返丢 `_disabledProviders`、R3/R4
+   Ollama 与非 Bearer 鉴权分支、R5 pi 内置供应商是否入面板的决策点）。
 
 ## 相关文件
 
