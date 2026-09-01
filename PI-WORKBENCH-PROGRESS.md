@@ -99,8 +99,18 @@ Cindy 的 Renderer 会渲染 agent 输出、Markdown、插件面板与内置浏�
    （`maker-host/index.ts:726`）。需先让两个 agent 支持 binaryPath 延迟解析，
    才能停掉预下载、真正只保留 pi harness。届时同步更新
    `localPiWorkbenchBoundary.test.ts` 的注释（现在记录了为什么锁不死）。
-3. **glossary 既有 44 处违规**（piSessions/piSubagents 的 ja/ko 文案，
-   HEAD 即存在）：按 `check-i18n-glossary.mjs --report` 逐条裁决后冻结 baseline。
+3. **glossary 既有 44 处违规**：✅ 已裁决（2026-09-01）。真错改文案（zh「子代理/代理」→
+   全仓统一的 `Subagents`/`Agent` 保留英文、「折叠」→「收起」、ko「공급자」→「제공자」）；
+   两类刻意保留走 glossary.json 的 exempt（不是 baseline）：
+   - `session` 条目豁免 `settings.piSessions.*` 子树 + `tabs.piSessions`：Pi CLI 是外部
+     工具，其原生会话文件保留「会话/會話」叫法，避免与 Cindy 任务混淆（类比
+     task-and-conversation-naming.md §4.1 对 IM 平台会话的保留裁决）；
+   - `agent` 条目豁免 `piSubagents.noAgentsDesc/noChainsDesc`：文案含字面路径
+     `~/.pi/agent/...`，路径小写 `agent` 被大小写规则误伤（FILENAME_TOKEN 只剥带扩展名的
+     文件名，不覆盖目录路径）。
+   遗留：zh-TW 同一面板 tab 叫「Pi 工作階段」、面板标题叫「Pi 會話」，存量不一致
+   （不在门禁范围），后续统一。另 18 处 proposed（harness/lead 大小写）不阻断，
+   属术语未裁决状态，另行处理。
 4. **测连接 / 拉取模型列表**：pi-web-switch 供应商详情有 Test Connection 与
    Fetch Models，当前 Cindy 面板是只读展示。若要补，主进程已有真值可发请求，
    Renderer 只收结果——设计上可行，未实现。
