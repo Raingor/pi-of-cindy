@@ -9,6 +9,8 @@ import type {
 interface UsePiSessionsResult {
   projects: PiProjectGroup[];
   trash: PiTrashEntry[];
+  /** 本次加载自动移入回收站的超期会话数(pws auto_trashed 横幅数据源)。 */
+  autoTrashed: number;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -24,6 +26,7 @@ export function usePiSessions(): UsePiSessionsResult {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PiSessionPreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [autoTrashed, setAutoTrashed] = useState(0);
 
   const fetchData = useCallback(() => {
     const api = window.electronAPI?.maker?.piAgent;
@@ -32,7 +35,15 @@ export function usePiSessions(): UsePiSessionsResult {
     setLoading(true);
     setError(null);
 
-    Promise.all([api.listSessions(), api.listTrash()])
+    // pws loadAll 同顺序:先自动清理超期会话,再列会话与回收站。
+    const autoCleanup = api.autoTrashSessions
+      ? api.autoTrashSessions().catch(() => ({ moved: 0 }))
+      : Promise.resolve({ moved: 0 });
+    autoCleanup
+      .then((cleanup) => {
+        setAutoTrashed(cleanup.moved);
+        return Promise.all([api.listSessions(), api.listTrash()]);
+      })
       .then(([sessionsResult, trashResult]) => {
         setProjects(sessionsResult as PiProjectGroup[]);
         setTrash(trashResult as PiTrashEntry[]);
@@ -70,6 +81,7 @@ export function usePiSessions(): UsePiSessionsResult {
   return {
     projects,
     trash,
+    autoTrashed,
     loading,
     error,
     refresh: fetchData,

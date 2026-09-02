@@ -13,7 +13,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { usePiSessions } from '@/hooks/usePiSessions';
-import type { PiSessionFileInfo, PiProjectGroup } from '@/../main/pi-agent/piTypes';
+import type { PiSessionFileInfo, PiProjectGroup, PiTrashEntry } from '@/../main/pi-agent/piTypes';
 import { SessionPreviewModal } from './SessionPreviewModal';
 
 type ViewMode = 'sessions' | 'trash';
@@ -44,7 +44,7 @@ export function PiSessionsSection() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
-  const { projects, trash, loading, error, refresh, preview, previewLoading, loadPreview } =
+  const { projects, trash, autoTrashed, loading, error, refresh, preview, previewLoading, loadPreview } =
     usePiSessions();
 
   const [viewMode, setViewMode] = useState<ViewMode>('sessions');
@@ -54,6 +54,13 @@ export function PiSessionsSection() {
     name: string;
     filePath: string;
   } | null>(null);
+  // 回收站多选 + 批量/单个永久删除(pws 同款语义)。
+  const [selectedTrash, setSelectedTrash] = useState<Set<string>>(new Set());
+  const [purgeTarget, setPurgeTarget] = useState<'batch' | PiTrashEntry | null>(null);
+  const [purging, setPurging] = useState(false);
+  // 移入回收站确认(pws 用弹窗,Cindy 原生 confirm 一并换成弹窗)。
+  const [deleteTarget, setDeleteTarget] = useState<PiSessionFileInfo | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const totalSessions = useMemo(
     () => projects.reduce((sum, p) => sum + p.totalSessions, 0),
@@ -115,24 +122,72 @@ export function PiSessionsSection() {
     [loadPreview],
   );
 
-  const handleTrash = useCallback(
-    (session: PiSessionFileInfo) => {
-      const api = window.electronAPI?.maker?.piAgent;
-      if (!api) return;
-      if (!confirm(t('settings.piSessions.confirmDelete'))) return;
-      api.trashSession(session.filePath).then(() => refresh());
-    },
-    [refresh, t],
-  );
+  const handleTrash = useCallback((session: PiSessionFileInfo) => {
+    setDeleteTarget(session);
+  }, []);
+
+  // 确认后移入回收站(可恢复)。
+  const handleDelete = useCallback(() => {
+    const api = window.electronAPI?.maker?.piAgent;
+    if (!api || !deleteTarget) return;
+    setDeleting(true);
+    api
+      .trashSession(deleteTarget.filePath)
+      .then(() => {
+        setDeleteTarget(null);
+        refresh();
+      })
+      .finally(() => setDeleting(false));
+  }, [deleteTarget, refresh]);
 
   const handleRestore = useCallback(
     (trashPath: string) => {
       const api = window.electronAPI?.maker?.piAgent;
       if (!api) return;
-      api.restoreTrash(trashPath).then(() => refresh());
+      api.restoreTrash(trashPath).then(() => {
+        setSelectedTrash((prev) => {
+          const next = new Set(prev);
+          next.delete(trashPath);
+          return next;
+        });
+        refresh();
+      });
     },
     [refresh],
   );
+
+  const handleBatchRestore = useCallback(() => {
+    const api = window.electronAPI?.maker?.piAgent;
+    if (!api || selectedTrash.size === 0) return;
+    Promise.all([...selectedTrash].map((p) => api.restoreTrash(p).catch(() => null))).then(() => {
+      setSelectedTrash(new Set());
+      refresh();
+    });
+  }, [selectedTrash, refresh]);
+
+  // 永久删除(单个或批量),二段确认。
+  const handlePurge = useCallback(() => {
+    const api = window.electronAPI?.maker?.piAgent;
+    if (!api || !purgeTarget) return;
+    const paths =
+      purgeTarget === 'batch' ? [...selectedTrash] : [purgeTarget.trashPath];
+    setPurging(true);
+    Promise.all(paths.map((p) => api.deleteTrash(p).catch(() => null)))
+      .then(() => {
+        setPurgeTarget(null);
+        setSelectedTrash(new Set());
+        refresh();
+      })
+      .finally(() => setPurging(false));
+  }, [purgeTarget, selectedTrash, refresh]);
+
+  const toggleTrashSel = useCallback((trashPath: string) => {
+    setSelectedTrash((prev) => {
+      const next = new Set(prev);
+      next.has(trashPath) ? next.delete(trashPath) : next.add(trashPath);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="flex flex-col gap-5">
@@ -148,6 +203,21 @@ export function PiSessionsSection() {
           })}
         </p>
       </div>
+
+      {/* auto-trash 横幅:打开面板时自动清理的超期会话数(pws 同款)。 */}
+      {autoTrashed > 0 && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-12"
+          style={{
+            borderColor: 'var(--settings-theme-card-border)',
+            color: 'var(--settings-section-desc)',
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-cyan-500" />
+          {t('settings.piSessions.autoTrashed', { count: autoTrashed })}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center gap-3">
@@ -285,31 +355,192 @@ export function PiSessionsSection() {
                   {t('settings.piSessions.trashWarning')}
                 </p>
               </div>
+              {/* 批量操作条:全选 + 已选数 + 批量恢复/批量永久删除(pws 同款)。 */}
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)] px-4 py-2.5">
+                <label className="flex cursor-pointer items-center gap-2 text-12 text-[var(--settings-section-desc)]">
+                  <input
+                    type="checkbox"
+                    checked={filteredTrash.length > 0 && filteredTrash.every((e) => selectedTrash.has(e.trashPath))}
+                    onChange={() =>
+                      setSelectedTrash((prev) =>
+                        prev.size > 0
+                          ? new Set()
+                          : new Set(filteredTrash.map((e) => e.trashPath)),
+                      )
+                    }
+                    style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                  />
+                  {t('settings.piSessions.selectAll')}
+                </label>
+                {selectedTrash.size > 0 && (
+                  <>
+                    <span className="text-12 text-[var(--settings-section-title)]">
+                      {t('settings.piSessions.selectedCount', { count: selectedTrash.size })}
+                    </span>
+                    <button
+                      onClick={handleBatchRestore}
+                      className="flex items-center gap-1 rounded-lg border border-emerald-500/50 px-2.5 py-1 text-12 font-medium text-emerald-500"
+                    >
+                      <Undo2 className="h-3 w-3" />
+                      {t('settings.piSessions.restoreSelected')}
+                    </button>
+                    <button
+                      onClick={() => setPurgeTarget('batch')}
+                      className="flex items-center gap-1 rounded-lg border border-red-500/50 px-2.5 py-1 text-12 font-medium text-red-500"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      {t('settings.piSessions.deleteSelected')}
+                    </button>
+                  </>
+                )}
+              </div>
               {filteredTrash.map((entry) => (
                 <div
                   key={entry.trashPath}
-                  className="flex items-center justify-between rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)] px-4 py-3"
+                  className="flex items-center gap-3 rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)] px-4 py-3"
                 >
+                  <input
+                    type="checkbox"
+                    checked={selectedTrash.has(entry.trashPath)}
+                    onChange={() => toggleTrashSel(entry.trashPath)}
+                    style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-13 font-medium text-[var(--settings-section-title)]">
                       {entry.sessionName || entry.fileName}
                     </p>
                     <p className="mt-0.5 text-11 text-[var(--settings-section-sublabel)]">
+                      <span className="text-red-400">
+                        {t('settings.piSessions.trashedAt')} {entry.trashedAt}
+                      </span>
+                      {' · '}
                       {entry.messageCount} {t('settings.piSessions.messages')} ·{' '}
-                      {t('settings.piSessions.trashedAt')} {entry.trashedAt}
+                      <span className="truncate">{entry.fileName}</span>
                     </p>
                   </div>
                   <button
                     onClick={() => handleRestore(entry.trashPath)}
-                    className="ml-3 flex items-center gap-1.5 rounded-lg border border-[var(--settings-theme-card-border)] px-3 py-1.5 text-12 text-[var(--settings-section-desc)] transition-colors hover:bg-[var(--settings-menu-bg-hover)]"
+                    className="ml-3 flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/50 px-2.5 py-1.5 text-12 font-medium text-emerald-500 transition-colors hover:bg-emerald-500/10"
                   >
                     <Undo2 className="h-3.5 w-3.5" />
                     {t('settings.piSessions.restore')}
+                  </button>
+                  <button
+                    onClick={() => setPurgeTarget(entry)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-500/50 px-2.5 py-1.5 text-12 font-medium text-red-500 transition-colors hover:bg-red-500/10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t('settings.piSessions.deleteForever')}
                   </button>
                 </div>
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {/* 移入回收站确认(pws delete modal 同款,替换原生 confirm)。 */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)] p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-15 font-semibold text-[var(--settings-section-title)]">
+              {t('settings.piSessions.deleteTitle')}
+            </h3>
+            <div className="mt-3 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <p className="text-13 text-[var(--settings-section-title)]">
+                  {t('settings.piSessions.deleteConfirmText')}
+                </p>
+                <p className="mt-1 text-11 text-[var(--settings-section-desc)]">
+                  {deleteTarget.name || deleteTarget.fileName}
+                  {deleteTarget.messageCount > 0 &&
+                    ` · ${deleteTarget.messageCount} ${t('settings.piSessions.messages')}`}
+                </p>
+                <p className="mt-2 text-11 text-[var(--settings-section-sublabel)]">
+                  {t('settings.piSessions.deleteToTrashNote')}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex h-8 items-center rounded-lg px-4 text-12 text-[var(--settings-section-desc)] hover:bg-[var(--settings-menu-bg-hover)]"
+              >
+                {t('settings.piSessions.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex h-8 items-center gap-1.5 rounded-lg px-4 text-12 font-medium text-white disabled:opacity-50"
+                style={{ backgroundColor: 'var(--danger)' }}
+              >
+                {deleting ? t('settings.piSessions.deleting') : t('settings.piSessions.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 永久删除确认(单个/批量)。 */}
+      {purgeTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !purging && setPurgeTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)] p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-15 font-semibold text-[var(--settings-section-title)]">
+              {t('settings.piSessions.deleteForever')}
+            </h3>
+            <div className="mt-3 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+              <div className="min-w-0">
+                <p className="text-13 text-[var(--settings-section-title)]">
+                  {t('settings.piSessions.deleteForeverConfirm')}
+                </p>
+                <p className="mt-1 text-11 text-[var(--settings-section-desc)]">
+                  {purgeTarget === 'batch'
+                    ? t('settings.piSessions.selectedCount', { count: selectedTrash.size })
+                    : purgeTarget.sessionName || purgeTarget.fileName}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPurgeTarget(null)}
+                disabled={purging}
+                className="flex h-8 items-center rounded-lg px-4 text-12 text-[var(--settings-section-desc)] hover:bg-[var(--settings-menu-bg-hover)]"
+              >
+                {t('settings.piSessions.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handlePurge}
+                disabled={purging}
+                className="flex h-8 items-center gap-1.5 rounded-lg px-4 text-12 font-medium text-white disabled:opacity-50"
+                style={{ backgroundColor: 'var(--danger)' }}
+              >
+                {purging ? t('settings.piSessions.deleting') : t('settings.piSessions.deleteForever')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -489,6 +489,52 @@ export function readSessionPreview(filePath: string, limit = 20): PiSessionPrevi
 
 // ─── Trash ─────────────────────────────────────────────────────────────────
 
+/**
+ * 把超过 STALE_SESSION_DAYS(14) 天无活动的会话移入可恢复回收站（pi-web-switch 同语义）。
+ * 优先用会话内最后一条时间戳；畸形/极旧文件回落 mtime。返回移入数量。
+ */
+export function autoTrashStaleSessions(
+  maxAgeDays = STALE_SESSION_DAYS,
+): { moved: number; paths: string[] } {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const files: string[] = [];
+  const walkJsonl = (dir: string) => {
+    try {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        let stat;
+        try {
+          stat = statSync(full);
+        } catch {
+          continue;
+        }
+        if (stat.isDirectory()) walkJsonl(full);
+        else if (entry.endsWith('.jsonl')) files.push(full);
+      }
+    } catch {
+      // skip
+    }
+  };
+  walkJsonl(SESSIONS_DIR);
+
+  const moved: string[] = [];
+  for (const filePath of files) {
+    let lastActiveMs = 0;
+    const info = parseSessionFile(filePath);
+    if (info?.lastActive) lastActiveMs = info.lastActive;
+    if (!Number.isFinite(lastActiveMs) || lastActiveMs <= 0) {
+      try {
+        lastActiveMs = statSync(filePath).mtimeMs;
+      } catch {
+        continue;
+      }
+    }
+    if (lastActiveMs >= cutoff) continue;
+    if (trashSessionFile(filePath)) moved.push(filePath);
+  }
+  return { moved: moved.length, paths: moved };
+}
+
 function ensureTrashDir(): void {
   if (!existsSync(TRASH_DIR)) {
     mkdirSync(TRASH_DIR, { recursive: true });

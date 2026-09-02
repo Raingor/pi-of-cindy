@@ -3224,7 +3224,19 @@
       "noMessages": "このセッションにはメッセージがありません",
       "you": "あなた",
       "assistant": "アシスタント",
-      "showingFirst": "最初の {{count}} 件を表示（全 {{total}} 件）"
+      "showingFirst": "最初の {{count}} 件を表示（全 {{total}} 件）",
+      "autoTrashed": "14 日間活動のない {{count}} 件のセッションを自動的にゴミ箱へ移動しました。",
+      "selectAll": "すべて選択",
+      "selectedCount": "{{count}} 件選択中",
+      "restoreSelected": "選択を復元",
+      "deleteSelected": "選択を削除",
+      "deleteForever": "完全に削除",
+      "deleteForeverConfirm": "完全に削除しますか？この操作は取り消せません。",
+      "deleteTitle": "ゴミ箱へ移動",
+      "deleteConfirmText": "このセッションをゴミ箱へ移動しますか？後から復元できます。",
+      "deleteToTrashNote": "セッションはゴミ箱で復元可能な状態に保たれます。",
+      "cancel": "キャンセル",
+      "deleting": "削除中…"
     },
     "piMemory": {
       "title": "Pi メモリ",

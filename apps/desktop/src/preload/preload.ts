@@ -7169,6 +7169,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       trashSession: (filePath: string) =>
         ipcRenderer.invoke('maker:pi-agent:trash-session', { filePath }),
       listTrash: () => ipcRenderer.invoke('maker:pi-agent:list-trash'),
+      autoTrashSessions: (): Promise<{ moved: number }> =>
+        ipcRenderer.invoke('maker:pi-agent:auto-trash-sessions'),
       restoreTrash: (trashPath: string) =>
         ipcRenderer.invoke('maker:pi-agent:restore-trash', { trashPath }),
       deleteTrash: (trashPath: string) =>

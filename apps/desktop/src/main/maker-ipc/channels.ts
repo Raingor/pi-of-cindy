@@ -786,6 +786,8 @@ export const MAKER_INVOKE = {
   PI_AGENT_SESSION_PREVIEW: 'maker:pi-agent:session-preview',
   PI_AGENT_TRASH_SESSION: 'maker:pi-agent:trash-session',
   PI_AGENT_LIST_TRASH: 'maker:pi-agent:list-trash',
+  /** 打开 Pi 任务页时自动把 14 天无活动会话移入回收站(pws 同语义),返回移入数。 */
+  PI_AGENT_AUTO_TRASH_SESSIONS: 'maker:pi-agent:auto-trash-sessions',
   PI_AGENT_RESTORE_TRASH: 'maker:pi-agent:restore-trash',
   PI_AGENT_DELETE_TRASH: 'maker:pi-agent:delete-trash',
   PI_AGENT_READ_MEMORY: 'maker:pi-agent:read-memory',

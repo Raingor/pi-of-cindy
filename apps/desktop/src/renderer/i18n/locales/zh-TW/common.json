@@ -3224,7 +3224,19 @@
       "noMessages": "此任務暫無訊息",
       "you": "你",
       "assistant": "助手",
-      "showingFirst": "顯示前 {{count}} 則，共 {{total}} 則訊息"
+      "showingFirst": "顯示前 {{count}} 則，共 {{total}} 則訊息",
+      "autoTrashed": "已自動把 {{count}} 個超過 14 天未活動的會話移入回收站。",
+      "selectAll": "全選",
+      "selectedCount": "已選 {{count}} 個",
+      "restoreSelected": "恢復所選",
+      "deleteSelected": "刪除所選",
+      "deleteForever": "永久刪除",
+      "deleteForeverConfirm": "永久刪除？此操作無法復原。",
+      "deleteTitle": "移入回收站",
+      "deleteConfirmText": "把該會話移入回收站？之後可以從回收站恢復。",
+      "deleteToTrashNote": "會話在回收站中保持可恢復。",
+      "cancel": "取消",
+      "deleting": "刪除中…"
     },
     "piMemory": {
       "title": "Pi 記憶",

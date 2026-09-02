@@ -10,7 +10,7 @@
  * 所以钉在这里。
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -106,5 +106,45 @@ describe('session metadata', () => {
     const session = listSessions()[0]!.sessions[0]!;
     expect(session.provider).toBe('opencode-go');
     expect(session.model).toBe('ox-alpha-free');
+  });
+});
+
+describe('auto trash stale sessions (pws parity)', () => {
+  it('moves sessions inactive beyond the cutoff and keeps fresh ones', async () => {
+    vi.resetModules();
+    const { autoTrashStaleSessions, listTrash, listSessions } = await import('../piReader.js');
+    // 老会话:20 天前的 mtime(无时间戳行 → mtime 回落判定)。
+    const oldDir = '--Users-me-old--';
+    writeSessionFile(oldDir, 'stale.jsonl', [
+      { type: 'message', message: { role: 'assistant' } },
+    ]);
+    const oldPath = join(sessionsDir, oldDir, 'stale.jsonl');
+    const staleTime = Date.now() - 20 * 24 * 60 * 60 * 1000;
+    // utimesSync 的裸数字参数按「秒」解释,毫秒值必须包成 Date。
+    utimesSync(oldPath, new Date(staleTime), new Date(staleTime));
+    // 新会话:现在写,保持新鲜。
+    writeSessionFile('--Users-me-app--', 'fresh.jsonl', [
+      { type: 'session', cwd: '/Users/me/app' },
+      { type: 'message', message: { role: 'assistant' } },
+    ]);
+
+    const { moved } = autoTrashStaleSessions();
+    expect(moved).toBe(1);
+    // 老文件进回收站(路径相对结构保留),新文件原地不动。
+    const trash = listTrash();
+    expect(trash.some((e) => e.fileName === 'stale.jsonl')).toBe(true);
+    const remaining = listSessions().flatMap((g) => g.sessions.map((s) => s.fileName));
+    expect(remaining).toContain('fresh.jsonl');
+    expect(remaining).not.toContain('stale.jsonl');
+  });
+
+  it('is a no-op when everything is fresh', async () => {
+    vi.resetModules();
+    const { autoTrashStaleSessions } = await import('../piReader.js');
+    writeSessionFile('--Users-me-app--', 'a.jsonl', [
+      { type: 'session', cwd: '/Users/me/app' },
+      { type: 'message', message: { role: 'assistant' } },
+    ]);
+    expect(autoTrashStaleSessions().moved).toBe(0);
   });
 });

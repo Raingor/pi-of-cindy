@@ -196,7 +196,15 @@
   - 实机验证：创建供应商落盘(名称/端点/api/种子密钥)、删除供应商(确认后桶+auth 清理)、
     汇总面板数据正确、表单校验渲染；导入弹窗解析已单测覆盖（UI 选择器驱动未走通，
     parse→upsert→update-enabled 链路各段均已独立验证）
-- [ ] P3 会话页补齐
+- [x] P3 会话页补齐（见 git log）
+  - auto-trash：打开面板自动把 14 天无活动会话移入回收站（piReader.autoTrashStaleSessions，
+    pws 同语义：会话时间戳优先/mtime 回落），新 IPC maker:pi-agent:auto-trash-sessions；
+    hook 加载顺序 = pws loadAll（先清理后列表），autoTrashed 横幅
+  - 回收站批量操作：全选 + 已选计数 + 批量恢复 + 批量永久删除（pws 同款操作条）
+  - 单行永久删除按钮 + 二段确认弹窗（单个/批量复用，purging 态）
+  - 移入回收站从原生 confirm 换成 pws 同款弹窗（消息数/可恢复提示）
+  - 实机验证：回收站 18 条渲染、单条永久删除落盘（.trash 目录真实移除）、批量 UI 就绪；
+    auto-trash moved=0（本机会话均新鲜，横幅正确隐藏），moved>0 路径有单测钉住
 - [ ] P4 记忆页补齐
 - [ ] P5 仪表盘补齐
 - [ ] P6 子代理补齐

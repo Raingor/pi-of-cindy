@@ -12,6 +12,7 @@ import { ipcMain } from 'electron';
 import { createLogger } from '../logger.js';
 import {
   applyExtensionUpdates,
+  autoTrashStaleSessions,
   checkUpdates,
   deleteMemoryEntry,
   exportPiConfig,
@@ -532,6 +533,17 @@ export function registerPiAgentIpc(): void {
   ipcMain.handle(MAKER_INVOKE.PI_AGENT_LIST_TRASH, (event) => {
     assertTrustedAppRendererEvent(event);
     return listTrash();
+  });
+
+  // 打开面板时先自动清理超期会话(pws loadAll 同顺序:auto-trash → list)。
+  ipcMain.handle(MAKER_INVOKE.PI_AGENT_AUTO_TRASH_SESSIONS, (event) => {
+    assertTrustedAppRendererEvent(event);
+    try {
+      const { moved } = autoTrashStaleSessions();
+      return { moved };
+    } catch {
+      return { moved: 0 };
+    }
   });
 
   ipcMain.handle(MAKER_INVOKE.PI_AGENT_RESTORE_TRASH, (event, raw: unknown) => {

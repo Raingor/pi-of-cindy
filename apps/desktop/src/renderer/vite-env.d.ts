@@ -6421,6 +6421,8 @@ interface ElectronAPI {
       sessionPreview: (filePath: string, limit?: number) => Promise<unknown>;
       trashSession: (filePath: string) => Promise<unknown>;
       listTrash: () => Promise<unknown[]>;
+      /** 打开面板时自动清理 14 天无活动会话进回收站,返回移入数。 */
+      autoTrashSessions: () => Promise<{ moved: number }>;
       restoreTrash: (trashPath: string) => Promise<unknown>;
       deleteTrash: (trashPath: string) => Promise<unknown>;
       readMemory: () => Promise<unknown>;
