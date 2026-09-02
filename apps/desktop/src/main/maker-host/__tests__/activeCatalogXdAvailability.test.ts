@@ -365,16 +365,15 @@ describe('XD 网关权威模型清单重建', () => {
       },
     ]);
 
-    const pi = deriveAvailableModels(getActiveCatalog(), 'pi');
-    expect(pi.find((model) => model.id === 'gateway-vision')).toMatchObject({
-      supportsImageInput: true,
-    });
-    expect(pi.find((model) => model.id === 'gateway-text')).toMatchObject({
-      supportsImageInput: false,
-    });
-    expect(pi.find((model) => model.id === 'gateway-unknown')).not.toHaveProperty(
-      'supportsImageInput',
-    );
+    // pi-only 裁剪(2026-09-02):xd 属 Cindy 自有来源,pi 条目全部 disabled,
+    // 不再进 deriveAvailableModels(即对话选择器不加载);目录条目本身仍保留
+    // modalities 原始数据,派生层 toDescriptor 逻辑不变。
+    const xd = getActiveCatalog().providers.find((provider) => provider.id === 'xd');
+    const vision = xd?.models.pi?.find((model) => model.id === 'gateway-vision');
+    expect(vision?.modalities?.input).toEqual(['text', 'image']);
+    expect(vision?.disabled).toBe(true);
+    expect(xd?.models.pi?.every((model) => model.disabled === true)).toBe(true);
+    expect(deriveAvailableModels(getActiveCatalog(), 'pi').find((m) => m.id.startsWith('gateway-'))).toBeUndefined();
   });
 
   it('把标准 token 价投影为每百万 token 的折后展示价', () => {

@@ -165,9 +165,14 @@ export function deriveModelList(opts: DeriveModelListOptions): ModelListEntry[] 
         return entry;
       };
       const userProvider = provider.source === 'user';
-      const selectable = selected || (includePaymentRequired && m.availability === 'requires_payment')
+      // 选中行走弱准入(keepSelected 豁免:运行中会话不受停用影响);付费展示行
+      // (includePaymentRequired)也要过 disabled 门 —— 停用语义是「不可被任何新路由
+      // 选中」,付费锁定只影响可点性,不能借道绕回停用清单。
+      const selectable = selected
         ? isAgentSelectableModel(m, { userProvider })
-        : isModelSelectableForNewRoute(m, { userProvider });
+        : includePaymentRequired && m.availability === 'requires_payment'
+          ? isAgentSelectableModel(m, { userProvider }) && m.disabled !== true
+          : isModelSelectableForNewRoute(m, { userProvider });
       if (!selectable) continue;
       if (dedupe === 'first-wins' && seenIndex.has(m.id)) {
         // 首见行已占坑。keepSelected 点名 provider 且选中行排在后面时,首见行必须让位——
@@ -225,9 +230,13 @@ export function deriveModelSections(
       if (excludeModel?.(m, provider)) continue;
       const selected = matchesSelected(keepSelected, provider.id, m.id);
       const userProvider = provider.source === 'user';
-      const selectable = selected || (includePaymentRequired && m.availability === 'requires_payment')
+      // 与 deriveModelList 同款:付费展示行也要过 disabled 门(停用 = 不可被任何
+      // 新路由选中);仅选中行豁免(keepSelected 语义)。
+      const selectable = selected
         ? isAgentSelectableModel(m, { userProvider })
-        : isModelSelectableForNewRoute(m, { userProvider });
+        : includePaymentRequired && m.availability === 'requires_payment'
+          ? isAgentSelectableModel(m, { userProvider }) && m.disabled !== true
+          : isModelSelectableForNewRoute(m, { userProvider });
       if (!selectable) continue;
       if (!selected && isVisible && !isVisible(provider.id, m)) continue;
       if (q && !m.name.toLowerCase().includes(q) && !m.id.toLowerCase().includes(q)) continue;

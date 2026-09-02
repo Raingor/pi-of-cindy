@@ -948,6 +948,28 @@ describe('unifiedModelEntries', () => {
     expect(find(visible, 'xd', 'paid-model')?.availability).toBe('requires_payment');
   });
 
+  it('付费展示模式下停用(disabled)条目仍被排除 —— 停用是不可被任何新路由选中的硬门', () => {
+    // pi-only 裁剪等场景把内置来源整批标记 disabled;付费锁定只影响可点性,
+    // 不得成为绕回停用清单的旁路。
+    const gated = view({
+      id: 'xd',
+      models: {
+        'claude-code': [
+          m('paid-model', { availability: 'requires_payment' }),
+          m('paid-disabled', { availability: 'requires_payment', disabled: true }),
+          m('free-disabled', { availability: 'available', disabled: true }),
+        ],
+      },
+    });
+
+    const visible = unifiedModelEntries({
+      providers: [gated],
+      isVisible: alwaysVisible,
+      includePaymentRequired: true,
+    });
+    expect(visible.map((entry) => entry.modelId)).toEqual(['paid-model']);
+  });
+
   it('选中行豁免(keepModel):停用 / retired 的选中条目仍成行,并带上候选与能力', () => {
     const mixed = view({
       id: 'anthropic',

@@ -205,7 +205,7 @@ export function PiSpeedTestSection() {
             >
               <span className="min-w-0 flex-1 truncate">{p.name}</span>
               <span
-                className="shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px]"
+                className="shrink-0 rounded border px-1.5 py-0.5 font-mono text-11"
                 style={{
                   borderColor: 'var(--settings-border)',
                   color: 'var(--settings-text-tertiary)',

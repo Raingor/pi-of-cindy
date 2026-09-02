@@ -473,7 +473,11 @@ describe('anthropic 发现条目的 modelRegistry 元数据基线', () => {
         supportsFastMode: false,
       })),
     );
-    expect(anthropicList('pi')).toEqual(anthropicList('claude-code'));
+    // pi-only 裁剪(2026-09-02):Cindy 内置来源的 pi 投影统一带 disabled 标记,
+    // 其余元数据与 claude-code 基线一致。
+    expect(anthropicList('pi')).toEqual(
+      anthropicList('claude-code').map((model) => ({ ...model, disabled: true })),
+    );
     expect(
       Object.fromEntries(
         [

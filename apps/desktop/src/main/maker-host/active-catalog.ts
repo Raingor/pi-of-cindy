@@ -42,6 +42,7 @@ import {
 
 import { CURRENT_CINDY_REGION } from '../../shared/brandRegion.js';
 import { CHATGPT_MODEL_PREFIX } from '../../shared/subscriptionModels.js';
+import { PI_CLI_PROVIDER_ID_PREFIX } from '../../shared/piCliProviders.js';
 import { projectUnverifiedCatalogFallbackForBuildRegion } from './provider-access-policy.js';
 import {
   applyLocalConsumerOverrides,
@@ -1229,6 +1230,26 @@ function computeMerged(): Catalog {
     return { ...projectXdGatewayMediaModels(p, gwModels), models };
   });
 
+  // pi-only harness(2026-09-02 用户指令):对话模型选择器只列 **pi 的模型** ——
+  // models.json 的本机供应商(pi-cli-*)。Cindy 自有/网关来源(xd、anthropic、openai、
+  // xai 等)的 models.pi 统一标记 `disabled: true`:新路由准入(选择器 / worker /
+  // 草稿默认 / capabilities)全部排除,运行中会话的选中行不受影响(keepSelected
+  // 豁免,disabled ≠ 删除,目录条目仍可解析续跑)。
+  // 位置在 root 装配**之后**:openai/anthropic/xai 的 models.pi 由 registry 证据重算,
+  // 先标会被覆盖。原引用透传的 provider(b.providers 原样项)也要触碰 —— 统一 map,
+  // 无 pi 模型时原引用返回保持零分配。
+  providers = providers.map((p) => {
+    if (p.id.startsWith(PI_CLI_PROVIDER_ID_PREFIX)) return p;
+    const piModels = p.models.pi;
+    if (!piModels || piModels.length === 0 || piModels.every((m) => m.disabled === true)) return p;
+    return {
+      ...p,
+      models: {
+        ...p.models,
+        pi: piModels.map((m) => (m.disabled ? m : { ...m, disabled: true })),
+      },
+    };
+  });
   if (providers === b.providers) return b; // 无 augment、无 custom → 原样返回
   return { ...b, providers }; // spread 保留 presets 等目录顶层字段
 }
