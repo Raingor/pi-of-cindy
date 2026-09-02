@@ -49,7 +49,7 @@ function provider(id: string): ProviderView {
 }
 
 describe('remote model hook device ownership', () => {
-  it('clears a mounted local capability hook when optional Pi becomes unavailable', async () => {
+  it('pi-only 下 Pi 变为不可用时刷新拒绝,挂载中的 hook 保留 last-valid 能力', async () => {
     let piAvailable = true;
     const getCapabilities = vi.fn(async (agentKind: string) => {
       if (agentKind === 'pi' && !piAvailable) {
@@ -74,30 +74,26 @@ describe('remote model hook device ownership', () => {
 
     piAvailable = false;
     const generation = mod.beginLocalCapabilitiesRefresh();
-    const entries = await mod.loadLocalCapabilitiesSnapshot();
-    await act(async () => {
-      expect(mod.commitLocalCapabilitiesSnapshot(generation, entries)).toBe(true);
-    });
-
-    await waitFor(() => {
-      expect(frames.at(-1)?.capabilities).toBeNull();
-      expect(frames.at(-1)?.loading).toBe(false);
-      expect(frames.at(-1)?.error).toBeNull();
-    });
-    expect(mod.getCachedCapabilities('pi')).toBeNull();
+    // pi 是唯一注册 agent:不可用 = 联合快照失败,loadLocalCapabilitiesSnapshot 直接 reject。
+    await expect(mod.loadLocalCapabilitiesSnapshot()).rejects.toThrow(
+      "Agent 'pi' is not registered",
+    );
+    // 失败不提交:缓存与挂载中的 hook 都保留 last-valid 能力。
+    expect(mod.getCachedCapabilities('pi')?.availableModels[0]?.displayName).toBe('local:pi');
+    expect(frames.at(-1)?.capabilities?.availableModels[0]?.displayName).toBe('local:pi');
     view.unmount();
   });
 
-  it('does not let a pre-refresh Pi request revive a committed missing snapshot', async () => {
-    let piUnavailable = false;
-    let resolveStalePi!: (value: ReturnType<typeof capabilities>) => void;
-    const stalePi = new Promise<ReturnType<typeof capabilities>>((resolve) => {
-      resolveStalePi = resolve;
+  it('does not let a pre-refresh request revive a committed missing snapshot (optional codex)', async () => {
+    let codexUnavailable = false;
+    let resolveStaleCodex!: (value: ReturnType<typeof capabilities>) => void;
+    const staleCodex = new Promise<ReturnType<typeof capabilities>>((resolve) => {
+      resolveStaleCodex = resolve;
     });
     const getCapabilities = vi.fn((agentKind: string) => {
-      if (agentKind === 'pi') {
-        if (piUnavailable) return Promise.reject(new Error("Agent 'pi' is not registered"));
-        return stalePi;
+      if (agentKind === 'codex') {
+        if (codexUnavailable) return Promise.reject(new Error("Agent 'codex' is not registered"));
+        return staleCodex;
       }
       return Promise.resolve(capabilities(`local:${agentKind}`));
     });
@@ -106,14 +102,14 @@ describe('remote model hook device ownership', () => {
 
     const frames: Array<ReturnType<typeof mod.useAgentCapabilities>> = [];
     function Probe() {
-      frames.push(mod.useAgentCapabilities('pi'));
+      frames.push(mod.useAgentCapabilities('codex'));
       return null;
     }
 
     const view = render(<Probe />);
-    await waitFor(() => expect(getCapabilities).toHaveBeenCalledWith('pi'));
+    await waitFor(() => expect(getCapabilities).toHaveBeenCalledWith('codex'));
 
-    piUnavailable = true;
+    codexUnavailable = true;
     const generation = mod.beginLocalCapabilitiesRefresh();
     const entries = await mod.loadLocalCapabilitiesSnapshot();
     await act(async () => {
@@ -125,13 +121,13 @@ describe('remote model hook device ownership', () => {
     });
 
     await act(async () => {
-      resolveStalePi(capabilities('stale:pi'));
-      await stalePi;
+      resolveStaleCodex(capabilities('stale:codex'));
+      await staleCodex;
       await Promise.resolve();
     });
 
     expect(frames.at(-1)?.capabilities).toBeNull();
-    expect(mod.getCachedCapabilities('pi')).toBeNull();
+    expect(mod.getCachedCapabilities('codex')).toBeNull();
     view.unmount();
   });
 

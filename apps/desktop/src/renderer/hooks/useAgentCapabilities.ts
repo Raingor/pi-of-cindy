@@ -604,6 +604,11 @@ export function beginLocalCapabilitiesRefresh(): number {
 export async function loadLocalCapabilitiesSnapshot(): Promise<LocalCapabilitiesSnapshot> {
   const api = getMakerApi();
   if (!api) throw new Error('maker IPC not available');
+  // pi-only harness(2026-08-29 起)只注册 pi agent;claude-code / codex 的
+  // getCapabilities 会抛 "Agent 'x' is not registered"。未注册的 agent 一律
+  // 按可选处理(能力快照里缺席 = 对应选择器走 providers 派生),只把「pi 也
+  // 未注册」当成真异常 —— 那意味着 pi harness 没起来,联合快照该失败。
+  const registeredAgents = new Set(['pi']);
   const entries = await Promise.all(
     ALL_AGENT_KINDS.map(async (agent): Promise<readonly [AgentKind, AgentCapabilities] | null> => {
       try {
@@ -615,8 +620,11 @@ export async function loadLocalCapabilitiesSnapshot(): Promise<LocalCapabilities
             : typeof error === 'object' && error !== null && 'message' in error
               ? String(error.message)
               : String(error);
-        if (agent !== 'pi' || !message.includes("Agent 'pi' is not registered")) throw error;
-        log.warn('optional Pi capabilities unavailable; continuing with core agents:', error);
+        if (registeredAgents.has(agent) || !message.includes('is not registered')) throw error;
+        log.warn('optional agent capabilities unavailable; continuing:', {
+          agent,
+          message,
+        });
         return null;
       }
     }),
