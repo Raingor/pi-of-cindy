@@ -103,6 +103,11 @@ export interface PiCliProviderView {
 export interface PiCliProvidersResult {
   installed: boolean;
   providers: PiCliProviderView[];
+  /**
+   * settings.enabledModels 白名单是否生效(null/空 = 未过滤,所有模型都可用)。
+   * 面板用它区分「全部可用(无名单)」与「部分启用(有名单)」两种展示态。
+   */
+  allowlistActive: boolean;
   /** 文件存在但解析失败时给出原因,面板显示可重试错误而不是空态。 */
   error?: string;
 }
@@ -211,13 +216,196 @@ function toModelView(raw: unknown, enabledRefs: ReadonlySet<string> | null, prov
  * 读 `settings.json` 的 `enabledModels`。返回 null 表示「没有配过白名单」——
  * pi 在这种情况下不做任何过滤,不能误当成「一个都没启用」。
  */
-function readEnabledModelRefs(): ReadonlySet<string> | null {
+function readEnabledModelPatterns(): string[] | null {
   const settings = readJsonFile<{ enabledModels?: unknown }>(join(PI_DIR, 'settings.json'));
   if ('error' in settings) return null;
   const raw = settings.value.enabledModels;
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const refs = raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
-  return refs.length > 0 ? new Set(refs.map((r) => r.trim())) : null;
+  if (!Array.isArray(raw)) return null;
+  const patterns = raw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+  return patterns.length > 0 ? patterns : null;
+}
+
+// ─── enabledModels 模式解析(pi model-resolver 语义的忠实子集)────────────
+// pi 的白名单不是「精确 ref 集合」,而是一组**模式**:支持 glob(* ? [..])、
+// thinking 尾缀(:high)、裸 id、以及部分 id/name 包含匹配(别名优先)。
+// 面板/选择器若只做精确字符串比对,展示和写入都会与 pi 的实际行为不一致。
+
+/** pi 的 thinking-level 枚举(dist/cli/args.js 同一份);模式尾缀 `:high` 等不参与模型匹配。 */
+const PI_THINKING_LEVELS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+
+/** pi 的 alias 判定:不以 -YYYYMMDD 结尾的 id 视为别名(部分匹配时优先)。 */
+function isPiAliasModelId(id: string): boolean {
+  return !/-\d{8}$/.test(id);
+}
+
+/**
+ * 精简 glob 匹配(覆盖 pi 用 minimatch nocase 处理白名单时的常用子集):
+ * `**` 跨段、`*`/`?` 不跨 `/`、`[a-z]`/`[!a-z]` 字符类,整体不区分大小写。
+ */
+function piGlobMatch(pattern: string, value: string): boolean {
+  let re = '';
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i]!;
+    if (ch === '*') {
+      if (pattern[i + 1] === '*') {
+        re += '.*';
+        i++;
+      } else {
+        re += '[^/]*';
+      }
+    } else if (ch === '?') {
+      re += '[^/]';
+    } else if (ch === '[') {
+      const end = pattern.indexOf(']', i + 1);
+      if (end === -1) {
+        re += '\\[';
+        continue;
+      }
+      let cls = pattern.slice(i + 1, end);
+      const neg = cls.startsWith('!') || cls.startsWith('^');
+      if (neg) cls = cls.slice(1);
+      re += `[${neg ? '^' : ''}${cls.replace(/[\\\]]/g, '\\$&')}]`;
+      i = end;
+    } else {
+      re += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  try {
+    return new RegExp(`^${re}$`, 'i').test(value);
+  } catch {
+    return false;
+  }
+}
+
+/** 白名单模式参与匹配的 universe 条目(models.json 活跃桶的模型)。 */
+export interface PiModelUniverseEntry {
+  provider: string;
+  id: string;
+  name?: string;
+}
+
+/** 剥 thinking 尾缀(`seekai-a6/x:high` → `seekai-a6/x`);非法尾缀原样保留。 */
+function stripThinkingSuffix(pattern: string): string {
+  const idx = pattern.lastIndexOf(':');
+  if (idx === -1) return pattern;
+  const suffix = pattern.slice(idx + 1);
+  return PI_THINKING_LEVELS.has(suffix) ? pattern.slice(0, idx) : pattern;
+}
+
+/**
+ * 非oglob 模式的单模型解析(pi tryMatchModel 同构):
+ * 精确 canonical `provider/id` → 显式 provider+id → 裸 id(均要求唯一,歧义即不命中)
+ * → 部分 id/name 包含匹配(别名优先、同组取 id 最大者)。找不到返回 undefined。
+ */
+function tryMatchOneModel(
+  body: string,
+  universe: readonly PiModelUniverseEntry[],
+): PiModelUniverseEntry | undefined {
+  const canonical = universe.filter((m) => `${m.provider}/${m.id}`.toLowerCase() === body);
+  if (canonical.length === 1) return canonical[0];
+  if (canonical.length > 1) return undefined;
+  const slash = body.indexOf('/');
+  if (slash !== -1) {
+    const p = body.slice(0, slash);
+    const id = body.slice(slash + 1);
+    if (p && id) {
+      const hits = universe.filter(
+        (m) => m.provider.toLowerCase() === p && m.id.toLowerCase() === id,
+      );
+      if (hits.length === 1) return hits[0];
+      if (hits.length > 1) return undefined;
+    }
+    return undefined;
+  }
+  const exactId = universe.filter((m) => m.id.toLowerCase() === body);
+  if (exactId.length === 1) return exactId[0];
+  const partial = universe.filter(
+    (m) => m.id.toLowerCase().includes(body) || (m.name ?? '').toLowerCase().includes(body),
+  );
+  if (partial.length === 0) return undefined;
+  const aliases = partial.filter((m) => isPiAliasModelId(m.id));
+  const pool = aliases.length > 0 ? aliases : partial;
+  return pool.reduce((best, m) => (m.id.localeCompare(best.id) > 0 ? m : best), pool[0]!);
+}
+
+/** 解析单个白名单模式 → 命中的模型集合(glob 可多命中,其余至多一个)。 */
+function resolveEnabledPattern(
+  pattern: string,
+  universe: readonly PiModelUniverseEntry[],
+): PiModelUniverseEntry[] {
+  const body = stripThinkingSuffix(pattern.trim()).toLowerCase();
+  if (!body) return [];
+  if (/[*?[]/.test(body)) {
+    return universe.filter(
+      (m) =>
+        piGlobMatch(body, `${m.provider}/${m.id}`.toLowerCase()) ||
+        piGlobMatch(body, m.id.toLowerCase()),
+    );
+  }
+  const one = tryMatchOneModel(body, universe);
+  return one ? [one] : [];
+}
+
+/**
+ * 白名单模式集合 → 启用 ref 集合(lowercased `provider/id`)。
+ * patterns 为 null(未配白名单)= 不过滤 → 全部 universe 启用。
+ */
+function resolveEnabledRefSet(
+  patterns: string[] | null,
+  universe: readonly PiModelUniverseEntry[],
+): Set<string> {
+  if (patterns === null) {
+    return new Set(universe.map((m) => `${m.provider}/${m.id}`.toLowerCase()));
+  }
+  const out = new Set<string>();
+  for (const p of patterns) {
+    for (const m of resolveEnabledPattern(p, universe)) {
+      out.add(`${m.provider}/${m.id}`.toLowerCase());
+    }
+  }
+  return out;
+}
+
+/** models.json 活跃桶的全部模型(白名单的 universe;停用桶的模型 pi 不加载,不在内)。 */
+function readActiveModelUniverse(): PiModelUniverseEntry[] {
+  const models = readJsonFile<{ providers?: unknown }>(join(PI_DIR, 'models.json'));
+  if ('error' in models || !isRecord(models.value.providers)) return [];
+  const out: PiModelUniverseEntry[] = [];
+  for (const [id, raw] of Object.entries(models.value.providers)) {
+    if (!isRecord(raw) || !Array.isArray(raw.models)) continue;
+    for (const m of raw.models) {
+      if (isRecord(m) && typeof m.id === 'string' && m.id.trim()) {
+        out.push({
+          provider: id,
+          id: m.id,
+          ...(typeof m.name === 'string' && m.name.trim() ? { name: m.name.trim() } : {}),
+        });
+      }
+      if (out.length >= MAX_PROVIDERS * MAX_MODELS_PER_PROVIDER) return out;
+    }
+  }
+  return out;
+}
+
+/**
+ * 面板展示态:白名单模式解析后的启用集合 + 「名单是否真的在过滤」。
+ *
+ * 名单存在但**没有任何 pattern 命中任何模型**时,pi 运行时 resolve 出的 scoped
+ * models 为空 = 无过滤(等于未配名单) —— 展示态必须跟随,否则面板会显示
+ * 「0 个启用」而实际全部可用。universe 为空(没配任何模型)时同样视为未过滤。
+ */
+function resolvePanelEnabledState(): { enabledSet: Set<string>; allowlistActive: boolean } {
+  const patterns = readEnabledModelPatterns();
+  const universe = readActiveModelUniverse();
+  if (patterns === null || universe.length === 0) {
+    return { enabledSet: resolveEnabledRefSet(null, universe), allowlistActive: false };
+  }
+  const enabledSet = resolveEnabledRefSet(patterns, universe);
+  // 名单里全部 pattern 都落空 = pi 实际不过滤。
+  if (enabledSet.size === 0) {
+    return { enabledSet: resolveEnabledRefSet(null, universe), allowlistActive: false };
+  }
+  return { enabledSet, allowlistActive: true };
 }
 
 /** models.json 的 `compat` 里 pi-web-switch 也展示的那两项。 */
@@ -241,7 +429,7 @@ function toCompatView(
  * `settings.json` 只用于读 `enabledModels` 白名单(模型是否真会被 pi 选中)。
  */
 export function readPiCliProviders(): PiCliProvidersResult {
-  if (!isPiCliDirPresent()) return { installed: false, providers: [] };
+  if (!isPiCliDirPresent()) return { installed: false, providers: [], allowlistActive: false };
 
   const models = readJsonFile<{
     providers?: Record<string, unknown>;
@@ -250,12 +438,12 @@ export function readPiCliProviders(): PiCliProvidersResult {
   if ('error' in models) {
     // 文件不存在是合法状态(装了 CLI 但还没配供应商);解析失败才是错误。
     return models.error === 'missing'
-      ? { installed: true, providers: [] }
-      : { installed: true, providers: [], error: models.error };
+      ? { installed: true, providers: [], allowlistActive: false }
+      : { installed: true, providers: [], allowlistActive: false, error: models.error };
   }
   const auth = readJsonFile<Record<string, { key?: string }>>(join(PI_DIR, 'auth.json'));
   const authMap = 'value' in auth && isRecord(auth.value) ? auth.value : {};
-  const enabledRefs = readEnabledModelRefs();
+  const { enabledSet: enabledRefs, allowlistActive } = resolvePanelEnabledState();
 
   const activeProviders = isRecord(models.value.providers) ? models.value.providers : {};
   const disabledProviders = isRecord(models.value._disabledProviders)
@@ -298,7 +486,7 @@ export function readPiCliProviders(): PiCliProvidersResult {
   collect(disabledProviders, true);
 
   providers.sort((a, b) => a.id.localeCompare(b.id));
-  return { installed: true, providers };
+  return { installed: true, providers, allowlistActive: enabledRefs.size > 0 };
 }
 
 // ─── Extensions (packages) ─────────────────────────────────────────────────
@@ -457,7 +645,7 @@ export interface PiCliRuntimeProvider {
 
 function toRuntimeModels(
   raw: unknown,
-  enabledRefs: ReadonlySet<string> | null,
+  enabledSet: ReadonlySet<string>,
   providerId: string,
 ): PiCliRuntimeModel[] {
   if (!Array.isArray(raw)) return [];
@@ -465,10 +653,10 @@ function toRuntimeModels(
   for (const entry of raw) {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !entry.id.trim()) continue;
     const id = entry.id.trim();
-    // 与 pi 同一把门:`settings.enabledModels` 是白名单,空/缺省表示不过滤。
+    // 与 pi 同一把门:settings.enabledModels 由模式解析成启用集合(见上);
     // `models.json` 的 `enabled` 字段不在 pi 的 schema 里,pi 读配置时直接丢弃 ——
     // 按它过滤会让 pi 里能选的模型在 Cindy 里凭空少掉。
-    if (enabledRefs !== null && !enabledRefs.has(`${providerId}/${id}`)) continue;
+    if (!enabledSet.has(`${providerId}/${id}`.toLowerCase())) continue;
     const input = Array.isArray(entry.input)
       ? entry.input.filter((x): x is string => typeof x === 'string')
       : [];
@@ -500,7 +688,7 @@ export function readPiCliRuntimeProviders(): PiCliRuntimeProvider[] {
   if ('error' in models || !isRecord(models.value.providers)) return [];
   const auth = readJsonFile<Record<string, { key?: string }>>(join(PI_DIR, 'auth.json'));
   const authMap = 'value' in auth && isRecord(auth.value) ? auth.value : {};
-  const enabledRefs = readEnabledModelRefs();
+  const { enabledSet: enabledRefs } = resolvePanelEnabledState();
 
   const out: PiCliRuntimeProvider[] = [];
   for (const [id, raw] of Object.entries(models.value.providers)) {
@@ -926,28 +1114,117 @@ export function applyPiCliRemoveModel(
   return modelsJson as Record<string, unknown>;
 }
 
-/** 纯函数：settings.enabledModels 白名单增删（replaceAll = 直接替换整个名单）。 */
+/**
+ * settings.enabledModels 白名单变更。
+ *
+ * 两组语义并存:
+ * - `add` / `remove` / `replaceAll`:直写名单(pws 同款,导入流程用)。注意直写
+ *   在「名单原本为空 = 全启用」态下会把名单钉成部分名单,其它模型随之被过滤 ——
+ *   只有调用方明确要这个行为时才用。
+ * - `enable` / `disable`:**语义化启停**(面板开关用)。以 pi 的白名单语义计算:
+ *   空名单态下停用会先物化名单(全 universe - targets),保证「其它模型保持可用」;
+ *   名单存在时按模式解析命中集后增删(glob 命中多个时拆成精确 ref 保留未命中的)。
+ */
+export interface PiCliEnabledModelChange {
+  add?: string[];
+  remove?: string[];
+  replaceAll?: string[];
+  enable?: string[];
+  disable?: string[];
+}
+
+const hasGlobChar = (p: string): boolean => /[*?[]/.test(stripThinkingSuffix(p));
+
 export function applyPiCliUpdateEnabledModels(
   settings: unknown,
-  change: { add?: string[]; remove?: string[]; replaceAll?: string[] },
+  change: PiCliEnabledModelChange,
+  universe: readonly PiModelUniverseEntry[] = [],
 ): Record<string, unknown> {
   const s = isRecord(settings) ? settings : {};
-  const current = Array.isArray(s.enabledModels)
+  // ── 直写路径(既有行为,保持不变)─────────────────────────────
+  if (change.add !== undefined || change.remove !== undefined || change.replaceAll !== undefined) {
+    const current = Array.isArray(s.enabledModels)
+      ? (s.enabledModels as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [];
+    let next: string[];
+    if (Array.isArray(change.replaceAll)) {
+      next = [...new Set(change.replaceAll.map((r) => r.trim()).filter(Boolean))];
+    } else {
+      const set = new Set(current);
+      for (const ref of change.add ?? []) {
+        if (typeof ref === 'string' && ref.trim()) set.add(ref.trim());
+      }
+      for (const ref of change.remove ?? []) set.delete(ref);
+      next = [...set];
+    }
+    if (next.length > 0) s.enabledModels = next;
+    else delete s.enabledModels;
+    return s;
+  }
+
+  // ── 语义化路径(面板开关)───────────────────────────────────
+  const enable = Array.isArray(change.enable)
+    ? change.enable.map((r) => r.trim()).filter(Boolean)
+    : [];
+  const disable = Array.isArray(change.disable)
+    ? change.disable.map((r) => r.trim()).filter(Boolean)
+    : [];
+  if (enable.length === 0 && disable.length === 0) return s;
+
+  const refOf = (m: PiModelUniverseEntry): string => `${m.provider}/${m.id}`;
+  const universeRefs = universe.map(refOf);
+  const universeLower = new Set(universeRefs.map((r) => r.toLowerCase()));
+  const targetsLower = new Set(disable.map((r) => r.toLowerCase()));
+
+  const currentPatterns = Array.isArray(s.enabledModels)
     ? (s.enabledModels as unknown[]).filter((x): x is string => typeof x === 'string')
     : [];
-  let next: string[];
-  if (Array.isArray(change.replaceAll)) {
-    next = [...new Set(change.replaceAll.map((r) => r.trim()).filter(Boolean))];
-  } else {
-    const set = new Set(current);
-    for (const ref of change.add ?? []) {
-      if (typeof ref === 'string' && ref.trim()) set.add(ref.trim());
-    }
-    for (const ref of change.remove ?? []) set.delete(ref);
-    next = [...set];
+  const hasList = currentPatterns.length > 0;
+
+  if (!hasList) {
+    // 空名单 = 全启用(pi 语义)。
+    if (disable.length === 0) return s; // 启用已满足;写入反而会把名单钉成部分名单
+    // 物化:全 universe 减去停用目标 —— 其它模型保持可用。
+    const next = universeRefs.filter((r) => !targetsLower.has(r.toLowerCase()));
+    // targets 覆盖全部 universe:pi 的白名单无法表达「一个都不启用」(空名单 = 不过滤),
+    // 保持原状,不制造假状态。
+    if (next.length === 0) return s;
+    s.enabledModels = next;
+    return s;
   }
-  if (next.length > 0) s.enabledModels = next;
-  else delete s.enabledModels;
+
+  // 名单存在:逐 pattern 解析命中集后增删。命中的 glob 拆成精确 ref 保留未命中部分,
+  // 保证「只关目标、其余不变」;无法解析的 pattern(手写的悬空引用)原样保留。
+  let next: string[] = [];
+  for (const entry of currentPatterns) {
+    const matched = resolveEnabledPattern(entry, universe);
+    if (matched.length === 0 || !hasGlobChar(entry)) {
+      // 精确引用 / 无法解析:命中 targets 就丢弃,否则保留。
+      if (!targetsLower.has(entry.toLowerCase())) next.push(entry);
+      continue;
+    }
+    const hitTargets = matched.some((m) => targetsLower.has(refOf(m).toLowerCase()));
+    if (!hitTargets) {
+      next.push(entry);
+      continue;
+    }
+    for (const m of matched) {
+      const ref = refOf(m);
+      if (!targetsLower.has(ref.toLowerCase())) next.push(ref);
+    }
+  }
+  for (const ref of enable) {
+    if (universeLower.size > 0 && !universeLower.has(ref.toLowerCase())) continue; // 未知 ref 不入名单
+    if (!next.some((x) => x.toLowerCase() === ref.toLowerCase())) next.push(ref);
+  }
+
+  // pi 自己的 selector 保存时:名单覆盖全部可用模型 = 不过滤 → 删键;
+  // 名单被清空 = 无过滤 → 删键(空名单在 pi 运行时等价于全开)。
+  const coversAll =
+    universeRefs.length > 0 &&
+    universeRefs.every((r) => next.some((x) => x.toLowerCase() === r.toLowerCase()));
+  if (next.length === 0 || coversAll) delete s.enabledModels;
+  else s.enabledModels = next;
   return s;
 }
 
@@ -1028,12 +1305,12 @@ export function setPiCliProviderDisabled(id: string, disabled: boolean): void {
   writeModelsDoc(applyPiCliSetProviderDisabled(readModelsDoc(), id, disabled));
 }
 
-export function updatePiCliEnabledModels(change: {
-  add?: string[];
-  remove?: string[];
-  replaceAll?: string[];
-}): void {
-  withSettingsDoc((settings) => applyPiCliUpdateEnabledModels(settings, change));
+export function updatePiCliEnabledModels(change: PiCliEnabledModelChange): void {
+  // 语义化启停(enable/disable)需要 models.json 的模型全集做 universe;
+  // 直写路径(add/remove/replaceAll)不用它,读一份也无妨(同一次写盘前的事)。
+  withSettingsDoc((settings) =>
+    applyPiCliUpdateEnabledModels(settings, change, readActiveModelUniverse()),
+  );
 }
 
 /** 创建或更新单个模型（同 id 原地合并）。 */
@@ -1071,6 +1348,7 @@ export const __testing = {
   applyPiCliUpsertModel,
   applyPiCliRemoveModel,
   applyPiCliUpdateEnabledModels,
+  resolveEnabledRefSet,
   readPiCliRuntimeProviders,
   buildPiCliCatalogProviders,
 };

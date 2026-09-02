@@ -2931,6 +2931,7 @@
         "free": "免费"
       },
       "enabledModelsTitle": "已启用的模型",
+      "allowlistOff": "未配置模型白名单：Pi 不过滤，models.json 里的全部模型都可用。在下方供应商里停用任一模型后，这里会开始逐个列出已启用的模型。",
       "disableAll": "全部停用",
       "noEnabledModels": "暂无跨供应商启用的模型。",
       "addProviderTitle": "添加供应商",

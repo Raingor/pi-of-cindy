@@ -7042,6 +7042,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       // 本机 Pi CLI 面板:providers 已在主进程剥密,这里拿到的没有 key 真值。
       listCliProviders: (): Promise<{
         installed: boolean;
+        allowlistActive: boolean;
         providers: Array<{
           id: string;
           name: string;

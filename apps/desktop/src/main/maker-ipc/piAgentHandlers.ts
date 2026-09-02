@@ -419,8 +419,14 @@ export function registerPiAgentIpc(): void {
         }
         case 'update-enabled': {
           const change = requireObject(payload.change, 'change');
-          const clean: { add?: string[]; remove?: string[]; replaceAll?: string[] } = {};
-          for (const k of ['add', 'remove', 'replaceAll'] as const) {
+          const clean: {
+            add?: string[];
+            remove?: string[];
+            replaceAll?: string[];
+            enable?: string[];
+            disable?: string[];
+          } = {};
+          for (const k of ['add', 'remove', 'replaceAll', 'enable', 'disable'] as const) {
             if (Array.isArray(change[k])) {
               const vals = (change[k] as unknown[]).filter(
                 (x): x is string => typeof x === 'string' && x.trim().length > 0 && x.length <= 300,

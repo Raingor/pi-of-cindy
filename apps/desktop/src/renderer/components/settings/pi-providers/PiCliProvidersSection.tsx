@@ -117,9 +117,12 @@ function formatCost(cost: number): string {
 
 function EnabledModelsPanel({
   providers,
+  allowlistActive,
   onChanged,
 }: {
   providers: PiCliProvider[];
+  /** settings.enabledModels 白名单是否生效;未生效时全部模型可用,只展示说明不列行。 */
+  allowlistActive: boolean;
   onChanged: () => void;
 }) {
   const { t } = useTranslation();
@@ -139,18 +142,7 @@ function EnabledModelsPanel({
     if (!api?.mutateCli || busy) return;
     setBusy(true);
     try {
-      await api.mutateCli({ action: 'update-enabled', change: { remove: [ref] } });
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const disableAll = async () => {
-    if (!api?.mutateCli || busy) return;
-    setBusy(true);
-    try {
-      await api.mutateCli({ action: 'update-enabled', change: { replaceAll: [] } });
+      await api.mutateCli({ action: 'update-enabled', change: { disable: [ref] } });
       onChanged();
     } finally {
       setBusy(false);
@@ -165,20 +157,16 @@ function EnabledModelsPanel({
           <h3 className="text-13 font-semibold text-[var(--settings-section-title)]">
             {t('settings.piCliProviders.enabledModelsTitle')}
           </h3>
-          <span className={BADGE_CLASS}>{enabled.length}</span>
+          <span className={BADGE_CLASS}>{allowlistActive ? enabled.length : '—'}</span>
         </div>
-        {enabled.length > 0 && (
-          <button
-            type="button"
-            onClick={() => void disableAll()}
-            disabled={busy}
-            className={cn(ACTION_CLASS, 'h-7 text-11')}
-          >
-            {t('settings.piCliProviders.disableAll')}
-          </button>
-        )}
       </div>
-      {enabled.length === 0 ? (
+      {!allowlistActive ? (
+        // 未配白名单 = pi 不过滤 = 全部模型可用;此时没有「部分启用」可言,
+        // 列行与停用按钮都会误导(pi 的白名单无法表达「全部停用」)。
+        <p className="mt-3 text-12 leading-relaxed text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.allowlistOff')}
+        </p>
+      ) : enabled.length === 0 ? (
         <p className="mt-3 text-12 text-[var(--settings-section-desc)]">
           {t('settings.piCliProviders.noEnabledModels')}
         </p>
@@ -190,7 +178,7 @@ function EnabledModelsPanel({
               className="flex items-center gap-2 rounded-lg border px-3 py-2"
               style={{ borderColor: 'var(--settings-theme-card-border)' }}
             >
-              {/* 只读开关外观,点击即移除(与 pws 的 toggle 语义一致)。 */}
+              {/* 开关即停用该模型(主进程按白名单语义计算,其余模型保持不变)。 */}
               <button
                 type="button"
                 onClick={() => void remove(m.ref)}
@@ -1103,9 +1091,11 @@ function ProviderDetail({
     try {
       await api.mutateCli({
         action: 'update-enabled',
+        // 语义化启停:主进程按 pi 的白名单语义计算(空名单态停用会物化名单,
+        // 其它模型保持不变)。
         change: enabled
-          ? { add: [`${provider.id}/${modelId}`] }
-          : { remove: [`${provider.id}/${modelId}`] },
+          ? { enable: [`${provider.id}/${modelId}`] }
+          : { disable: [`${provider.id}/${modelId}`] },
       });
       await onReload();
     } catch (err) {
@@ -1121,8 +1111,8 @@ function ProviderDetail({
       await api.mutateCli({
         action: 'update-enabled',
         change: on
-          ? { add: provider.models.map((m) => `${provider.id}/${m.id}`) }
-          : { remove: provider.models.map((m) => `${provider.id}/${m.id}`) },
+          ? { enable: provider.models.map((m) => `${provider.id}/${m.id}`) }
+          : { disable: provider.models.map((m) => `${provider.id}/${m.id}`) },
       });
       await onReload();
     } catch (err) {
@@ -1770,7 +1760,11 @@ export function PiCliProvidersSection() {
       </div>
 
       {state === 'ready' && result?.installed && !result.error && (
-        <EnabledModelsPanel providers={providers} onChanged={() => void load()} />
+        <EnabledModelsPanel
+          providers={providers}
+          allowlistActive={result.allowlistActive}
+          onChanged={() => void load()}
+        />
       )}
 
       {state === 'loading' && (

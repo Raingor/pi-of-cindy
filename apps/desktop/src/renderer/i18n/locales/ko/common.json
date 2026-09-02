@@ -2931,6 +2931,7 @@
         "free": "무료"
       },
       "enabledModelsTitle": "활성화된 모델",
+      "allowlistOff": "여기에는 모델 허용 목록이 설정되어 있지 않습니다. Pi는 필터링하지 않으므로 models.json의 모든 모델을 사용할 수 있습니다. 아래 제공자에서 모델을 비활성화하면 여기에 활성화된 모델이 표시되기 시작합니다.",
       "disableAll": "모두 비활성화",
       "noEnabledModels": "제공자 전반에 활성화된 모델이 없습니다.",
       "addProviderTitle": "제공자 추가",

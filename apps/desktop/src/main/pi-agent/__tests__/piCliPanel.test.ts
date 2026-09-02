@@ -612,3 +612,142 @@ describe('applyPiCliRemoveKey', () => {
     ).toThrow('PI_CLI_KEY_NOT_FOUND');
   });
 });
+
+// ─── enabledModels 模式解析与语义化启停(以 pi model-resolver 为判据)────────
+
+describe('enabledModels pattern resolution (pi model-resolver parity)', () => {
+  const universe = [
+    { provider: 'seekai-a6', id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
+    { provider: 'seekai-a6', id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+    { provider: 'agentrouter-a1', id: 'glm-5.3', name: 'GLM-5.3' },
+    { provider: 'agentrouter-a1', id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
+    { provider: 'b.ai', id: 'gpt-5', name: 'GPT-5' },
+  ];
+  const refs = (patterns: string[] | null): Set<string> => {
+    // resolvePanelEnabledState 不导出;直接走 resolveEnabledRefSet 的导出入口。
+    const { resolveEnabledRefSet: _fn } = __testing;
+    return _fn(patterns, universe);
+  };
+
+  it('resolves exact provider/id refs case-insensitively', () => {
+    const set = refs(['Seekai-A6/GPT-5.6-SOL']);
+    expect(set.has('seekai-a6/gpt-5.6-sol')).toBe(true);
+    expect(set.has('agentrouter-a1/gpt-5.6-sol')).toBe(false);
+  });
+
+  it('resolves bare ids only when unambiguous', () => {
+    // glm-5.3 全局唯一 → 命中;gpt-5.6-sol 两家都有 → 歧义,回退部分匹配择一(pi 语义)。
+    expect(refs(['glm-5.3']).has('agentrouter-a1/glm-5.3')).toBe(true);
+    const ambiguous = refs(['gpt-5.6-sol']);
+    expect(ambiguous.size).toBe(1);
+  });
+
+  it('strips thinking-level suffixes before matching', () => {
+    expect(refs(['agentrouter-a1/glm-5.3:high']).has('agentrouter-a1/glm-5.3')).toBe(true);
+  });
+
+  it('supports glob patterns across provider/id and bare id', () => {
+    const set = refs(['seekai-a6/*']);
+    expect(set.has('seekai-a6/gpt-5.6-sol')).toBe(true);
+    expect(set.has('seekai-a6/deepseek-v4-flash')).toBe(true);
+    expect(set.has('agentrouter-a1/glm-5.3')).toBe(false);
+  });
+
+  it('null patterns mean no filtering (every universe model enabled)', () => {
+    expect(refs(null).size).toBe(universe.length);
+  });
+});
+
+describe('applyPiCliUpdateEnabledModels semantic enable/disable', () => {
+  const { applyPiCliUpdateEnabledModels } = __testing;
+  const universe = [
+    { provider: 'a', id: 'm1' },
+    { provider: 'a', id: 'm2' },
+    { provider: 'b', id: 'm3' },
+  ];
+
+  it('enable on an absent allowlist is a no-op (already all enabled)', () => {
+    const out = applyPiCliUpdateEnabledModels({}, { enable: ['a/m1'] }, universe);
+    expect(out.enabledModels).toBeUndefined();
+  });
+
+  it('disable on an absent allowlist materializes the universe minus targets', () => {
+    // 关掉 a/m1 后,a/m2 与 b/m3 必须保持可用 —— 旧的 remove 直写在空名单态是 no-op,
+    // 用户看到的就是「按钮没反应」。
+    const out = applyPiCliUpdateEnabledModels({}, { disable: ['a/m1'] }, universe);
+    expect(out.enabledModels).toEqual(['a/m2', 'b/m3']);
+  });
+
+  it('disable on an absent allowlist that covers the whole universe keeps the state unchanged', () => {
+    // pi 的白名单表达不了「全不启用」(空名单 = 不过滤),保持原状而不是制造假状态。
+    const out = applyPiCliUpdateEnabledModels(
+      {},
+      { disable: ['a/m1', 'a/m2', 'b/m3'] },
+      universe,
+    );
+    expect(out.enabledModels).toBeUndefined();
+  });
+
+  it('enable on a present allowlist unions refs and collapses when covering the universe', () => {
+    const one = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['a/m1'] },
+      { enable: ['a/m2'] },
+      universe,
+    );
+    expect(one.enabledModels).toEqual(['a/m1', 'a/m2']);
+    // 覆盖全部 = pi 自己的 selector 会删键(无过滤)。
+    const all = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['a/m1'] },
+      { enable: ['a/m2', 'b/m3'] },
+      universe,
+    );
+    expect(all.enabledModels).toBeUndefined();
+  });
+
+  it('disable on a present allowlist drops exact refs and keeps the rest', () => {
+    const out = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['a/m1', 'b/m3'] },
+      { disable: ['a/m1'] },
+      universe,
+    );
+    expect(out.enabledModels).toEqual(['b/m3']);
+  });
+
+  it('disable splits glob patterns and keeps unaffected models as exact refs', () => {
+    const out = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['a/*', 'b/m3'] },
+      { disable: ['a/m1'] },
+      universe,
+    );
+    expect(out.enabledModels).toEqual(['a/m2', 'b/m3']);
+  });
+
+  it('an emptied allowlist deletes the key (empty = unfiltered in pi)', () => {
+    const out = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['a/m1'] },
+      { disable: ['a/m1'] },
+      universe,
+    );
+    expect(out.enabledModels).toBeUndefined();
+  });
+
+  it('unresolvable patterns survive untouched', () => {
+    const out = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['ghost/never-existed', 'a/m1'] },
+      { disable: ['a/m1'] },
+      universe,
+    );
+    expect(out.enabledModels).toEqual(['ghost/never-existed']);
+  });
+
+  it('legacy add/remove/replaceAll keep their direct-write behavior', () => {
+    expect(applyPiCliUpdateEnabledModels({}, { add: ['a/1', 'b/2', 'a/1'] })).toEqual({
+      enabledModels: ['a/1', 'b/2'],
+    });
+    expect(
+      applyPiCliUpdateEnabledModels({ enabledModels: ['a/1', 'b/2'] }, { remove: ['a/1'] }),
+    ).toEqual({ enabledModels: ['b/2'] });
+    const out = applyPiCliUpdateEnabledModels({ enabledModels: ['a/1'] }, { replaceAll: [] });
+    expect(out.enabledModels).toBeUndefined();
+  });
+});
