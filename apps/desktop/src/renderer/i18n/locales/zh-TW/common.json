@@ -3173,6 +3173,8 @@
       "totalRequests": "總請求數",
       "totalCost": "總費用",
       "cacheHitRate": "快取命中率",
+      "autoOn": "自動",
+      "intervalLabel": "重新整理間隔",
       "input": "輸入",
       "output": "輸出",
       "cacheCreate": "快取建立",

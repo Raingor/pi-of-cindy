@@ -213,7 +213,7 @@ export function PiDashboardSection() {
   const [customTo, setCustomTo] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'CNY'>('USD');
   const [tab, setTab] = useState<TabKey>('log');
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [logPage, setLogPage] = useState(1);
   const [providerSort, setProviderSort] = useState<{ key: string; dir: SortDir }>({
@@ -393,7 +393,7 @@ export function PiDashboardSection() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
           </button>
 
-          {/* Auto-refresh toggle */}
+          {/* Auto-refresh toggle + 间隔选择器(pws 5/10/30/60 同款) */}
           <button
             onClick={() => setAutoRefresh((v) => !v)}
             className={cn(
@@ -406,8 +406,22 @@ export function PiDashboardSection() {
               className="inline-block h-2 w-2 rounded-full"
               style={{ backgroundColor: autoRefresh ? '#10b981' : 'var(--settings-section-sublabel)' }}
             />
-            {autoRefresh ? `${refreshInterval}s` : t('settings.piDashboard.off')}
+            {autoRefresh ? t('settings.piDashboard.autoOn') : t('settings.piDashboard.off')}
           </button>
+          {autoRefresh && (
+            <select
+              value={refreshInterval}
+              onChange={(e) => setRefreshInterval(Number(e.target.value))}
+              aria-label={t('settings.piDashboard.intervalLabel')}
+              className="rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)] px-2 py-1.5 text-12 text-[var(--settings-section-desc)]"
+            >
+              {[5, 10, 30, 60].map((s) => (
+                <option key={s} value={s}>
+                  {s}s
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 

@@ -3173,6 +3173,8 @@
       "totalRequests": "总请求数",
       "totalCost": "总费用",
       "cacheHitRate": "缓存命中率",
+      "autoOn": "自动",
+      "intervalLabel": "刷新间隔",
       "input": "输入",
       "output": "输出",
       "cacheCreate": "缓存创建",

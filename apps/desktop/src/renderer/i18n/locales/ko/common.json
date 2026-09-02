@@ -3173,6 +3173,8 @@
       "totalRequests": "총 요청 수",
       "totalCost": "총 비용",
       "cacheHitRate": "캐시 적중률",
+      "autoOn": "자동",
+      "intervalLabel": "새로 고침 간격",
       "input": "입력",
       "output": "출력",
       "cacheCreate": "캐시 생성",

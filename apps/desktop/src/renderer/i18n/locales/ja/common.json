@@ -3173,6 +3173,8 @@
       "totalRequests": "合計リクエスト数",
       "totalCost": "合計コスト",
       "cacheHitRate": "キャッシュヒット率",
+      "autoOn": "自動",
+      "intervalLabel": "更新間隔",
       "input": "入力",
       "output": "出力",
       "cacheCreate": "キャッシュ作成",
