@@ -515,7 +515,9 @@ function ImportProviderModal({
   const [text, setText] = useState('');
   const [name, setName] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  /** 整池密钥（key-1/key-2/… 多把导入支持）。 */
+  const [apiKeys, setApiKeys] = useState<string[]>([]);
+  const [newKeyValue, setNewKeyValue] = useState('');
   const [apiType, setApiType] = useState('openai-completions');
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -535,7 +537,7 @@ function ImportProviderModal({
     const parsed = parseProviderImport(value);
     setName(parsed.name);
     setBaseUrl(parsed.baseUrl);
-    setApiKey(parsed.apiKey);
+    setApiKeys(parsed.apiKeys);
     setModelIds(parsed.modelIds);
   };
 
@@ -543,7 +545,8 @@ function ImportProviderModal({
     setText('');
     setName('');
     setBaseUrl('');
-    setApiKey('');
+    setApiKeys([]);
+    setNewKeyValue('');
     setApiType('openai-completions');
     setModelIds([]);
     setSubmitting(false);
@@ -564,7 +567,8 @@ function ImportProviderModal({
       .replace(/^-|-$/g, ''),
   );
   const urlInvalid = baseUrl.trim() !== '' && !isValidHttpUrl(baseUrl.trim());
-  const parsedEmpty = text.trim() !== '' && !name && !baseUrl && !apiKey && modelIds.length === 0;
+  const parsedEmpty =
+    text.trim() !== '' && !name && !baseUrl && apiKeys.length === 0 && modelIds.length === 0;
   const canSubmit = !!id && !!baseUrl.trim() && !urlInvalid && !submitting;
 
   const handleFetchModels = async () => {
@@ -572,7 +576,7 @@ function ImportProviderModal({
     setFetching(true);
     setFetchErr(null);
     try {
-      const data = await api.fetchCliModelsAdhoc(baseUrl.trim(), apiKey.trim() || undefined, apiType);
+      const data = await api.fetchCliModelsAdhoc(baseUrl.trim(), apiKeys[0] || undefined, apiType);
       if (data.error) {
         setFetchErr(data.error);
       } else {
@@ -598,6 +602,14 @@ function ImportProviderModal({
     availableFetched.length > 0 && availableFetched.every((m) => fetchSel.has(m.id));
   const toggleAllFetched = () => {
     setFetchSel(allFetchedSelected ? new Set() : new Set(availableFetched.map((m) => m.id)));
+  };
+
+  // 手动追加一把 key(与详情面板的添加密钥同交互)。
+  const addKeyValue = () => {
+    const v = newKeyValue.trim();
+    if (!v || apiKeys.includes(v)) return;
+    setApiKeys((prev) => [...prev, v]);
+    setNewKeyValue('');
   };
 
   const handleImport = async () => {
@@ -629,6 +641,13 @@ function ImportProviderModal({
           },
         })),
       ];
+      // 整池密钥入配置:key-1/key-2/… 全部导入,首把默认生效(主进程镜像 apiKey)。
+      const pool = apiKeys
+        .filter((k) => k.trim())
+        .map((k) => ({
+          id: `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          key: k.trim(),
+        }));
       await api.mutateCli({
         action: 'upsert-provider',
         id,
@@ -636,7 +655,9 @@ function ImportProviderModal({
           ...(name.trim() ? { name: name.trim() } : {}),
           baseUrl: baseUrl.trim(),
           api: apiType,
-          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+          ...(pool.length > 0
+            ? { apiKeys: pool, activeKeyId: pool[0]!.id, apiKey: pool[0]!.key }
+            : {}),
           models: newModels,
         },
       });
@@ -719,16 +740,73 @@ function ImportProviderModal({
               className={cn(INPUT_CLASS, 'mt-1', urlInvalid && 'border-red-500')}
             />
           </div>
-          <div>
-            <label className="block text-11 text-[var(--settings-section-sublabel)]">
-              {t('settings.piCliProviders.apiKey')}
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className={cn(INPUT_CLASS, 'mt-1')}
-            />
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-11 text-[var(--settings-section-sublabel)]">
+                {t('settings.piCliProviders.apiKey')}
+              </label>
+              {apiKeys.length > 1 && (
+                <span className="text-11 text-[var(--settings-section-desc)]">
+                  {t('settings.piCliProviders.keyCount', { count: apiKeys.length })}
+                </span>
+              )}
+            </div>
+            {/* 密钥池:key-1/key-2/… 粘贴时全部解析;每把可单独编辑/移除。 */}
+            <div className="mt-1 flex flex-col gap-1.5">
+              {apiKeys.map((key, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="shrink-0 font-mono text-10 text-[var(--settings-section-sublabel)]">
+                    key-{i + 1}
+                  </span>
+                  <input
+                    type="password"
+                    value={key}
+                    onChange={(e) =>
+                      setApiKeys((prev) =>
+                        prev.map((k, idx) => (idx === i ? e.target.value : k)),
+                      )
+                    }
+                    className={cn(INPUT_CLASS, 'min-w-0 flex-1')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setApiKeys((prev) => prev.filter((_, idx) => idx !== i))}
+                    title={t('settings.piCliProviders.keyRemove')}
+                    className="shrink-0 rounded-md p-1 text-[var(--settings-section-desc)] transition-colors hover:text-red-400"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 font-mono text-10 text-transparent" aria-hidden>
+                  key-N
+                </span>
+                <input
+                  type="password"
+                  value={newKeyValue}
+                  onChange={(e) => setNewKeyValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addKeyValue();
+                  }}
+                  placeholder="sk-... or $MY_API_KEY"
+                  className={cn(INPUT_CLASS, 'min-w-0 flex-1')}
+                />
+                <button
+                  type="button"
+                  onClick={addKeyValue}
+                  disabled={!newKeyValue.trim()}
+                  className="shrink-0 rounded-full border border-[var(--settings-theme-card-border)] px-2.5 py-1 text-11 text-[var(--settings-section-sublabel)] disabled:opacity-40"
+                >
+                  {t('settings.piCliProviders.keyAdd')}
+                </button>
+              </div>
+            </div>
+            {apiKeys[0]?.trim().startsWith('$') && (
+              <p className="mt-1 text-11 text-sky-500">
+                {t('settings.piCliProviders.apiKeyEnv', { ref: apiKeys[0]!.trim() })}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-11 text-[var(--settings-section-sublabel)]">
