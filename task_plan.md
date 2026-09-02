@@ -223,4 +223,6 @@
   - 本次差距收敛：模型编辑从自由文本升级为 pws 同款「已配置模型下拉」——
     进入编辑态时拉 listCliProviders 组装 provider/model 引用清单，
     已保存但当前清单没有的模型保持可选（pws 防丢失语义）
-- [ ] P7 扩展包补齐
+- [x] P7 扩展包补齐（见 git log）
+  - 基线核对：推荐+搜索双 tab、防抖 npm 搜索、一键安装、推荐清单移植均已在
+  - 本次差距收敛：搜索 tab 补 all/available/installed 三段过滤器（pws filter 同款，带计数）

@@ -15,6 +15,7 @@ interface PackageSearchResult {
 }
 
 type BrowseTab = 'recommended' | 'search';
+type PackageFilter = 'all' | 'installed' | 'available';
 
 interface PackageBrowserProps {
   installedSources: Set<string>;
@@ -88,6 +89,7 @@ export function PackageBrowser({ installedSources, onInstall, busy }: PackageBro
   const [results, setResults] = useState<PackageSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<PackageFilter>('all');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const api = window.electronAPI?.maker?.piAgent;
@@ -121,6 +123,14 @@ export function PackageBrowser({ installedSources, onInstall, busy }: PackageBro
     onInstall(id);
     setJustAdded((prev) => new Set(prev).add(id));
   };
+
+  // 搜索结果按 已装/可装 过滤(pws 同款三段过滤器)。
+  const installedCount = results.filter((p) => isInstalled(p.name)).length;
+  const filtered = results.filter((pkg) => {
+    if (filter === 'installed') return isInstalled(pkg.name);
+    if (filter === 'available') return !isInstalled(pkg.name);
+    return true;
+  });
 
   const tabBtnClass = (active: boolean) =>
     cn(
@@ -172,17 +182,39 @@ export function PackageBrowser({ installedSources, onInstall, busy }: PackageBro
             />
           </div>
 
+          {/* 全部/可安装/已安装 过滤器(pws filter_all/available/installed 同款)。 */}
+          <div className="flex gap-1 rounded-lg bg-[var(--surface-subtle)] p-1">
+            {(['all', 'available', 'installed'] as PackageFilter[]).map((f) => {
+              const count =
+                f === 'all'
+                  ? results.length
+                  : f === 'installed'
+                    ? installedCount
+                    : results.length - installedCount;
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFilter(f)}
+                  className={tabBtnClass(filter === f)}
+                >
+                  {t(`settings.piPackages.filter_${f}`)} ({count})
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex max-h-[340px] flex-col gap-1.5 overflow-y-auto">
             {loading && results.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-10 text-12 text-[var(--settings-section-desc)]">
                 <Loader2 size={16} className="animate-spin" />
               </div>
-            ) : results.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <p className="py-10 text-center text-12 text-[var(--settings-section-desc)]">
                 {t('settings.piPackages.noResults')}
               </p>
             ) : (
-              results.map((pkg) => (
+              filtered.map((pkg) => (
                 <PackageRow
                   key={pkg.name}
                   name={pkg.name}
