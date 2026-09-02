@@ -23,6 +23,26 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
   const [thinking, setThinking] = useState(agent.thinking ?? '');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 可选模型清单(本机 pi 已配置供应商下的全部模型,pws eligibleModels 同口径)。
+  const [eligibleModels, setEligibleModels] = useState<string[]>([]);
+
+  // 进入编辑态时拉一次本机模型清单(剥密视图,模型引用 = provider/model)。
+  const beginEdit = async () => {
+    setMsg(null);
+    setEditing(true);
+    try {
+      const snapshot = await window.electronAPI?.maker?.piAgent?.listCliProviders?.();
+      if (snapshot?.installed && !snapshot.error) {
+        const refs: string[] = [];
+        for (const p of snapshot.providers) {
+          for (const m of p.models) refs.push(`${p.id}/${m.id}`);
+        }
+        setEligibleModels(refs);
+      }
+    } catch {
+      setEligibleModels([]);
+    }
+  };
 
   useEffect(() => {
     setModel(agent.model ?? '');
@@ -82,8 +102,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
         {agent.package === 'custom' && !editing && (
           <button
             onClick={() => {
-              setMsg(null);
-              setEditing(true);
+              void beginEdit();
             }}
             className="ml-auto flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
             style={{
@@ -116,18 +135,27 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             {t('settings.piSubagents.model')}
           </span>
           {editing ? (
-            <input
-              type="text"
+            <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="provider/model-id"
               className="mt-1 w-full rounded-md border px-3 py-1.5 font-mono text-sm outline-none focus:ring-1"
               style={{
                 borderColor: 'var(--settings-border)',
                 backgroundColor: 'var(--settings-bg-primary)',
                 color: 'var(--settings-text-primary)',
               }}
-            />
+            >
+              <option value="">{t('settings.piSubagents.modelDefault')}</option>
+              {/* 已保存但当前清单里没有的模型保持可选,避免保存时意外丢失。 */}
+              {model && !eligibleModels.includes(model) && (
+                <option value={model}>{model}</option>
+              )}
+              {eligibleModels.map((ref) => (
+                <option key={ref} value={ref}>
+                  {ref}
+                </option>
+              ))}
+            </select>
           ) : (
             <p
               className="mt-0.5 font-mono text-sm"
