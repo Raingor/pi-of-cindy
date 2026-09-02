@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { isSettingsTab, TAB_IDS } from '@/lib/tabLabels';
 
 describe('Settings tab order', () => {
-  it('places Pi dashboard immediately after computer use', () => {
-    const computerUseIndex = TAB_IDS.indexOf('computer-use');
+  // 2026-09-02 用户指令:Pi 是本分支的主工作台,整块紧跟「模型供应商」,
+  // 不再排在常规设置尾部。
+  it('places the Pi tool block immediately after providers', () => {
+    const providersIndex = TAB_IDS.indexOf('providers');
 
-    expect(TAB_IDS.slice(computerUseIndex, computerUseIndex + 2)).toEqual([
-      'computer-use',
+    expect(TAB_IDS.slice(providersIndex, providersIndex + 2)).toEqual([
+      'providers',
       'pi-dashboard',
     ]);
   });

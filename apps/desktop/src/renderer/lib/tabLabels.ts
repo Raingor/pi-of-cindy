@@ -39,6 +39,15 @@ export const TAB_IDS = [
   'general',
   'personalization',
   'providers',
+  // ── Pi Agent 工具集(pi-web-switch 移植)──
+  // 2026-09-02 用户指令:Pi 是本分支的主工作台,整块上移到「模型供应商」之后,
+  // 不再排在常规设置尾部。
+  'pi-dashboard',
+  'pi-sessions',
+  'pi-memory',
+  'pi-subagents',
+  'pi-speedtest',
+  'pi-packages',
   // 「计费」(billing)与「用量历史」(usage)已下架:本分支只跑本机 Pi harness,
   // 账单与网关计量不再适用,用量口径统一由 Pi 仪表盘(pi-dashboard)承担。
   // 两个 id 仍留在 SettingsTab 类型与 TAB_LABEL_KEY 中,供旧深链重定向。
@@ -57,13 +66,6 @@ export const TAB_IDS = [
   'ghosts',
   'builtin-tools',
   'computer-use',
-  // ── Pi Agent 工具集(pi-web-switch 移植) ──
-  'pi-dashboard',
-  'pi-sessions',
-  'pi-memory',
-  'pi-subagents',
-  'pi-speedtest',
-  'pi-packages',
   'help',
   'about',
 ] as const satisfies ReadonlyArray<SettingsTab>;
