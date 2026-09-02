@@ -11,7 +11,6 @@ import type { SettingsTab } from '@/lib/tabLabels';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
 import { UserProfileCard } from './UserProfileCard';
 import { AppearanceSection } from './AppearanceSection';
-import { ProvidersSection } from './ProvidersSection';
 import { McpServersSection } from './McpServersSection';
 import { RemoteControlSection } from './RemoteControlSection';
 import { NotificationSection } from './NotificationSection';
@@ -441,13 +440,11 @@ export function SettingsView() {
                 id="settings-panel-providers"
                 aria-labelledby="settings-tab-providers"
               >
-                {/* 本机 Pi CLI 的供应商与模型(只读面板,读 ~/.pi/agent/models.json)。
-                    放在 Cindy 自有供应商之前:本分支的主诉求是本机 Pi 工作台。 */}
+                {/* 本机 Pi CLI 的供应商与模型(读 ~/.pi/agent/models.json,增删改走
+                    语义化 mutate 通道)。2026-09-02 用户指令:去掉下方 Cindy 自有的
+                    「模型供应商」分区(pi-only 口径,组件与后端保留仅隐藏 UI)。 */}
                 <section className="pb-[18px]" aria-label={t('settings.piCliProviders.title')}>
                   <PiCliProvidersSection />
-                </section>
-                <section className="pb-[18px]" aria-label={t('settings.sections.providers')}>
-                  <ProvidersSection />
                 </section>
               </div>
             )}
