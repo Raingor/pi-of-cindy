@@ -2689,7 +2689,7 @@
     },
     "compaction": {
       "title": "컨텍스트 압축",
-      "description": "Claude Code와 Pi가 컨텍스트를 자동 압축할 시점을 제어합니다. Codex는 별도로 컨텍스트 압축을 관리합니다.",
+      "piOnlyDescription": "Pi가 컨텍스트를 자동 압축하는 시점을 제어합니다.",
       "card": {
         "label": "압축 트리거 임계값",
         "badge": "Claude Code",

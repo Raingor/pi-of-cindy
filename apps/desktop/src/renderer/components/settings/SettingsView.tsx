@@ -11,9 +11,6 @@ import type { SettingsTab } from '@/lib/tabLabels';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
 import { UserProfileCard } from './UserProfileCard';
 import { AppearanceSection } from './AppearanceSection';
-import { SubagentModelSection } from './SubagentModelSection';
-import { AuxiliaryModelSection } from './AuxiliaryModelSection';
-import { VisionBridgeSection } from './VisionBridgeSection';
 import { ProvidersSection } from './ProvidersSection';
 import { McpServersSection } from './McpServersSection';
 import { RemoteControlSection } from './RemoteControlSection';
@@ -25,8 +22,6 @@ import { AgentIslandSection } from './AgentIslandSection';
 import { LanguageSection } from './LanguageSection';
 import { LogoutSection } from './LogoutSection';
 import { AboutSection } from './AboutSection';
-import { UserPromptSection } from './UserPromptSection';
-import { MemorySection } from './MemorySection';
 import { CompactionSection } from './CompactionSection';
 import { TerminalShellSection } from './TerminalShellSection';
 import { LinkOpenSection } from './LinkOpenSection';
@@ -49,7 +44,6 @@ import { PiSubagentsSection } from './pi-subagents/PiSubagentsSection';
 import { PiSpeedTestSection } from './pi-speedtest/PiSpeedTestSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
-import { ContactsSection } from './contacts/ContactsSection';
 import { ComputerUseSection } from './ComputerUseSection';
 import { useAuth } from '@/contexts/AuthContext';
 import { SettingsCatalogPanel } from './SettingsCatalogPanel';
@@ -401,31 +395,9 @@ export function SettingsView() {
                 id="settings-panel-personalization"
                 aria-labelledby="settings-tab-personalization"
               >
-                <section className="pb-[18px]" aria-label={t('settings.sections.personalization')}>
-                  <UserPromptSection />
-                </section>
-                <section className="pb-[18px]" aria-label={t('settings.sections.memory')}>
-                  <MemorySection />
-                </section>
-                <section className="pb-[18px]" aria-label={t('settings.sections.subagentModels')}>
-                  <SubagentModelSection key={`subagent-models:${mode}:${dataOwnerId ?? 'none'}`} />
-                </section>
-                <section className="pb-[18px]" aria-label={t('settings.sections.auxiliaryModels')}>
-                  <AuxiliaryModelSection
-                    key={`auxiliary-models:${mode}:${dataOwnerId ?? 'none'}`}
-                  />
-                </section>
-                <section className="pb-[18px]" aria-label={t('settings.sections.visionBridge')}>
-                  <VisionBridgeSection key={`vision-bridge:${mode}:${dataOwnerId ?? 'none'}`} />
-                </section>
-                {/* 通讯录是本机全局库(数据与开关都不依赖云端账号),local 模式同样可用 */}
-                <section
-                  id="settings-contacts"
-                  className="pb-[18px]"
-                  aria-label={t('settings.contacts.title')}
-                >
-                  <ContactsSection key={`contacts:${dataOwnerId ?? 'none'}`} />
-                </section>
+                {/* 2026-09-02 用户指令:个性化只保留「上下文压缩」及其下方的内容;
+                    上下文之上的 UserPrompt/记忆/Subagent/辅助模型/视觉桥/通讯录等分区下架
+                    (仅隐藏 UI 入口,组件与后端保留,与 pi-only 改造同一口径)。 */}
                 <section className="pb-[18px]" aria-label={t('settings.sections.compaction')}>
                   <CompactionSection key={`compaction:${mode}:${dataOwnerId ?? 'none'}`} />
                 </section>

@@ -1,8 +1,10 @@
 /**
  * CompactionSection — Settings → Personalization 下的自动上下文压缩阈值。
  *
- * Claude Code 与 Pi 分别保存阈值；Claude 由 host 读取，Pi 在每次启动或恢复任务时写入
- * 原生 settings.json 的 compaction.reserveTokens。renderer 只负责渲染和提交设置。
+ * pi-only 口径(2026-09-02):只渲染 Pi 的阈值卡;Claude Code 的 hook/IPC/后端
+ * 保留(compaction-settings-store 不动),仅 UI 不再展示 Claude 卡。
+ * Pi 在每次启动或恢复任务时写入原生 settings.json 的 compaction.reserveTokens;
+ * renderer 只负责渲染和提交设置。
  */
 
 import { useTranslation } from 'react-i18next';
@@ -79,10 +81,11 @@ function CompactionCard({ agent, pct, isCustomized, resetPct, setPct }: Compacti
 
 export function CompactionSection() {
   const { t } = useTranslation();
-  const claude = useCompactionSettings('claude');
+  // 2026-09-02 用户指令:pi-only 口径,只保留 Pi 的阈值卡;Claude Code 卡的
+  // hook/IPC/后端全部保留(与其它 pi-only 下架同一口径),仅不再渲染。
   const pi = useCompactionSettings('pi');
 
-  if (claude.pct === null || pi.pct === null) return null;
+  if (pi.pct === null) return null;
 
   return (
     <div className="flex flex-col gap-[14px]">
@@ -91,17 +94,10 @@ export function CompactionSection() {
           {t('settings.compaction.title')}
         </h2>
         <p className="text-13 leading-[1.5] text-[var(--settings-section-desc)]">
-          {t('settings.compaction.description')}
+          {t('settings.compaction.piOnlyDescription')}
         </p>
       </div>
 
-      <CompactionCard
-        agent="claude"
-        pct={claude.pct}
-        isCustomized={claude.isCustomized}
-        resetPct={claude.resetPct}
-        setPct={claude.setPct}
-      />
       <CompactionCard
         agent="pi"
         pct={pi.pct}

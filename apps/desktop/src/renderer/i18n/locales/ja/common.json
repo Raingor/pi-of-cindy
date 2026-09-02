@@ -2689,7 +2689,7 @@
     },
     "compaction": {
       "title": "コンテキスト圧縮",
-      "description": "Claude Code と Pi がコンテキストを自動圧縮するタイミングを制御します。Codex は独自にコンテキスト圧縮を管理します。",
+      "piOnlyDescription": "Pi がコンテキストを自動圧縮するタイミングを制御します。",
       "card": {
         "label": "圧縮トリガーしきい値",
         "badge": "Claude Code",

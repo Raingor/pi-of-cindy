@@ -2689,7 +2689,7 @@
     },
     "compaction": {
       "title": "上下文压缩",
-      "description": "控制 Claude Code 和 Pi 何时自动压缩上下文。Codex 单独管理上下文压缩。",
+      "piOnlyDescription": "控制 Pi 何时自动压缩上下文。",
       "card": {
         "label": "压缩触发阈值",
         "badge": "Claude Code",

@@ -2680,7 +2680,7 @@
     },
     "compaction": {
       "title": "Context compaction",
-      "description": "Control when Claude Code and Pi automatically compact context. Codex manages context compaction separately.",
+      "piOnlyDescription": "Controls when Pi auto-compacts the context.",
       "card": {
         "label": "Compaction trigger threshold",
         "badge": "Claude Code",
