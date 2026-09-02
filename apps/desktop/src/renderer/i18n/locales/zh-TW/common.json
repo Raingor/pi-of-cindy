@@ -3269,6 +3269,8 @@
       "saved": "已儲存！",
       "reset": "重設",
       "optimizeSuccess": "釋放 {{freed}} 字元（{{before}} → {{after}}）",
+      "copied": "已複製",
+      "noDateGroup": "未標注日期",
       "optimizeFailed": "最佳化失敗",
       "tab": {
         "all": "全部",

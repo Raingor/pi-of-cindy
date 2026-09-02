@@ -3269,6 +3269,8 @@
       "saved": "保存しました！",
       "reset": "リセット",
       "optimizeSuccess": "{{freed}} 文字を解放（{{before}} → {{after}}）",
+      "copied": "コピーしました",
+      "noDateGroup": "日付なし",
       "optimizeFailed": "最適化に失敗しました",
       "tab": {
         "all": "すべて",

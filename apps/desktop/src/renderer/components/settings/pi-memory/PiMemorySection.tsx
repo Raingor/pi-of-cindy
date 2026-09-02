@@ -20,25 +20,58 @@ import { MemoryConfigPanel } from './MemoryConfigPanel';
 type ViewMode = 'files' | 'config';
 type FileTab = 'all' | 'memory' | 'user' | 'failure';
 
-function parseEntries(content: string): string[] {
-  const lines = content.split('\n');
-  const entries: string[] = [];
-  let current = '';
+/** pws 同款:按 § 分段,条目尾部的 `<!-- created=…, last=… -->` 标记提取日期。 */
+const DEFAULT_OPEN_GROUPS = 3;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      if (current.trim()) entries.push(current.trim());
-      current = trimmed.slice(2);
-    } else if (trimmed.startsWith('#')) {
-      if (current.trim()) entries.push(current.trim());
-      current = '';
+function parseMemoryEntries(
+  content: string,
+): Array<{ text: string; created: string; last: string }> {
+  const entries: Array<{ text: string; created: string; last: string }> = [];
+  const sections = content.split('§').filter((s) => s.trim().length > 0);
+
+  for (const section of sections) {
+    const trimmed = section.trim();
+    // 容忍 last= 之后的额外字段(如 `, project64=...`)再接 `-->`。
+    const markerMatch = trimmed.match(
+      /<!--\s*created\s*=\s*([^,\s>]+)\s*,\s*last\s*=\s*([^,\s>]+)[^>]*-->\s*$/,
+    );
+    if (markerMatch) {
+      entries.push({
+        text: trimmed.slice(0, markerMatch.index).trim(),
+        created: markerMatch[1]?.trim() ?? '',
+        last: markerMatch[2]?.trim() ?? '',
+      });
     } else if (trimmed) {
-      current += (current ? '\n' : '') + trimmed;
+      entries.push({ text: trimmed, created: '', last: '' });
     }
   }
-  if (current.trim()) entries.push(current.trim());
   return entries;
+}
+
+/** 按日期分组,新日期在前,无日期组垫底(pws groupByDate 同款)。 */
+function groupByDate(
+  entries: Array<{ text: string; created: string; last: string }>,
+): Array<{ dateKey: string; entries: Array<{ text: string; created: string; last: string }> }> {
+  const groups = new Map<string, Array<{ text: string; created: string; last: string }>>();
+  for (const entry of entries) {
+    const dateKey = entry.created || entry.last || 'other';
+    if (!groups.has(dateKey)) groups.set(dateKey, []);
+    groups.get(dateKey)!.push(entry);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => {
+      if (a === 'other') return 1;
+      if (b === 'other') return -1;
+      return b.localeCompare(a);
+    })
+    .map(([dateKey, list]) => ({ dateKey, entries: list }));
+}
+
+function formatEntryDate(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function getFileIcon(filename: string) {
@@ -311,13 +344,19 @@ function MemoryFileSection({
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
-  const entries = useMemo(() => parseEntries(file.content), [file.content]);
+  const allEntries = useMemo(() => parseMemoryEntries(file.content), [file.content]);
 
   const highlightedEntries = useMemo(() => {
-    if (!searchQuery.trim()) return entries;
+    if (!searchQuery.trim()) return allEntries;
     const q = searchQuery.toLowerCase();
-    return entries.filter((e) => e.toLowerCase().includes(q));
-  }, [entries, searchQuery]);
+    return allEntries.filter((e) => e.text.toLowerCase().includes(q));
+  }, [allEntries, searchQuery]);
+
+  const groups = useMemo(() => groupByDate(highlightedEntries), [highlightedEntries]);
+  // 默认展开前 3 组,用户手点优先(pws openOverrides 同款)。
+  const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({});
+  const isOpen = (dateKey: string, index: number) =>
+    dateKey in openOverrides ? openOverrides[dateKey]! : index < DEFAULT_OPEN_GROUPS;
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)]">
@@ -330,7 +369,7 @@ function MemoryFileSection({
           {file.name}
         </span>
         <span className="rounded-full bg-[var(--surface)] px-2 py-0.5 text-10 text-[var(--settings-section-sublabel)]">
-          {entries.length} {t('settings.piMemory.entries')}
+          {allEntries.length} {t('settings.piMemory.entries')}
         </span>
         <span className="ml-auto text-10 text-[var(--settings-section-sublabel)]">
           {file.content.length.toLocaleString()} {t('settings.piMemory.chars')}
@@ -344,15 +383,50 @@ function MemoryFileSection({
               {t('settings.piMemory.noEntries')}
             </p>
           ) : (
-            <div className="flex flex-col gap-2">
-              {highlightedEntries.map((entry, i) => (
-                <MemoryEntryCard
-                  key={i}
-                  filename={file.filename}
-                  entryText={entry}
-                  index={i}
-                  onDelete={onDelete}
-                />
+            <div className="flex flex-col gap-3">
+              {groups.map((group, gi) => (
+                <div key={group.dateKey} className="flex flex-col gap-2">
+                  <button
+                    onClick={() =>
+                      setOpenOverrides((prev) => ({
+                        ...prev,
+                        [group.dateKey]: !isOpen(group.dateKey, gi),
+                      }))
+                    }
+                    className="flex items-center gap-2 text-left"
+                  >
+                    <span
+                      className={cn(
+                        'text-10 transition-transform',
+                        isOpen(group.dateKey, gi) ? 'rotate-90' : '',
+                      )}
+                      style={{ clipPath: 'polygon(0 0, 100% 50%, 0 100%)' }}
+                    >
+                      ▶
+                    </span>
+                    <span className="text-11 font-medium text-[var(--settings-section-sublabel)]">
+                      {group.dateKey === 'other'
+                        ? t('settings.piMemory.noDateGroup')
+                        : formatEntryDate(group.dateKey)}
+                    </span>
+                    <span className="text-10 text-[var(--settings-section-sublabel)]">
+                      {group.entries.length}
+                    </span>
+                  </button>
+                  {isOpen(group.dateKey, gi) && (
+                    <div className="flex flex-col gap-2">
+                      {group.entries.map((entry, i) => (
+                        <MemoryEntryCard
+                          key={`${group.dateKey}-${i}`}
+                          filename={file.filename}
+                          entry={entry}
+                          query={searchQuery.trim().toLowerCase()}
+                          onDelete={onDelete}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

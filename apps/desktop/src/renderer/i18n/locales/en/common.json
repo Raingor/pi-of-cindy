@@ -3260,6 +3260,8 @@
       "saved": "Saved!",
       "reset": "Reset",
       "optimizeSuccess": "Freed {{freed}} chars ({{before}} → {{after}})",
+      "copied": "Copied",
+      "noDateGroup": "Undated",
       "optimizeFailed": "Optimization failed",
       "tab": {
         "all": "All",

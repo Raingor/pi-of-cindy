@@ -3269,6 +3269,8 @@
       "saved": "저장됨!",
       "reset": "초기화",
       "optimizeSuccess": "{{freed}}자 해제 ({{before}} → {{after}})",
+      "copied": "복사됨",
+      "noDateGroup": "날짜 없음",
       "optimizeFailed": "최적화 실패",
       "tab": {
         "all": "전체",
