@@ -10,7 +10,7 @@ interface ChainViewProps {
 function StepIcon({ agent }: { agent: string }) {
   const isParallel = agent.includes('|');
   if (isParallel) return <Users className="h-4 w-4" style={{ color: 'var(--purple, #a855f7)' }} />;
-  return <Box className="h-4 w-4" style={{ color: 'var(--accent, var(--text-link))' }} />;
+  return <Box className="h-4 w-4" style={{ color: 'var(--accent-emphasis)' }} />;
 }
 
 export function ChainView({ chain }: ChainViewProps) {
@@ -71,7 +71,7 @@ export function ChainView({ chain }: ChainViewProps) {
                         className="rounded px-1 py-0.5 font-mono text-xs"
                         style={{
                           backgroundColor: 'var(--settings-bg-tertiary)',
-                          color: 'var(--accent, var(--text-link))',
+                          color: 'var(--accent-emphasis)',
                         }}
                       >
                         {a.trim()}

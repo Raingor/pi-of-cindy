@@ -88,7 +88,7 @@ export function PiSubagentsSection() {
         <button
           onClick={refresh}
           className="rounded-md px-4 py-2 text-sm text-white"
-          style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
+          style={{ backgroundColor: 'var(--accent-cta-bg)' }}
         >
           {t('settings.piSubagents.retry')}
         </button>
@@ -157,7 +157,7 @@ export function PiSubagentsSection() {
                     : 'var(--settings-bg-secondary)',
                 color:
                   tab === key
-                    ? 'var(--accent, var(--text-link))'
+                    ? 'var(--accent-emphasis)'
                     : 'var(--settings-text-tertiary)',
               }}
             >
@@ -260,7 +260,7 @@ function AgentList({
             style={{
               borderColor:
                 selectedAgent?.fileName === agent.fileName
-                  ? 'var(--accent, var(--text-link))'
+                  ? 'var(--accent-emphasis)'
                   : 'var(--settings-border)',
               backgroundColor:
                 selectedAgent?.fileName === agent.fileName
@@ -270,7 +270,7 @@ function AgentList({
             }}
           >
             <div className="flex items-center gap-2">
-              <Brain className="h-4 w-4 shrink-0" style={{ color: 'var(--accent, var(--text-link))' }} />
+              <Brain className="h-4 w-4 shrink-0" style={{ color: 'var(--accent-emphasis)' }} />
               <span className="truncate text-sm font-medium">{agent.name}</span>
               <span
                 className="rounded-full px-1.5 py-0.5 text-10 font-medium"
@@ -281,7 +281,7 @@ function AgentList({
                       : 'var(--settings-bg-tertiary)',
                   color:
                     agent.package === 'custom'
-                      ? 'var(--accent, var(--text-link))'
+                      ? 'var(--accent-emphasis)'
                       : 'var(--settings-text-tertiary)',
                 }}
               >
@@ -466,7 +466,7 @@ function RunHistoryList({ records }: { records: PiRunRecord[] }) {
           {records.map((r, i) => (
             <tr key={`${r.taskHash}-${i}`} className="transition-colors hover:bg-black/5 dark:hover:bg-white/5">
               <td className="px-4 py-3">
-                <code className="text-sm" style={{ color: 'var(--accent, var(--text-link))' }}>
+                <code className="text-sm" style={{ color: 'var(--accent-emphasis)' }}>
                   {r.agent}
                 </code>
               </td>

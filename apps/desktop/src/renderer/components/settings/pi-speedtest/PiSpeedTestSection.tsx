@@ -303,9 +303,12 @@ export function PiSpeedTestSection() {
                     disabled={running || fetching || models.length === 0}
                     className={cn(
                       ACTION_CLASS,
-                      'h-8 border-transparent px-4 text-white',
-                      'bg-[var(--accent, var(--text-link))] hover:opacity-90',
+                      'h-8 border-transparent px-4 hover:opacity-90',
                     )}
+                    style={{
+                      backgroundColor: 'var(--accent-cta-bg)',
+                      color: 'var(--surface-on-card)',
+                    }}
                   >
                     {running ? <Spinner size={14} /> : <Zap size={14} />}
                     {running ? t('settings.piSpeedtest.testing') : t('settings.piSpeedtest.runAll')}

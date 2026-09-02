@@ -368,7 +368,7 @@ export function PiSessionsSection() {
                           : new Set(filteredTrash.map((e) => e.trashPath)),
                       )
                     }
-                    style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                    style={{ accentColor: 'var(--focus-ring)' }}
                   />
                   {t('settings.piSessions.selectAll')}
                 </label>
@@ -403,7 +403,7 @@ export function PiSessionsSection() {
                     type="checkbox"
                     checked={selectedTrash.has(entry.trashPath)}
                     onChange={() => toggleTrashSel(entry.trashPath)}
-                    style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                    style={{ accentColor: 'var(--focus-ring)' }}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-13 font-medium text-[var(--settings-section-title)]">

@@ -26,6 +26,7 @@ import {
   Lock,
   LockOpen,
   Mic,
+  Pencil,
   PlugZap,
   Plus,
   RefreshCw,
@@ -483,8 +484,11 @@ function AddProviderForm({
           type="button"
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-4 text-12 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-4 text-12 font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            backgroundColor: 'var(--accent-cta-bg)',
+            color: 'var(--surface-on-card)',
+          }}
         >
           {submitting ? <Spinner size={13} /> : <Check size={13} />}
           {t('settings.piCliProviders.save')}
@@ -868,7 +872,7 @@ function ImportProviderModal({
                 type="checkbox"
                 checked={allFetchedSelected}
                 onChange={toggleAllFetched}
-                style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                style={{ accentColor: 'var(--focus-ring)' }}
               />
               {t('settings.piCliProviders.importSelectAll')}
             </label>
@@ -881,7 +885,7 @@ function ImportProviderModal({
                   type="checkbox"
                   checked={fetchSel.has(m.id)}
                   onChange={() => toggleFetched(m.id)}
-                  style={{ accentColor: 'var(--accent, var(--text-link))' }}
+                  style={{ accentColor: 'var(--focus-ring)' }}
                 />
                 <span className="truncate text-[var(--settings-section-title)]">{m.id}</span>
                 <span className="ml-auto shrink-0 text-[var(--settings-section-desc)]">
@@ -907,8 +911,11 @@ function ImportProviderModal({
             type="button"
             onClick={() => void handleImport()}
             disabled={!canSubmit}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-4 text-12 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-4 text-12 font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              backgroundColor: 'var(--accent-cta-bg)',
+              color: 'var(--surface-on-card)',
+            }}
           >
             {submitting ? <Spinner size={13} /> : <Check size={13} />}
             {t('settings.piCliProviders.importSubmit')}
@@ -964,10 +971,11 @@ function ProviderDetail({
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [switchOk, setSwitchOk] = useState(false);
 
-  // 模型快捷添加 + 删除确认。
+  // 模型快捷添加 + 删除确认 + 参数编辑。
   const [quickId, setQuickId] = useState('');
   const [quickBusy, setQuickBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editModel, setEditModel] = useState<PiCliModel | null>(null);
 
   const runTest = useCallback(async () => {
     if (!api?.testCliProvider || testState === 'testing') return;
@@ -1255,6 +1263,42 @@ function ProviderDetail({
     }
   };
 
+  // 模型参数编辑(pws ModelForm 同字段集):名称/上下文/输出上限/能力/价格,
+  // 提交走 upsert-model 原地合并,id 是定位键不可改。
+  const handleSaveModel = async (form: {
+    name: string;
+    reasoning: boolean;
+    image: boolean;
+    audio: boolean;
+    contextWindow: number;
+    maxTokens?: number;
+    cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  }) => {
+    if (!api?.mutateCli || !editModel) return false;
+    try {
+      await api.mutateCli({
+        action: 'upsert-model',
+        providerId: provider.id,
+        model: {
+          id: editModel.id,
+          name: form.name.trim() || editModel.id,
+          reasoning: form.reasoning,
+          input: ['text', ...(form.image ? ['image'] : []), ...(form.audio ? ['audio'] : [])],
+          contextWindow: form.contextWindow,
+          ...(form.maxTokens !== undefined ? { maxTokens: form.maxTokens } : {}),
+          cost: form.cost,
+        },
+      });
+      await onReload();
+      return true;
+    } catch (err) {
+      log.warn('save model failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return false;
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {/* Header */}
@@ -1534,7 +1578,7 @@ function ProviderDetail({
             type="checkbox"
             checked={compatDev}
             onChange={(e) => setCompatDev(e.target.checked)}
-            style={{ accentColor: 'var(--accent, var(--text-link))' }}
+            style={{ accentColor: 'var(--focus-ring)' }}
           />
           {t('settings.piCliProviders.compatDeveloperRole')}
         </label>
@@ -1546,7 +1590,7 @@ function ProviderDetail({
             type="checkbox"
             checked={compatFinish}
             onChange={(e) => setCompatFinish(e.target.checked)}
-            style={{ accentColor: 'var(--accent, var(--text-link))' }}
+            style={{ accentColor: 'var(--focus-ring)' }}
           />
           {t('settings.piCliProviders.compatFinishReason')}
         </label>
@@ -1766,14 +1810,24 @@ function ProviderDetail({
               {provider.models.map((model) => (
                 <div key={model.id} className="group relative">
                   <ModelRow model={model} onToggleEnabled={(id, on) => void handleToggleModel(id, on)} />
-                  <button
-                    type="button"
-                    onClick={() => void handleRemoveModel(model.id)}
-                    title={t('settings.piCliProviders.modelRemove')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-[var(--surface)] p-1 text-[var(--settings-section-desc)] opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditModel(model)}
+                      title={t('settings.piCliProviders.modelEdit')}
+                      className="rounded-md bg-[var(--surface)] p-1 text-[var(--settings-section-desc)] transition-colors hover:text-[var(--focus-ring)]"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveModel(model.id)}
+                      title={t('settings.piCliProviders.modelRemove')}
+                      className="rounded-md bg-[var(--surface)] p-1 text-[var(--settings-section-desc)] transition-colors hover:text-red-400"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1782,6 +1836,271 @@ function ProviderDetail({
             </p>
           </>
         )}
+      </div>
+
+      {/* 模型参数编辑弹窗(pws ModelForm 同字段集)。 */}
+      {editModel && (
+        <ModelEditModal
+          model={editModel}
+          onCancel={() => setEditModel(null)}
+          onSave={async (form) => {
+            const ok = await handleSaveModel(form);
+            if (ok) setEditModel(null);
+            return ok;
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── 模型参数编辑弹窗(pws ModelForm 字段集)──────────────────────────
+
+const CTX_PRESETS = [32_768, 65_536, 131_072, 262_144, 524_288, 1_000_000];
+const MAX_TOKENS_PRESETS = [4096, 8192, 16_384, 32_768, 65_536];
+
+function ModelEditModal({
+  model,
+  onCancel,
+  onSave,
+}: {
+  model: PiCliModel;
+  onCancel: () => void;
+  onSave: (form: {
+    name: string;
+    reasoning: boolean;
+    image: boolean;
+    audio: boolean;
+    contextWindow: number;
+    maxTokens?: number;
+    cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  }) => Promise<boolean>;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(model.name ?? model.id);
+  const [reasoning, setReasoning] = useState(model.reasoning);
+  const [image, setImage] = useState(model.input.includes('image'));
+  const [audio, setAudio] = useState(model.input.includes('audio'));
+  const [contextWindow, setContextWindow] = useState(model.contextWindow ?? DEFAULT_CONTEXT_WINDOW);
+  const [maxTokens, setMaxTokens] = useState<number | undefined>(model.maxTokens);
+  const [cost, setCost] = useState({
+    input: model.cost?.input ?? 0,
+    output: model.cost?.output ?? 0,
+    cacheRead: model.cost?.cacheRead ?? 0,
+    cacheWrite: model.cost?.cacheWrite ?? 0,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const presetChip = (active: boolean) =>
+    cn(
+      'rounded border px-1.5 py-0.5 font-mono text-10 transition-colors',
+      active
+        ? 'border-[var(--focus-ring)] bg-[var(--focus-ring)]/15 text-[var(--focus-ring)]'
+        : 'border-[var(--settings-theme-card-border)] text-[var(--settings-section-sublabel)] hover:text-[var(--settings-section-title)]',
+    );
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(false);
+    const ok = await onSave({
+      name,
+      reasoning,
+      image,
+      audio,
+      contextWindow,
+      maxTokens,
+      cost,
+    });
+    setSaving(false);
+    if (!ok) setSaveError(true);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+      role="dialog"
+      aria-modal="true"
+      onClick={() => !saving && onCancel()}
+    >
+      <div
+        className={cn(CARD_CLASS, 'max-h-[85vh] w-full max-w-xl overflow-y-auto p-5')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-15 font-semibold text-[var(--settings-section-title)]">
+              {t('settings.piCliProviders.modelEdit')}
+            </h3>
+            <p className="mt-0.5 truncate font-mono text-11 text-[var(--settings-section-sublabel)]">
+              {model.id}
+            </p>
+          </div>
+          <button type="button" onClick={onCancel} className={cn(ACTION_CLASS, 'h-7 w-7 px-0')}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* 显示名称 */}
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.modelDisplayName')}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={cn(INPUT_CLASS, 'mt-1')}
+            />
+          </div>
+          {/* 上下文窗口(pws 快捷档) */}
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.model.contextWindow')}
+            </label>
+            <input
+              type="number"
+              value={contextWindow}
+              onChange={(e) => setContextWindow(Number(e.target.value) || DEFAULT_CONTEXT_WINDOW)}
+              className={cn(INPUT_CLASS, 'mt-1 font-mono')}
+            />
+            <div className="mt-1 flex flex-wrap gap-1">
+              {CTX_PRESETS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setContextWindow(v)}
+                  className={presetChip(contextWindow === v)}
+                >
+                  {formatTokens(v)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* 最大输出(pws 快捷档,空=默认) */}
+          <div>
+            <label className="block text-11 text-[var(--settings-section-sublabel)]">
+              {t('settings.piCliProviders.model.maxTokens')}
+            </label>
+            <input
+              type="number"
+              value={maxTokens ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setMaxTokens(v === '' ? undefined : Number(v) || undefined);
+              }}
+              placeholder={String(DEFAULT_MAX_TOKENS)}
+              className={cn(INPUT_CLASS, 'mt-1 font-mono')}
+            />
+            <div className="mt-1 flex flex-wrap gap-1">
+              {MAX_TOKENS_PRESETS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setMaxTokens(v)}
+                  className={presetChip((maxTokens ?? DEFAULT_MAX_TOKENS) === v)}
+                >
+                  {formatTokens(v)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 能力开关(pws 同款三件) */}
+        <div className="mt-4 flex flex-wrap gap-4">
+          <label className="flex cursor-pointer items-center gap-2 text-12 text-[var(--settings-section-desc)]">
+            <input
+              type="checkbox"
+              checked={reasoning}
+              onChange={(e) => setReasoning(e.target.checked)}
+              className="h-3.5 w-3.5 rounded"
+              style={{ accentColor: 'var(--focus-ring)' }}
+            />
+            <Brain size={13} className="text-purple-400" />
+            {t('settings.piCliProviders.model.reasoning')}
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-12 text-[var(--settings-section-desc)]">
+            <input
+              type="checkbox"
+              checked={image}
+              onChange={(e) => setImage(e.target.checked)}
+              className="h-3.5 w-3.5 rounded"
+              style={{ accentColor: 'var(--focus-ring)' }}
+            />
+            <ImageIcon size={13} className="text-blue-400" />
+            {t('settings.piCliProviders.model.imageInput')}
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-12 text-[var(--settings-section-desc)]">
+            <input
+              type="checkbox"
+              checked={audio}
+              onChange={(e) => setAudio(e.target.checked)}
+              className="h-3.5 w-3.5 rounded"
+              style={{ accentColor: 'var(--focus-ring)' }}
+            />
+            <Mic size={13} className="text-emerald-400" />
+            {t('settings.piCliProviders.model.audioInput')}
+          </label>
+        </div>
+
+        {/* 价格($/M,pws 四项) */}
+        <div className="mt-4">
+          <label className="block text-11 text-[var(--settings-section-sublabel)]">
+            {t('settings.piCliProviders.modelCost')} ($/M)
+          </label>
+          <div className="mt-1 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {(
+              [
+                ['input', 'modelCostInput'],
+                ['output', 'modelCostOutput'],
+                ['cacheRead', 'modelCostCacheRead'],
+                ['cacheWrite', 'modelCostCacheWrite'],
+              ] as const
+            ).map(([field, key]) => (
+              <div key={field}>
+                <span className="block text-10 text-[var(--settings-section-sublabel)]">
+                  {t(`settings.piCliProviders.${key}`)}
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={cost[field]}
+                  onChange={(e) =>
+                    setCost((prev) => ({ ...prev, [field]: Number(e.target.value) || 0 }))
+                  }
+                  className={cn(INPUT_CLASS, 'mt-1 font-mono')}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          {saveError && (
+            <span className="mr-auto text-11 text-red-500">
+              {t('settings.piCliProviders.saveFailed')}
+            </span>
+          )}
+          <button type="button" onClick={onCancel} disabled={saving} className={cn(ACTION_CLASS)}>
+            {t('settings.piCliProviders.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className={cn(ACTION_CLASS, 'border-transparent px-4 hover:opacity-90')}
+            style={{
+              backgroundColor: 'var(--accent-cta-bg)',
+              color: 'var(--surface-on-card)',
+            }}
+          >
+            {saving ? <Spinner size={13} /> : <Check size={13} />}
+            {t('settings.piCliProviders.save')}
+          </button>
+        </div>
       </div>
     </div>
   );

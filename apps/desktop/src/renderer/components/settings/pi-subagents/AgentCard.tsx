@@ -93,7 +93,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
                 : 'var(--settings-bg-tertiary)',
             color:
               agent.package === 'custom'
-                ? 'var(--accent, var(--text-link))'
+                ? 'var(--accent-emphasis)'
                 : 'var(--settings-text-secondary)',
           }}
         >
@@ -207,7 +207,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
               onClick={handleSave}
               disabled={saving}
               className="flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: 'var(--accent, var(--text-link))' }}
+              style={{ backgroundColor: 'var(--accent-cta-bg)' }}
             >
               {saving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

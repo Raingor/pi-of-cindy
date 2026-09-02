@@ -64,7 +64,7 @@ function renderInline(text: string, q: string): ReactNode {
     const link = part.match(/^\[([^\]]+)\]\(((?:https?:\/\/)[^)\s]+)\)$/);
     if (link) {
       return (
-        <span key={i} className="underline underline-offset-2 text-[var(--accent, var(--text-link))]">
+        <span key={i} className="underline underline-offset-2 text-[var(--text-link-primary,var(--accent-emphasis))]">
           {highlight(link[1] ?? '', q)}
         </span>
       );
