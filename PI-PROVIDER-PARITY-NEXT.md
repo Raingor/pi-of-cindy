@@ -26,6 +26,24 @@
 
 ## 余项清单
 
+### R7 · enabledModels 语义对齐 pi-web-switch（2026-09-02 产品裁决）✅ 已完成
+
+> 用户明确要求：面板按 **pws 的纯名单成员关系模型**展示与写入，不按 pi 运行时
+> 的「空名单 = 不过滤」语义展示。已通过 intercom 向 pws 仓维护会话确认实现细节后对齐：
+>
+> - **展示**：`enabled = settings.enabledModels 精确命中 "provider/id"`；名单为空/缺省 →
+>   全部显示停用。不解析 glob/thinking 尾缀，不做「空 = 全启用」回退。
+> - **写入**：enable = 并入 ref（名单不存在则创建）；disable = 移除（空名单时 no-op）；
+>   供应商「全部启用/停用」= 增/删该供应商全部 ref；顶部「全部停用」= 清空名单。
+> - **composer**：自定义供应商模型**豁免名单过滤**（pws ChatPage 同款），名单只影响 pi CLI 自身。
+> - **已知分歧（用户知情接受）**：pi 运行时对空名单不过滤 —— 空名单态下面板显示
+>   「全部停用」而 pi CLI 实际全部可用；pws 同样存在此分歧，属 pws 语义固有。
+> - **IPC 细节坑**：`update-enabled` handler 的数组非空校验曾吞掉 `replaceAll: []`
+>   （顶部全部停用的 payload），已改为空 replaceAll 照传。
+> - **后续注意**：pws 在 renameCustomProvider 时会批量重映射 enabledModels 的 ref 前缀、
+>   duplicate 时并入源模型 refs —— Cindy 面板的 rename/delete 路径已同步处理
+>   （applyPiCliRenameProvider），新增类似操作时记得同步名单。
+
 ### R1 · Pi 测速面板读的配置键不存在，且明文 key 过 Renderer（P0）✅ 已修复
 
 > **状态：已修复（2026-09-02）。** `loadProviders` 改走 `piAgent.listCliProviders()`
