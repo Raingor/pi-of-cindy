@@ -85,8 +85,15 @@ let custom: Provider[] = [];
  * 注入(本模块保持零 Electron),未注入(单测)= 空。
  */
 let piCliProviders: Provider[] = [];
+/** pi 内置且已在本机 pi CLI 登录的供应商(openai-codex OAuth 等;pi-host 投影)。 */
+let piBuiltinAuthProviders: Provider[] = [];
 let piCliCatalogPoll: (() => boolean) | null = null;
 /** 注入本机 Pi CLI 供应商投影;下次目录重算生效。传空数组 = 本机无可用供应商。 */
+export function setPiBuiltinAuthCatalogProviders(providers: Provider[]): void {
+  piBuiltinAuthProviders = providers;
+  markChanged();
+}
+
 export function setPiCliCatalogProviders(providers: Provider[]): void {
   piCliProviders = providers;
   markChanged();
@@ -940,6 +947,7 @@ function computeMerged(): Catalog {
   // 未知 id 都是 no-op。models 只填 pi,cc/codex 的派生不受影响;连接态由
   // provider-service 的 user 来源「存在即连接」语义承接(投影层已过滤缺 key 条目)。
   if (piCliProviders.length > 0) providers = [...providers, ...piCliProviders];
+  if (piBuiltinAuthProviders.length > 0) providers = [...providers, ...piBuiltinAuthProviders];
 
   // 通用 OAuth 供应商的发现模型(additions-only,per provider × agent;内置与自定义同待遇)。
   if (discoveredByProvider.size > 0) {
@@ -1238,8 +1246,10 @@ function computeMerged(): Catalog {
   // 位置在 root 装配**之后**:openai/anthropic/xai 的 models.pi 由 registry 证据重算,
   // 先标会被覆盖。原引用透传的 provider(b.providers 原样项)也要触碰 —— 统一 map,
   // 无 pi 模型时原引用返回保持零分配。
+  const piBuiltinAuthIds = new Set(piBuiltinAuthProviders.map((p) => p.id));
   providers = providers.map((p) => {
     if (p.id.startsWith(PI_CLI_PROVIDER_ID_PREFIX)) return p;
+    if (piBuiltinAuthIds.has(p.id)) return p;
     const piModels = p.models.pi;
     if (!piModels || piModels.length === 0 || piModels.every((m) => m.disabled === true)) return p;
     return {

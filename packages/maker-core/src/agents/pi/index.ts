@@ -1498,6 +1498,10 @@ export class PiAgent extends BaseAgent {
         this.deps.logger.warn('pi: native provider id collides with gateway provider "cindy" — skipped', { id: np.id });
         continue;
       }
+      // piAuthPassthrough(pi 内置 + 本机已登录,如 openai-codex OAuth):不写块 ——
+      // pi 对无 overlay 的内置供应商保留原生 auth/login/stream 行为,凭证从链入
+      // configHome 的 auth.json 读(见 resolvePiAuthOverlay)。models 只作路由判定。
+      if (np.piAuthPassthrough === true) continue;
       const nativeModels = (
         np.inheritModels ? np.models.filter((model) => model.api !== undefined || model.catalogAddition === true) : np.models
       ).map((m) => {
@@ -1571,6 +1575,23 @@ export class PiAgent extends BaseAgent {
         await fs.writeFile(settingsJsonPath, settingsJsonContent, {
           mode: 0o600,
         });
+        // pi 内置已登录供应商(piAuthPassthrough):把用户 pi CLI 的 auth.json
+        // symlink 进隔离 configHome —— pi 原地写(writeFileSync)会保持链接,
+        // 用户在 pi CLI 里的登录/续期对本会话即时生效。链接失败只 warn 不阻塞
+        // (降级为无内置凭证,选择器本就不保证它可选)。远端不链(读不到本机文件)。
+        const authOverlay = !opts.remote ? this.deps.resolvePiAuthOverlay?.(undefined) : null;
+        if (authOverlay) {
+          try {
+            const linkPath = joinRemotePosixPath(agentHome, 'auth.json');
+            await fs.rm(linkPath, { force: true });
+            await fs.symlink(authOverlay.authPath, linkPath);
+          } catch (err) {
+            this.deps.logger.warn('pi: failed to link user auth.json into configHome', {
+              authPath: authOverlay.authPath,
+              message: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
       }
     }
     return {

@@ -42,7 +42,13 @@ import { createLogger } from '../logger.js';
 import { getBaseUrl } from '../manifestService.js';
 import { throwIpcError } from '../utils/ipcValidate.js';
 import { getBuildClientEndpoint, getClientEndpoint } from '../clientEndpointsService.js';
-import { setPiCliCatalogProviders, setPiCliCatalogPoll,
+import {
+  buildPiBuiltinAuthCatalogProviders,
+  getBuiltinAuthCatalogSnapshot,
+  readPiBundledModels,
+  resolvePiBinaryPath,
+} from './pi-host.js';
+import { setPiBuiltinAuthCatalogProviders, setPiCliCatalogProviders, setPiCliCatalogPoll,
   commitActiveCatalogSnapshot,
   getActiveCatalog,
   getModelPlaneWarnings,
@@ -943,6 +949,10 @@ export function createPiCliCatalogPoll(): () => boolean {
     if (piCliMtimes === mtimes) return false;
     piCliMtimes = mtimes;
     setPiCliCatalogProviders(buildPiCliCatalogProviders());
+    // auth.json mtime 变化(登录/退出 pi 内置供应商)时同步重投影内置已登录目录。
+    // bundled catalog 经预热缓存在 pi-host,getBuiltinAuthCatalogSnapshot 同步取;
+    // 预热未完成(首次)时为 null,预热完成回调会注入首份投影,此处不阻塞。
+    setPiBuiltinAuthCatalogProviders(buildPiBuiltinAuthCatalogProviders(getBuiltinAuthCatalogSnapshot()));
     return true;
   };
 }
@@ -971,6 +981,32 @@ export function getDesktopProviderService(): ProviderService {
   // 清单自动跟随,无需重启。注入一次、幂等(单例守卫之后)。
   setPiCliCatalogProviders(buildPiCliCatalogProviders());
   setPiCliCatalogPoll(createPiCliCatalogPoll());
+  // pi 内置已登录供应商(~/.pi/agent/auth.json ∩ pi 二进制内置目录,如 openai-codex
+  // OAuth):目录投影异步预热(readPiBundledModels 有二进制级缓存,仅首次跑探测);
+  // 完成后注入,选择器/能力清单即时刷新。auth.json mtime 已并入 piCli poll 指纹,
+  // 用户在 pi CLI 登录/退出后自动跟随,无需重启。
+  // localPi 探测缓存可能在 provider-service 首次构造时尚未就绪(splash 阶段异步探测);
+  // 轮询等待就绪后投影,最多 60s。
+  void (async () => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      try {
+        const binaryPath = resolvePiBinaryPath();
+        if (!binaryPath) {
+          await new Promise((r) => setTimeout(r, 1_000));
+          continue;
+        }
+        const bundled = await readPiBundledModels(binaryPath);
+        setPiBuiltinAuthCatalogProviders(buildPiBuiltinAuthCatalogProviders(bundled));
+        return;
+      } catch (err) {
+        log.warn('pi builtin auth catalog projection failed (will retry)', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+        await new Promise((r) => setTimeout(r, 1_000));
+      }
+    }
+    log.warn('pi builtin auth catalog projection gave up after 60 attempts');
+  })();
   singleton = createProviderService({
     getCatalog: getDesktopSelectableCatalog,
     connection: {

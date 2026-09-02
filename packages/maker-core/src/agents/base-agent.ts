@@ -297,6 +297,15 @@ export interface PiNativeProviderSpec {
   /** Translate Cindy's persisted/public model id to the Pi-native model id for this provider. */
   modelIdAliases?: Record<string, string>;
   /**
+   * pi 内置且已在本机 pi CLI 登录(auth.json)的供应商(如 openai-codex OAuth)。
+   * 语义与 BYOM 相反:**不**写入 models.json —— pi 的 provider 组合器对无 overlay 的
+   * 内置供应商「use the builtin untouched so its auth/login/stream behavior is exact」
+   * (model-runtime.js recomposeProvider),凭证由 pi 自己从 auth.json 读;models 字段
+   * 只作路由判定/能力展示(与 bundled catalog 同源)。host 需同时把 auth.json 链接进
+   * 隔离的 configHome(见 resolvePiAuthOverlay),否则子进程看不到用户登录。
+   */
+  piAuthPassthrough?: true;
+  /**
    * This provider is backed by a loopback service owned by the Desktop host. Remote Pi may use
    * it only after the host establishes the exact SSH reverse-forward described here. The marker
    * is host control-plane data and is never serialized into models.json.
@@ -558,6 +567,15 @@ export interface AgentDeps {
    * provider，并转换成底层 SDK 接受的 MCP 配置。
    */
   mcpProviders?: McpProvider[];
+
+  /**
+   * pi 专用:用户本机 pi CLI 的凭证文件(~/.pi/agent/auth.json)路径(host 注入)。
+   * startSession 写隔离 configHome 时把它 symlink 为 configHome/auth.json,让
+   * piAuthPassthrough 供应商(如 openai-codex OAuth)在子进程里可用;本地
+   * 会话专用(远端 SSH 主机读不到本机凭证,不链)。返回 null/undefined 表示
+   * 无可链凭证。仅本地文件系统路径;远端 daemon 由远端自己的 auth.json 承接。
+   */
+  resolvePiAuthOverlay?: (remoteHostId?: string | null) => { authPath: string } | null;
 
   /**
    * pi 专用:pi 配置目录(PI_CODING_AGENT_DIR,内含 models.json / sessions/ 等)

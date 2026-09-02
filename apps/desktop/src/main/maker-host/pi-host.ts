@@ -17,6 +17,7 @@
  */
 
 import { execFile, spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -51,6 +52,7 @@ import type {
   CustomProviderConfig,
   PiModelApi,
   PiReasoningEffort,
+  Provider,
   ProviderWireProtocol,
 } from '@cindy/model-providers';
 
@@ -410,6 +412,18 @@ export async function readPiBundledModels(
         PI_CODING_AGENT_DIR: configDir,
         PI_OFFLINE: '1',
       };
+      // 用户已登录的 pi 内置供应商(auth.json)也要进目录探测:get_available_models 只回
+      // 「已配置凭证」的供应商,placeholder 只覆盖三家;symlink 用户 auth.json 后,
+      // openai-codex/opencode/ant-ling 等真实登录的内置供应商全部纳入目录(离线探测,
+      // 不发网络请求)。链接失败按现状降级(只有 placeholder 三家)。
+      try {
+        const userAuth = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+        if (existsSync(userAuth)) {
+          await fsp.symlink(userAuth, path.join(configDir, 'auth.json'));
+        }
+      } catch {
+        // 降级:探测目录无 auth.json,内置已登录供应商不进 bundled 目录。
+      }
       for (const name of ['PATH', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'WINDIR', 'PATHEXT']) {
         if (process.env[name]) childEnv[name] = process.env[name];
       }
@@ -1336,6 +1350,103 @@ export function buildPiNativeProvidersFromConfigs(
  * auth continue to use sourceProviderId, so no DB or safeStorage migration is
  * required.
  */
+let cachedBuiltinAuthProviders: PiNativeProviderSpec[] | null = null;
+
+/**
+ * 同步读取最近一次 buildPiBuiltinAuthCatalogProviders 的内置目录结果(装配预热后)。
+ * piCli poll(auth.json mtime 变化)用它同步重投影登录态。
+ */
+export function getBuiltinAuthCatalogSnapshot(): PiBundledModelCatalog | null {
+  return cachedBuiltinAuthCatalog;
+}
+
+let cachedBuiltinAuthCatalog: PiBundledModelCatalog | null = null;
+
+/**
+ * pi 内置且已在用户 pi CLI 登录(auth.json 有凭证)的供应商 → piAuthPassthrough specs。
+ *
+ * 判定:auth.json 键 ∩ pi 二进制内置目录(readPiBundledModels 的同一份缓存,含
+ * openai-codex 的 OAuth)。spec 的 models 来自内置目录(id/api/baseUrl/窗口/计价),
+ * 只作路由判定与能力展示 —— writeModelsJson 对 piAuthPassthrough 跳过落盘,pi 进程
+ * 用自己的 builtin + auth.json(经 configHome symlink)原生解析凭证。
+ * auth.json 解析失败/缺文件 → 空数组(降级为现状,选择器不列这些供应商)。
+ */
+/**
+ * pi 内置已登录供应商的**目录投影**(选择器可见性;与 buildPiAuthPassthroughProviders
+ * 同一判定):id 用 pi 原生 id(openai-codex 等),source 'user'(选择器 user 语义、
+ * 「存在即连接」),models 只填 pi。元数据来自 pi 二进制内置目录(窗口/计价/reasoning)。
+ */
+export function buildPiBuiltinAuthCatalogProviders(
+  bundledModels: PiBundledModelCatalog | null,
+): Provider[] {
+  const passthrough = buildPiAuthPassthroughProviders(bundledModels);
+  return passthrough.map((spec) => ({
+    id: spec.id,
+    name: spec.name,
+    source: 'user' as const,
+    agents: ['pi' as const],
+    auth: { method: 'apiKey' as const },
+    routing: {
+      pi: {
+        wireProtocol: 'openai-chat' as const,
+        upstream: spec.baseUrl,
+        authStrategy: 'api-key-header' as const,
+      },
+    },
+    models: {
+      pi: spec.models.map((m) => ({
+        id: m.id,
+        name: m.name ?? m.id,
+        contextWindow: m.contextWindow ?? 128_000,
+        ...(m.maxTokens !== undefined && m.maxTokens > 0 ? { maxOutput: m.maxTokens } : {}),
+        piApi: 'openai-responses' as const,
+        efforts: m.reasoning ? (['low', 'medium', 'high'] as const) : [],
+        defaultEffort: m.reasoning ? ('high' as const) : null,
+        group: `custom:${spec.id}`,
+        defaultEnabled: true as const,
+        ...(m.input?.includes('image') ? { supportsImageInput: true as const } : {}),
+      })),
+    },
+  }));
+}
+
+export function buildPiAuthPassthroughProviders(
+  bundledModels: PiBundledModelCatalog | null,
+): PiNativeProviderSpec[] {
+  cachedBuiltinAuthCatalog = bundledModels;
+  if (!bundledModels) return [];
+  let authKeys: string[];
+  try {
+    const authPath = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+    const raw = JSON.parse(readFileSync(authPath, 'utf-8')) as Record<string, unknown>;
+    authKeys = Object.keys(raw).filter((id) => id && raw[id] && typeof raw[id] === 'object');
+  } catch {
+    return [];
+  }
+  const out: PiNativeProviderSpec[] = [];
+  for (const id of authKeys) {
+    const models = bundledModels.get(id);
+    if (!models || models.size === 0) continue;
+    out.push({
+      id,
+      name: id,
+      baseUrl: [...models.values()][0]?.baseUrl ?? `https://${id}.example.invalid`,
+      inheritModels: true,
+      piAuthPassthrough: true,
+      models: [...models.values()].map((m) => ({
+        id: m.id,
+        wireId: m.id,
+        name: m.name,
+        contextWindow: m.contextWindow,
+        maxTokens: m.maxTokens,
+        reasoning: m.reasoning,
+        input: m.input,
+      })),
+    });
+  }
+  return out;
+}
+
 export function mergePiNativeProviderResults(
   subscriptions: PiNativeProvidersResult,
   custom: PiNativeProvidersResult,
@@ -1619,6 +1730,13 @@ export async function resolvePiNativeProviders(ctx: {
       custom.providers.push(...piCliResult.providers);
       Object.assign(custom.env, piCliResult.env);
     }
+    // pi 内置且已在用户 pi CLI 登录(~/.pi/agent/auth.json)的供应商(如 openai-codex
+    // OAuth):以 piAuthPassthrough spec 参与路由/能力判定,**不**写 models.json ——
+    // pi 对无 overlay 的内置供应商保留原生 OAuth 行为,凭证由 startSession 链入
+    // configHome 的 auth.json 提供(见 deps.resolvePiAuthOverlay)。模型清单与
+    // pi 二进制内置目录同源(readPiBundledModels 同一份缓存)。
+    const passthrough = buildPiAuthPassthroughProviders(bundledModels ?? null);
+    custom.providers.push(...passthrough);
   }
   return mergePiNativeProviderResults(
     subscriptions,
@@ -1668,6 +1786,13 @@ export function buildPiAgent(opts: BuildPiAgentOpts): PiAgent | null {
   }
   log.info('pi agent enabled', { binaryPath });
   return new PiAgent({
+    // 用户本机 pi CLI 的凭证文件:本地会话时链入隔离 configHome,让内置已登录
+    // 供应商(openai-codex OAuth 等)在 Cindy 会话里可用;远端读不到本机文件,返回 null。
+    resolvePiAuthOverlay: (remoteHostId) => {
+      if (remoteHostId) return null;
+      const authPath = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+      return existsSync(authPath) ? { authPath } : null;
+    },
     auth: desktopPiAuthAdapter,
     runtimeConfig: buildDesktopPiRuntimeConfig(),
     binaryPath,
