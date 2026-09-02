@@ -1449,7 +1449,7 @@ function ProviderDetail({
         </select>
       </div>
 
-      {/* compat —— pi 的兼容开关。 */}
+      {/* compat —— pi 的兼容开关。描述与 pws 同文案(pi-ai openai-completions 语义)。 */}
       <div className="flex flex-col gap-2">
         <label className="flex items-center gap-2 text-12 text-[var(--settings-section-sublabel)]">
           <input
@@ -1460,6 +1460,9 @@ function ProviderDetail({
           />
           {t('settings.piCliProviders.compatDeveloperRole')}
         </label>
+        <p className="-mt-1 text-11 leading-[1.5] text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.compatDeveloperRoleDesc')}
+        </p>
         <label className="flex items-center gap-2 text-12 text-[var(--settings-section-sublabel)]">
           <input
             type="checkbox"
@@ -1469,6 +1472,9 @@ function ProviderDetail({
           />
           {t('settings.piCliProviders.compatFinishReason')}
         </label>
+        <p className="-mt-1 text-11 leading-[1.5] text-[var(--settings-section-desc)]">
+          {t('settings.piCliProviders.compatFinishReasonDesc')}
+        </p>
       </div>
 
       {/* Save row */}
