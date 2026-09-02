@@ -117,12 +117,9 @@ function formatCost(cost: number): string {
 
 function EnabledModelsPanel({
   providers,
-  allowlistActive,
   onChanged,
 }: {
   providers: PiCliProvider[];
-  /** settings.enabledModels 白名单是否生效;未生效时全部模型可用,只展示说明不列行。 */
-  allowlistActive: boolean;
   onChanged: () => void;
 }) {
   const { t } = useTranslation();
@@ -149,6 +146,18 @@ function EnabledModelsPanel({
     }
   };
 
+  // pws 同款:清空整个名单(pi 对空名单/缺省同样不过滤,写空数组语义一致)。
+  const disableAll = async () => {
+    if (!api?.mutateCli || busy) return;
+    setBusy(true);
+    try {
+      await api.mutateCli({ action: 'update-enabled', change: { replaceAll: [] } });
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className={cn(CARD_CLASS, 'p-4')}>
       <div className="flex items-center justify-between gap-3">
@@ -157,16 +166,20 @@ function EnabledModelsPanel({
           <h3 className="text-13 font-semibold text-[var(--settings-section-title)]">
             {t('settings.piCliProviders.enabledModelsTitle')}
           </h3>
-          <span className={BADGE_CLASS}>{allowlistActive ? enabled.length : '—'}</span>
+          <span className={BADGE_CLASS}>{enabled.length}</span>
         </div>
+        {enabled.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void disableAll()}
+            disabled={busy}
+            className={cn(ACTION_CLASS, 'h-7 text-11')}
+          >
+            {t('settings.piCliProviders.disableAll')}
+          </button>
+        )}
       </div>
-      {!allowlistActive ? (
-        // 未配白名单 = pi 不过滤 = 全部模型可用;此时没有「部分启用」可言,
-        // 列行与停用按钮都会误导(pi 的白名单无法表达「全部停用」)。
-        <p className="mt-3 text-12 leading-relaxed text-[var(--settings-section-desc)]">
-          {t('settings.piCliProviders.allowlistOff')}
-        </p>
-      ) : enabled.length === 0 ? (
+      {enabled.length === 0 ? (
         <p className="mt-3 text-12 text-[var(--settings-section-desc)]">
           {t('settings.piCliProviders.noEnabledModels')}
         </p>
@@ -1760,11 +1773,7 @@ export function PiCliProvidersSection() {
       </div>
 
       {state === 'ready' && result?.installed && !result.error && (
-        <EnabledModelsPanel
-          providers={providers}
-          allowlistActive={result.allowlistActive}
-          onChanged={() => void load()}
-        />
+        <EnabledModelsPanel providers={providers} onChanged={() => void load()} />
       )}
 
       {state === 'loading' && (

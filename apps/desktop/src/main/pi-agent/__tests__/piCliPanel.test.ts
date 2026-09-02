@@ -50,7 +50,7 @@ describe('pi cli model projection', () => {
         maxTokens: 131_072,
         cost: { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
       },
-      null,
+      new Set(['p1/glm-5.3']),
       'p1',
     );
 
@@ -67,7 +67,7 @@ describe('pi cli model projection', () => {
 
   it('reads availability from the enabledModels allowlist, not the models.json enabled flag', () => {
     // pi 的 ModelDefinitionSchema 里没有 `enabled` —— 它读配置时直接丢弃该字段。
-    // 真正决定「能不能选到」的是 settings.json 的 enabledModels 白名单。
+    // 启用状态唯一事实源是 settings.json 的 enabledModels(pws 精确比对)。
     const refs = new Set(['p1/allowed']);
     expect(toModelView({ id: 'allowed', enabled: false }, refs, 'p1')?.enabled).toBe(true);
     expect(toModelView({ id: 'blocked', enabled: true }, refs, 'p1')?.enabled).toBe(false);
@@ -75,24 +75,28 @@ describe('pi cli model projection', () => {
     expect(toModelView({ id: 'allowed' }, refs, 'p2')?.enabled).toBe(false);
   });
 
-  it('treats an absent allowlist as "everything available"', () => {
-    // pi 在 enabledModels 为空/缺省时不做任何过滤 —— 空不等于全关。
-    expect(toModelView({ id: 'm1' }, null, 'p1')?.enabled).toBe(true);
-    expect(toModelView({ id: 'm1', enabled: false }, null, 'p1')?.enabled).toBe(true);
+  it('treats an absent/empty allowlist as everything disabled (pws display semantics)', () => {
+    // 2026-09-02 产品裁决:面板按 pi-web-switch 展示 —— 空名单 = 全部显示停用。
+    // (pi 运行时对空名单不过滤,这一差异已在台账记录。)
+    expect(toModelView({ id: 'm1' }, new Set(), 'p1')?.enabled).toBe(false);
+  });
+
+  it('matches refs case-insensitively', () => {
+    expect(toModelView({ id: 'Allowed' }, new Set(['p1/allowed']), 'p1')?.enabled).toBe(true);
   });
 
   it('falls back to the id when no display name is set', () => {
-    expect(toModelView({ id: 'gpt-5.6-sol' }, null, 'p1')?.name).toBe('gpt-5.6-sol');
+    expect(toModelView({ id: 'gpt-5.6-sol' }, new Set(), 'p1')?.name).toBe('gpt-5.6-sol');
   });
 
   it('drops entries without a usable id', () => {
-    expect(toModelView({ name: 'no id' }, null, 'p1')).toBeNull();
-    expect(toModelView({ id: '' }, null, 'p1')).toBeNull();
-    expect(toModelView('not an object', null, 'p1')).toBeNull();
+    expect(toModelView({ name: 'no id' }, new Set(), 'p1')).toBeNull();
+    expect(toModelView({ id: '' }, new Set(), 'p1')).toBeNull();
+    expect(toModelView('not an object', new Set(), 'p1')).toBeNull();
   });
 
   it('does not carry credential-shaped fields into the view', () => {
-    const model = toModelView({ id: 'm1', apiKey: 'sk-should-not-appear' }, null, 'p1');
+    const model = toModelView({ id: 'm1', apiKey: 'sk-should-not-appear' }, new Set(), 'p1');
     expect(JSON.stringify(model)).not.toContain('sk-should-not-appear');
   });
 });
@@ -615,139 +619,50 @@ describe('applyPiCliRemoveKey', () => {
 
 // ─── enabledModels 模式解析与语义化启停(以 pi model-resolver 为判据)────────
 
-describe('enabledModels pattern resolution (pi model-resolver parity)', () => {
-  const universe = [
-    { provider: 'seekai-a6', id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
-    { provider: 'seekai-a6', id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
-    { provider: 'agentrouter-a1', id: 'glm-5.3', name: 'GLM-5.3' },
-    { provider: 'agentrouter-a1', id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
-    { provider: 'b.ai', id: 'gpt-5', name: 'GPT-5' },
-  ];
-  const refs = (patterns: string[] | null): Set<string> => {
-    // resolvePanelEnabledState 不导出;直接走 resolveEnabledRefSet 的导出入口。
-    const { resolveEnabledRefSet: _fn } = __testing;
-    return _fn(patterns, universe);
-  };
 
-  it('resolves exact provider/id refs case-insensitively', () => {
-    const set = refs(['Seekai-A6/GPT-5.6-SOL']);
-    expect(set.has('seekai-a6/gpt-5.6-sol')).toBe(true);
-    expect(set.has('agentrouter-a1/gpt-5.6-sol')).toBe(false);
-  });
+// ─── enabledModels(pws 语义:精确 ref 成员关系,空名单 = 全部停用)────────
 
-  it('resolves bare ids only when unambiguous', () => {
-    // glm-5.3 全局唯一 → 命中;gpt-5.6-sol 两家都有 → 歧义,回退部分匹配择一(pi 语义)。
-    expect(refs(['glm-5.3']).has('agentrouter-a1/glm-5.3')).toBe(true);
-    const ambiguous = refs(['gpt-5.6-sol']);
-    expect(ambiguous.size).toBe(1);
-  });
-
-  it('strips thinking-level suffixes before matching', () => {
-    expect(refs(['agentrouter-a1/glm-5.3:high']).has('agentrouter-a1/glm-5.3')).toBe(true);
-  });
-
-  it('supports glob patterns across provider/id and bare id', () => {
-    const set = refs(['seekai-a6/*']);
-    expect(set.has('seekai-a6/gpt-5.6-sol')).toBe(true);
-    expect(set.has('seekai-a6/deepseek-v4-flash')).toBe(true);
-    expect(set.has('agentrouter-a1/glm-5.3')).toBe(false);
-  });
-
-  it('null patterns mean no filtering (every universe model enabled)', () => {
-    expect(refs(null).size).toBe(universe.length);
-  });
-});
-
-describe('applyPiCliUpdateEnabledModels semantic enable/disable', () => {
+describe('applyPiCliUpdateEnabledModels (pws parity)', () => {
   const { applyPiCliUpdateEnabledModels } = __testing;
-  const universe = [
-    { provider: 'a', id: 'm1' },
-    { provider: 'a', id: 'm2' },
-    { provider: 'b', id: 'm3' },
-  ];
 
-  it('enable on an absent allowlist is a no-op (already all enabled)', () => {
-    const out = applyPiCliUpdateEnabledModels({}, { enable: ['a/m1'] }, universe);
+  it('enable on an absent allowlist creates the list (others become disabled, pws semantics)', () => {
+    const out = applyPiCliUpdateEnabledModels({}, { enable: ['a/m1'] });
+    expect(out.enabledModels).toEqual(['a/m1']);
+  });
+
+  it('disable is a plain remove and is a no-op when absent', () => {
+    expect(applyPiCliUpdateEnabledModels({}, { disable: ['a/m1'] })).toEqual({});
+    expect(
+      applyPiCliUpdateEnabledModels({ enabledModels: ['a/m1', 'b/m3'] }, { disable: ['a/m1'] }),
+    ).toEqual({ enabledModels: ['b/m3'] });
+  });
+
+  it('enable is idempotent and dedupes case-sensitively like pws exact matching', () => {
+    const out = applyPiCliUpdateEnabledModels(
+      { enabledModels: ['a/m1'] },
+      { enable: ['a/m1', 'a/m2'] },
+    );
+    expect(out.enabledModels).toEqual(['a/m1', 'a/m2']);
+  });
+
+  it('an emptied allowlist deletes the key', () => {
+    const out = applyPiCliUpdateEnabledModels({ enabledModels: ['a/m1'] }, { disable: ['a/m1'] });
     expect(out.enabledModels).toBeUndefined();
   });
 
-  it('disable on an absent allowlist materializes the universe minus targets', () => {
-    // 关掉 a/m1 后,a/m2 与 b/m3 必须保持可用 —— 旧的 remove 直写在空名单态是 no-op,
-    // 用户看到的就是「按钮没反应」。
-    const out = applyPiCliUpdateEnabledModels({}, { disable: ['a/m1'] }, universe);
-    expect(out.enabledModels).toEqual(['a/m2', 'b/m3']);
+  it('replaceAll replaces the whole list', () => {
+    expect(applyPiCliUpdateEnabledModels({ enabledModels: ['a/1'] }, { replaceAll: ['b/2', 'b/2'] })).toEqual({
+      enabledModels: ['b/2'],
+    });
+    expect(applyPiCliUpdateEnabledModels({ enabledModels: ['a/1'] }, { replaceAll: [] }).enabledModels).toBeUndefined();
   });
 
-  it('disable on an absent allowlist that covers the whole universe keeps the state unchanged', () => {
-    // pi 的白名单表达不了「全不启用」(空名单 = 不过滤),保持原状而不是制造假状态。
-    const out = applyPiCliUpdateEnabledModels(
-      {},
-      { disable: ['a/m1', 'a/m2', 'b/m3'] },
-      universe,
-    );
-    expect(out.enabledModels).toBeUndefined();
-  });
-
-  it('enable on a present allowlist unions refs and collapses when covering the universe', () => {
-    const one = applyPiCliUpdateEnabledModels(
-      { enabledModels: ['a/m1'] },
-      { enable: ['a/m2'] },
-      universe,
-    );
-    expect(one.enabledModels).toEqual(['a/m1', 'a/m2']);
-    // 覆盖全部 = pi 自己的 selector 会删键(无过滤)。
-    const all = applyPiCliUpdateEnabledModels(
-      { enabledModels: ['a/m1'] },
-      { enable: ['a/m2', 'b/m3'] },
-      universe,
-    );
-    expect(all.enabledModels).toBeUndefined();
-  });
-
-  it('disable on a present allowlist drops exact refs and keeps the rest', () => {
-    const out = applyPiCliUpdateEnabledModels(
-      { enabledModels: ['a/m1', 'b/m3'] },
-      { disable: ['a/m1'] },
-      universe,
-    );
-    expect(out.enabledModels).toEqual(['b/m3']);
-  });
-
-  it('disable splits glob patterns and keeps unaffected models as exact refs', () => {
-    const out = applyPiCliUpdateEnabledModels(
-      { enabledModels: ['a/*', 'b/m3'] },
-      { disable: ['a/m1'] },
-      universe,
-    );
-    expect(out.enabledModels).toEqual(['a/m2', 'b/m3']);
-  });
-
-  it('an emptied allowlist deletes the key (empty = unfiltered in pi)', () => {
-    const out = applyPiCliUpdateEnabledModels(
-      { enabledModels: ['a/m1'] },
-      { disable: ['a/m1'] },
-      universe,
-    );
-    expect(out.enabledModels).toBeUndefined();
-  });
-
-  it('unresolvable patterns survive untouched', () => {
-    const out = applyPiCliUpdateEnabledModels(
-      { enabledModels: ['ghost/never-existed', 'a/m1'] },
-      { disable: ['a/m1'] },
-      universe,
-    );
-    expect(out.enabledModels).toEqual(['ghost/never-existed']);
-  });
-
-  it('legacy add/remove/replaceAll keep their direct-write behavior', () => {
+  it('legacy add/remove keep their direct-write behavior', () => {
     expect(applyPiCliUpdateEnabledModels({}, { add: ['a/1', 'b/2', 'a/1'] })).toEqual({
       enabledModels: ['a/1', 'b/2'],
     });
     expect(
       applyPiCliUpdateEnabledModels({ enabledModels: ['a/1', 'b/2'] }, { remove: ['a/1'] }),
     ).toEqual({ enabledModels: ['b/2'] });
-    const out = applyPiCliUpdateEnabledModels({ enabledModels: ['a/1'] }, { replaceAll: [] });
-    expect(out.enabledModels).toBeUndefined();
   });
 });

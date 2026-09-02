@@ -6303,7 +6303,6 @@ interface ElectronAPI {
       /** 本机 Pi CLI 供应商(已剥密:无 apiKey 真值,只有遮罩串与 hasApiKey)。 */
       listCliProviders: () => Promise<{
         installed: boolean;
-        allowlistActive: boolean;
         providers: Array<{
           id: string;
           name: string;

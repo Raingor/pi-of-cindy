@@ -2898,7 +2898,6 @@
       "keyAdd": "Add key",
       "keyEmpty": "This provider has no key configured yet.",
       "enabledModelsTitle": "Enabled models",
-      "allowlistOff": "No model allowlist is configured: Pi applies no filtering, so every model in models.json is available. Disable any model under a provider below and this panel will start listing the enabled ones one by one.",
       "disableAll": "Disable all",
       "noEnabledModels": "No models enabled across providers.",
       "addProviderTitle": "Add provider",

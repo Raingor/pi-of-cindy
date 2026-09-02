@@ -2931,7 +2931,6 @@
         "free": "無料"
       },
       "enabledModelsTitle": "有効なモデル",
-      "allowlistOff": "モデルの許可リストが未設定のため、Pi はフィルタリングを行わず、models.json 内のすべてのモデルが利用可能です。下のプロバイダーでいずれかのモデルを無効化すると、ここに有効なモデルが表示され始めます。",
       "disableAll": "すべて無効化",
       "noEnabledModels": "プロバイダー横断で有効なモデルはありません。",
       "addProviderTitle": "プロバイダーを追加",
