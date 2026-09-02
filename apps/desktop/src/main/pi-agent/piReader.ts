@@ -733,6 +733,18 @@ function parseFrontmatter(content: string): Record<string, unknown> {
   return result;
 }
 
+/**
+ * pws 同款（server/pi-reader.ts splitMaybe）：frontmatter 的列表字段兼容两种写法 ——
+ * YAML 流式数组 `["read","bash"]` 与逗号分隔字符串 `read, bash, web_search`。
+ * 不做这一步，`tools: read, write, bash` 会以字符串流到 Renderer，
+ * `agent.tools.map` 直接把整个设置页渲染炸掉（route-error-fallback）。
+ */
+export function splitMaybe(val: unknown): string[] | undefined {
+  if (Array.isArray(val)) return val.map(String);
+  if (typeof val === 'string' && val.trim()) return val.split(/\s*,\s*/).filter(Boolean);
+  return undefined;
+}
+
 export function listAgents(): PiAgentDef[] {
   if (!existsSync(AGENTS_DIR)) return [];
   const agents: PiAgentDef[] = [];
@@ -753,12 +765,12 @@ export function listAgents(): PiAgentDef[] {
           package: (fm.package as string) ?? 'user',
           description: (fm.description as string) ?? '',
           model: fm.model as string | undefined,
-          tools: fm.tools as string[] | undefined,
+          tools: splitMaybe(fm.tools),
           thinking: fm.thinking as string | undefined,
           systemPromptMode: fm.systemPromptMode as string | undefined,
           inheritProjectContext: fm.inheritProjectContext as boolean | undefined,
           inheritSkills: fm.inheritSkills as boolean | undefined,
-          input: fm.input as string[] | undefined,
+          input: splitMaybe(fm.input),
           body: body.slice(0, 500),
         });
       } catch {

@@ -223,7 +223,9 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
           </div>
         )}
 
-        {agent.tools && agent.tools.length > 0 && (
+        {/* Array.isArray 兜底:frontmatter 写法不受控(逗号分隔字符串等),
+            主进程 splitMaybe 已归一,这里再挡一道避免整页渲染崩溃。 */}
+        {Array.isArray(agent.tools) && agent.tools.length > 0 && (
           <div className="col-span-2">
             <span
               className="text-xs"
@@ -274,7 +276,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             className="mt-0.5 text-sm"
             style={{ color: 'var(--settings-text-primary)' }}
           >
-            {(agent.input ?? ['text']).join(', ')}
+            {(Array.isArray(agent.input) ? agent.input : ['text']).join(', ')}
           </p>
         </div>
       </div>
