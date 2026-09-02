@@ -427,11 +427,16 @@ export function registerPiAgentIpc(): void {
             disable?: string[];
           } = {};
           for (const k of ['add', 'remove', 'replaceAll', 'enable', 'disable'] as const) {
-            if (Array.isArray(change[k])) {
-              const vals = (change[k] as unknown[]).filter(
-                (x): x is string => typeof x === 'string' && x.trim().length > 0 && x.length <= 300,
-              );
-              if (vals.length > 0) clean[k] = vals.slice(0, 2000);
+            if (!Array.isArray(change[k])) continue;
+            const vals = (change[k] as unknown[]).filter(
+              (x): x is string => typeof x === 'string' && x.trim().length > 0 && x.length <= 300,
+            );
+            // replaceAll 的空数组是有意义的(顶部「全部停用」= 清空名单),不得丢掉;
+            // 其余键为空等价于无操作,不透传。
+            if (k === 'replaceAll') {
+              clean[k] = vals.slice(0, 2000);
+            } else if (vals.length > 0) {
+              clean[k] = vals.slice(0, 2000);
             }
           }
           updatePiCliEnabledModels(clean);
