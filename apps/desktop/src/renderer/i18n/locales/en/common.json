@@ -2873,6 +2873,7 @@
       "parseFailed": "Could not parse the provider config. Check your Pi CLI models.json.",
       "notInstalled": "Pi CLI not found. Install it and run it once for providers to appear here.",
       "empty": "Your local Pi CLI has no providers configured yet.",
+      "builtinProvidersNote": "Only custom providers from the Pi CLI config file (models.json) are listed here. Pi's built-in providers (e.g. OpenAI Codex or Anthropic already signed in via the Pi CLI) are managed by Pi itself and are not part of this list.",
       "railLabel": "Local providers",
       "selectHint": "Pick a provider on the left to see its details.",
       "badgeLocal": "Local Pi CLI",
@@ -3126,6 +3127,7 @@
     "piConfig": {
       "title": "Pi Config Backup",
       "description": "Export or import your Pi settings, auth tokens, and custom models. You can also reset to defaults.",
+      "credentialNote": "The exported backup contains no API keys: after importing, you will need to re-enter each provider's key. Disabled providers are included in the export.",
       "export": "Export",
       "exporting": "Exporting…",
       "import": "Import",

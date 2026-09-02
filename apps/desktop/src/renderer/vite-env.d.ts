@@ -6399,7 +6399,7 @@ interface ElectronAPI {
         change?: Record<string, unknown>;
       }) => Promise<{ success: boolean }>;
       /** 导入弹窗 adhoc 拉取:表单未保存值仅内存透传,不落盘。 */
-      fetchCliModelsAdhoc: (baseUrl: string, apiKey?: string) => Promise<{
+      fetchCliModelsAdhoc: (baseUrl: string, apiKey?: string, api?: string) => Promise<{
         models: Array<{
           id: string;
           name?: string;

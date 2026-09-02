@@ -68,16 +68,24 @@ describe('pi cli panel credential boundary', () => {
 
   it('keeps the config export free of credentials', () => {
     const reader = readSource('src/main/pi-agent/piReader.ts');
-    const start = reader.indexOf('export function exportPiConfig');
+    const start = reader.indexOf('function exportProviders');
     expect(start).toBeGreaterThan(-1);
     const body = reader.slice(start, reader.indexOf('\n}', start));
 
-    // auth.json 整份省略;models.json 逐 provider 剥掉三个凭证字段。
-    expect(body).toContain('auth: {}');
+    // models.json 逐 provider 剥掉三个凭证字段;非凭证字段原样保留。
     expect(body).toContain('apiKey: _apiKey');
     expect(body).toContain('apiKeys: _apiKeys');
     expect(body).toContain('activeKeyId: _activeKeyId');
-    expect(body).not.toContain('auth: readAuth()');
+
+    // 导出必须同时投影 providers 与 _disabledProviders —— 丢掉停用桶会让
+    // 「导出 → 导入」一个往返把用户停用的供应商连同模型静默清掉。
+    const exportStart = reader.indexOf('function buildPiConfigExport');
+    expect(exportStart).toBeGreaterThan(-1);
+    const exportBody = reader.slice(exportStart, reader.indexOf('\n}', exportStart));
+    expect(exportBody).toContain('exportProviders(models?.providers)');
+    expect(exportBody).toContain('exportProviders(models?._disabledProviders)');
+    expect(exportBody).toContain('auth: {}');
+    expect(reader).not.toContain('auth: readAuth()');
   });
 });
 
@@ -145,13 +153,13 @@ describe('pi cli package mutation contract', () => {
       expect(channels.includes(legacy), legacy).toBe(false);
     }
 
-    // 单模型探测与供应商详情同口径:主进程现读真 key,Handler 只投递结果。
+    // 单模型探测与供应商详情同口径:主进程现读真 key + wire,Handler 只投递结果。
     const panel = readSource('src/main/pi-agent/piCliPanel.ts');
     const start = panel.indexOf('export async function testPiCliModel');
     expect(start).toBeGreaterThan(-1);
     const body = panel.slice(start, panel.indexOf('\n}', start));
     expect(body).toContain('readPiCliProviderRuntimeConfig(providerId)');
-    expect(body).toContain('testModel(config.baseUrl, modelId, config.apiKey)');
+    expect(body).toContain('testModel(config.baseUrl, modelId, config.apiKey, config.api)');
   });
 
   it('key switch writes only through the providerId path and never echoes key values', () => {

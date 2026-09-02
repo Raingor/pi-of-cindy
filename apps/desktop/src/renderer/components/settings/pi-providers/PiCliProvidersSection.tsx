@@ -571,7 +571,7 @@ function ImportProviderModal({
     setFetching(true);
     setFetchErr(null);
     try {
-      const data = await api.fetchCliModelsAdhoc(baseUrl.trim(), apiKey.trim() || undefined);
+      const data = await api.fetchCliModelsAdhoc(baseUrl.trim(), apiKey.trim() || undefined, apiType);
       if (data.error) {
         setFetchErr(data.error);
       } else {
@@ -1892,6 +1892,13 @@ export function PiCliProvidersSection() {
             )}
           </div>
         </div>
+      )}
+
+      {/* R5 信息缺口:面板只投影 models.json 的自定义桶,内置供应商不列 — 底部一句话说明,避免与 pi 里看到的供应商数对不上。 */}
+      {state === 'ready' && result?.installed && (
+        <p className="px-1 text-11 leading-relaxed text-[var(--settings-section-sublabel)]">
+          {t('settings.piCliProviders.builtinProvidersNote')}
+        </p>
       )}
 
       <ImportProviderModal

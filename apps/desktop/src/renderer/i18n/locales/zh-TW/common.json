@@ -2882,6 +2882,7 @@
       "parseFailed": "供應商設定解析失敗，請檢查 Pi CLI 的 models.json。",
       "notInstalled": "未偵測到 Pi CLI，安裝並執行一次後這裡才會顯示供應商。",
       "empty": "本機 Pi CLI 還沒有設定任何供應商。",
+      "builtinProvidersNote": "此處只列出 Pi CLI 設定檔（models.json）裡的自訂供應商；Pi 內建供應商（如已在 Pi CLI 中登入的 OpenAI Codex、Anthropic）由 Pi 自己管理，不在這份名單裡。",
       "railLabel": "本機供應商",
       "selectHint": "在左側選擇一個供應商查看詳情。",
       "badgeLocal": "本機 Pi CLI",
@@ -3135,6 +3136,7 @@
     "piConfig": {
       "title": "Pi 設定備份",
       "description": "匯出或匯入 Pi 設定、認證權杖和自訂模型，也可以恢復預設值。",
+      "credentialNote": "匯出的備份不含金鑰：匯入後需要重新設定各供應商的金鑰。停用的供應商會一併匯出。",
       "export": "匯出",
       "exporting": "匯出中…",
       "import": "匯入",

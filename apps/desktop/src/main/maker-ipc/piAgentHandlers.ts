@@ -461,7 +461,9 @@ export function registerPiAgentIpc(): void {
     const payload = requireObject(raw, 'payload');
     const baseUrl = requireString(payload.baseUrl, 'baseUrl');
     const apiKey = optionalString(payload.apiKey);
-    return fetchProviderModels(baseUrl, apiKey);
+    // api 只决定探测端点与鉴权头(Ollama/Anthropic/Google),不落盘不回显。
+    const api = optionalString(payload.api);
+    return fetchProviderModels(baseUrl, apiKey, api);
   });
 
   // ── Settings ────────────────────────────────────────────────────────────

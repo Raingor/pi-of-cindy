@@ -1100,6 +1100,8 @@ export type PiCliProviderTestFailure =
 interface PiCliProviderRuntimeConfig {
   baseUrl?: string;
   apiKey?: string;
+  /** models.json 的 `api` 字段 —— 探测请求按 wire 选端点与鉴权头。 */
+  api?: string;
 }
 
 /**
@@ -1141,6 +1143,7 @@ function resolveProviderRuntimeConfigFromRaw(
       : {}),
     // models.json 的 apiKey 镜像当前生效的那把;auth.json 是 pi 自己读的凭证源。
     ...(apiKey ? { apiKey } : {}),
+    ...(typeof raw?.api === 'string' && raw.api.trim() ? { api: raw.api.trim() } : {}),
   };
 }
 
@@ -1166,7 +1169,7 @@ export async function testPiCliProviderConnection(
   const config = readPiCliProviderRuntimeConfig(providerId);
   if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
   if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
-  return testProviderConnection(config.baseUrl, config.apiKey);
+  return testProviderConnection(config.baseUrl, config.apiKey, config.api);
 }
 
 /** 供应商详情「拉取模型」:GET {baseUrl}/models 解析模型清单,真值 key 只在主进程。 */
@@ -1174,10 +1177,10 @@ export async function fetchPiCliProviderModels(providerId: string): Promise<PiFe
   const config = readPiCliProviderRuntimeConfig(providerId);
   if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
   if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
-  return fetchProviderModels(config.baseUrl, config.apiKey);
+  return fetchProviderModels(config.baseUrl, config.apiKey, config.api);
 }
 
-/** 测速面板单模型探测:POST {baseUrl}/chat/completions,真值 key 只在主进程。 */
+/** 测速面板单模型探测:按 wire 选路径与 body,真值 key 只在主进程。 */
 export async function testPiCliModel(
   providerId: string,
   modelId: string,
@@ -1185,7 +1188,7 @@ export async function testPiCliModel(
   const config = readPiCliProviderRuntimeConfig(providerId);
   if (!config) throw new Error('PI_CLI_PROVIDER_NOT_FOUND');
   if (!config.baseUrl) throw new Error('PI_CLI_PROVIDER_NO_BASEURL');
-  return testModel(config.baseUrl, modelId, config.apiKey);
+  return testModel(config.baseUrl, modelId, config.apiKey, config.api);
 }
 
 // ─── Key pool 切换（面板唯一写路径，真值不出主进程）────────────────────

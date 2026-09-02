@@ -2882,6 +2882,7 @@
       "parseFailed": "供应商配置解析失败，请检查 Pi CLI 的 models.json。",
       "notInstalled": "未检测到 Pi CLI，安装并运行一次后这里才会显示供应商。",
       "empty": "本机 Pi CLI 还没有配置任何供应商。",
+      "builtinProvidersNote": "此处只列出 Pi CLI 配置文件（models.json）里的自定义供应商；Pi 内置供应商（如已在 Pi CLI 中登录的 OpenAI Codex、Anthropic）由 Pi 自己管理，不在这份名单里。",
       "railLabel": "本机供应商",
       "selectHint": "在左侧选择一个供应商查看详情。",
       "badgeLocal": "本机 Pi CLI",
@@ -3135,6 +3136,7 @@
     "piConfig": {
       "title": "Pi 配置备份",
       "description": "导出或导入 Pi 设置、认证令牌和自定义模型，也可以恢复默认配置。",
+      "credentialNote": "导出的备份不含密钥：导入后需要重新配置各供应商的密钥。停用的供应商会一并导出。",
       "export": "导出",
       "exporting": "导出中…",
       "import": "导入",

@@ -293,8 +293,12 @@ describe('pi cli runtime providers & catalog projection (model picker source)', 
       },
       {},
     );
-    // baseUrl 会被 trim;pi-cli 投影与测试连接共用同一读取路径。
-    expect(config).toEqual({ baseUrl: 'https://agentrouter.org/v1', apiKey: 'sk-2AwW-real-key' });
+    // baseUrl 会被 trim;pi-cli 投影与测试连接共用同一读取路径(api 供探测按 wire 选端点)。
+    expect(config).toEqual({
+      baseUrl: 'https://agentrouter.org/v1',
+      apiKey: 'sk-2AwW-real-key',
+      api: 'openai-completions',
+    });
   });
 
   it('keeps the pi-cli id prefix collision-safe (hyphen, not colon)', () => {

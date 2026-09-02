@@ -7143,8 +7143,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         change?: Record<string, unknown>;
       }): Promise<{ success: boolean }> =>
         ipcRenderer.invoke('maker:pi-cli:mutate', payload),
-      // 导入弹窗 adhoc 拉取:表单未保存值仅内存透传,不落盘。
-      fetchCliModelsAdhoc: (baseUrl: string, apiKey?: string): Promise<{
+      // 导入弹窗 adhoc 拉取:表单未保存值仅内存透传,不落盘。api 仅用于选择探测端点/鉴权头。
+      fetchCliModelsAdhoc: (baseUrl: string, apiKey?: string, api?: string): Promise<{
         models: Array<{
           id: string;
           name?: string;
@@ -7156,7 +7156,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
           cost?: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
         }>;
         error?: string;
-      }> => ipcRenderer.invoke('maker:pi-cli:fetch-models-adhoc', { baseUrl, apiKey }),
+      }> => ipcRenderer.invoke('maker:pi-cli:fetch-models-adhoc', { baseUrl, apiKey, api }),
       readSettings: () => ipcRenderer.invoke('maker:pi-agent:read-settings'),
       writeSettings: (settings: unknown) =>
         ipcRenderer.invoke('maker:pi-agent:write-settings', settings),

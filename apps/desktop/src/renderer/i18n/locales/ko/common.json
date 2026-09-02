@@ -2882,6 +2882,7 @@
       "parseFailed": "제공자 설정을 해석하지 못했습니다. Pi CLI의 models.json을 확인하세요.",
       "notInstalled": "Pi CLI를 찾을 수 없습니다. 설치하고 한 번 실행하면 여기에 제공자가 표시됩니다.",
       "empty": "로컬 Pi CLI에 설정된 제공자가 아직 없습니다.",
+      "builtinProvidersNote": "여기에는 Pi CLI 설정 파일(models.json)의 사용자 정의 제공자만 표시됩니다. Pi의 내장 제공자(예: Pi CLI에서 이미 로그인한 OpenAI Codex, Anthropic)는 Pi가 직접 관리하며 이 목록에 포함되지 않습니다.",
       "railLabel": "로컬 제공자",
       "selectHint": "왼쪽에서 제공자를 선택하면 상세 정보가 표시됩니다.",
       "badgeLocal": "로컬 Pi CLI",
@@ -3135,6 +3136,7 @@
     "piConfig": {
       "title": "Pi 설정 백업",
       "description": "Pi 설정, 인증 토큰, 커스텀 모델을 내보내기하거나 가져오기할 수 있습니다. 기본값으로 초기화할 수도 있습니다.",
+      "credentialNote": "내보낸 백업에는 API 키가 포함되지 않습니다. 가져온 후 각 제공자의 키를 다시 입력해야 합니다. 비활성화된 제공자도 함께 내보내집니다.",
       "export": "내보내기",
       "exporting": "내보내는 중…",
       "import": "가져오기",

@@ -141,11 +141,14 @@ export function writeAuth(auth: Record<string, { type: string; key?: string }>):
   return writeJson('auth.json', auth);
 }
 
-export function readModelsJson(): { providers: Record<string, unknown> } | null {
+export function readModelsJson(): { providers?: Record<string, unknown>; _disabledProviders?: Record<string, unknown> } | null {
   return readJson('models.json');
 }
 
-export function writeModelsJson(models: { providers: Record<string, unknown> }): boolean {
+export function writeModelsJson(models: {
+  providers?: Record<string, unknown>;
+  _disabledProviders?: Record<string, unknown>;
+}): boolean {
   return writeJson('models.json', models);
 }
 
@@ -994,6 +997,53 @@ function toProbeUrl(baseUrl: string, path: string): URL | null {
   }
 }
 
+/**
+ * 探测请求的 wire 形态。只区分四种探测可得的行为,其余(azure / vertex / bedrock
+ * 等需要云厂商签名的 wire)回落 openai-completions —— 那类供应商本来就无法用
+ * 单把 key 直接探,pi-web-switch 的默认 apiType 也是 openai-completions。
+ */
+type ProbeWire = 'openai-completions' | 'openai-responses' | 'anthropic-messages' | 'google-generative-ai';
+
+function probeWire(api: string | undefined): ProbeWire {
+  switch (api) {
+    case 'openai-responses':
+    case 'anthropic-messages':
+    case 'google-generative-ai':
+      return api;
+    default:
+      return 'openai-completions';
+  }
+}
+
+/**
+ * Ollama 本机实例判定:loopback + 11434。Ollama 原生 API 没有 `/models`,
+ * 模型清单走 `/api/tags` —— 不分 wire,只要 host/port 命中就按 Ollama 探。
+ */
+function isOllamaEndpoint(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  const loopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  return loopback && url.port === '11434';
+}
+
+/**
+ * 按 wire 构造探测请求的鉴权形态。Anthropic 用 `x-api-key` + 版本头,
+ * Google 的 key 走 query param,其余(含 Ollama)走 Bearer —— 不认 Bearer 的端点
+ * 会忽略它,不影响探测结果。
+ */
+function applyProbeAuth(url: URL, apiKey: string | undefined, wire: ProbeWire): { url: URL; headers: Record<string, string> } {
+  const key = (apiKey ?? '').trim();
+  if (!key) return { url, headers: {} };
+  if (wire === 'google-generative-ai') {
+    const withKey = new URL(url);
+    withKey.searchParams.set('key', key);
+    return { url: withKey, headers: {} };
+  }
+  if (wire === 'anthropic-messages') {
+    return { url, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } };
+  }
+  return { url, headers: { Authorization: `Bearer ${key}` } };
+}
+
 /** 超时在 fetch 里表现为 TimeoutError,原样抛给用户是「AbortError…」,读不懂。 */
 function probeErrorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -1005,13 +1055,19 @@ function probeErrorMessage(err: unknown): string {
   return String(err);
 }
 
-export async function testProviderConnection(baseUrl: string, apiKey?: string): Promise<PiProviderTestResult> {
-  const url = toProbeUrl(baseUrl, '/models');
+export async function testProviderConnection(
+  baseUrl: string,
+  apiKey?: string,
+  api?: string,
+): Promise<PiProviderTestResult> {
+  const path = isOllamaEndpointURLOrNull(baseUrl) ? '/api/tags' : '/models';
+  const url = toProbeUrl(baseUrl, path);
   if (!url) return { success: false, message: 'invalid URL' };
   const start = Date.now();
   try {
-    const resp = await fetch(url, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    const probe = applyProbeAuth(url, apiKey, probeWire(api));
+    const resp = await fetch(probe.url, {
+      headers: probe.headers,
       signal: AbortSignal.timeout(10_000),
     });
     const latencyMs = Date.now() - start;
@@ -1027,22 +1083,31 @@ export async function testProviderConnection(baseUrl: string, apiKey?: string): 
   }
 }
 
-export async function testModel(baseUrl: string, modelId: string, apiKey?: string): Promise<PiProviderTestResult> {
-  const url = toProbeUrl(baseUrl, '/chat/completions');
-  if (!url) return { success: false, message: 'invalid URL' };
+/**
+ * Ollama 本机实例判定(baseUrl 字符串版):loopback + 11434。解析失败按非 Ollama。
+ */
+function isOllamaEndpointURLOrNull(baseUrl: string): boolean {
+  try {
+    return isOllamaEndpoint(new URL(baseUrl.trim().replace(/\/+$/, '')));
+  } catch {
+    return false;
+  }
+}
+
+export async function testModel(
+  baseUrl: string,
+  modelId: string,
+  apiKey?: string,
+  api?: string,
+): Promise<PiProviderTestResult> {
+  const wire = probeWire(api);
   const start = Date.now();
   try {
-    const resp = await fetch(url, {
+    const probe = await buildModelProbe(baseUrl, modelId, apiKey, wire);
+    const resp = await fetch(probe.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model: modelId,
-        messages: [{ role: 'user', content: 'Reply ok' }],
-        max_tokens: 4,
-      }),
+      headers: { 'Content-Type': 'application/json', ...probe.headers },
+      body: probe.body,
       signal: AbortSignal.timeout(15_000),
     });
     const latencyMs = Date.now() - start;
@@ -1051,12 +1116,97 @@ export async function testModel(baseUrl: string, modelId: string, apiKey?: strin
       return { success: false, status: resp.status, latencyMs, message: `HTTP ${resp.status}` };
     }
 
-    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: unknown };
-    const ok = data.choices?.[0]?.message?.content || data.usage;
-    return { success: !!ok, status: resp.status, latencyMs, message: ok ? undefined : 'Invalid response' };
+    const ok = await interpretModelProbe(resp, wire);
+    return { success: ok, status: resp.status, latencyMs, message: ok ? undefined : 'Invalid response' };
   } catch (err) {
     return { success: false, latencyMs: Date.now() - start, message: probeErrorMessage(err) };
   }
+}
+
+/**
+ * 按 wire 构造单模型探测请求的 URL / 头 / body。各 wire 的最小请求形状与 pi-ai
+ * 对应 api 实现同源:openai 走 /chat/completions,responses 走 /responses,
+ * anthropic 走 /messages,google 走 /models/{id}:generateContent。
+ */
+async function buildModelProbe(
+  baseUrl: string,
+  modelId: string,
+  apiKey: string | undefined,
+  wire: ProbeWire,
+): Promise<{ url: URL; headers: Record<string, string>; body: string }> {
+  if (wire === 'anthropic-messages') {
+    const url = toProbeUrl(baseUrl, '/messages');
+    if (!url) throw new Error('invalid URL');
+    const probe = applyProbeAuth(url, apiKey, wire);
+    return {
+      url: probe.url,
+      headers: probe.headers,
+      body: JSON.stringify({
+        model: modelId,
+        max_tokens: 4,
+        messages: [{ role: 'user', content: 'Reply ok' }],
+      }),
+    };
+  }
+  if (wire === 'google-generative-ai') {
+    const url = toProbeUrl(baseUrl, `/models/${encodeURIComponent(modelId)}:generateContent`);
+    if (!url) throw new Error('invalid URL');
+    const probe = applyProbeAuth(url, apiKey, wire);
+    return {
+      url: probe.url,
+      headers: probe.headers,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Reply ok' }] }],
+        generationConfig: { maxOutputTokens: 16 },
+      }),
+    };
+  }
+  if (wire === 'openai-responses') {
+    const url = toProbeUrl(baseUrl, '/responses');
+    if (!url) throw new Error('invalid URL');
+    const probe = applyProbeAuth(url, apiKey, wire);
+    return {
+      url: probe.url,
+      headers: probe.headers,
+      body: JSON.stringify({ model: modelId, input: 'Reply ok', max_output_tokens: 16 }),
+    };
+  }
+  const url = toProbeUrl(baseUrl, '/chat/completions');
+  if (!url) throw new Error('invalid URL');
+  const probe = applyProbeAuth(url, apiKey, wire);
+  return {
+    url: probe.url,
+    headers: probe.headers,
+    body: JSON.stringify({
+      model: modelId,
+      messages: [{ role: 'user', content: 'Reply ok' }],
+      max_tokens: 4,
+    }),
+  };
+}
+
+/** 各 wire 的「响应算数」判定:有内容或有用量即认成功。 */
+async function interpretModelProbe(resp: Response, wire: ProbeWire): Promise<boolean> {
+  let data: Record<string, unknown>;
+  try {
+    data = (await resp.json()) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  if (wire === 'anthropic-messages') {
+    const content = data.content;
+    return (Array.isArray(content) && content.length > 0) || !!data.usage;
+  }
+  if (wire === 'google-generative-ai') {
+    const candidates = data.candidates;
+    return (Array.isArray(candidates) && candidates.length > 0) || !!data.usageMetadata;
+  }
+  if (wire === 'openai-responses') {
+    const output = data.output;
+    return (Array.isArray(output) && output.length > 0) || !!data.usage;
+  }
+  const choices = data.choices as Array<{ message?: { content?: string } }> | undefined;
+  return !!(choices?.[0]?.message?.content || data.usage);
 }
 
 // ─── Fetched-model metadata inference ──────────────────────────────────────
@@ -1129,7 +1279,7 @@ function openRouterCost(pricing: unknown): PiFetchedModel['cost'] | undefined {
   };
 }
 
-function toFetchedModel(raw: unknown, openRouter: boolean): PiFetchedModel | null {
+function toFetchedModel(raw: unknown, openRouter: boolean, ollama = false): PiFetchedModel | null {
   if (typeof raw === 'string') {
     const id = raw.trim();
     if (!id) return null;
@@ -1177,16 +1327,24 @@ function toFetchedModel(raw: unknown, openRouter: boolean): PiFetchedModel | nul
     vision,
     audio: flags.audio,
     ...(openRouter ? { ...(openRouterCost(m.pricing) ? { cost: openRouterCost(m.pricing) } : {}) } : {}),
-    source: openRouter ? 'openrouter' : 'openai',
+    source: openRouter ? 'openrouter' : ollama ? 'ollama' : 'openai',
   };
 }
 
-export async function fetchProviderModels(baseUrl: string, apiKey?: string): Promise<PiFetchModelsResult> {
-  const url = toProbeUrl(baseUrl, '/models');
+export async function fetchProviderModels(
+  baseUrl: string,
+  apiKey?: string,
+  api?: string,
+): Promise<PiFetchModelsResult> {
+  // Ollama 本机实例没有 /models,模型清单走 /api/tags(条目是 { name },
+  // toFetchedModel 已按 name 取 id)。
+  const path = isOllamaEndpointURLOrNull(baseUrl) ? '/api/tags' : '/models';
+  const url = toProbeUrl(baseUrl, path);
   if (!url) return { models: [], error: 'invalid URL' };
   try {
-    const resp = await fetch(url, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    const probe = applyProbeAuth(url, apiKey, probeWire(api));
+    const resp = await fetch(probe.url, {
+      headers: probe.headers,
       signal: AbortSignal.timeout(10_000),
     });
 
@@ -1214,8 +1372,9 @@ export async function fetchProviderModels(baseUrl: string, apiKey?: string): Pro
         : [];
 
     const openRouter = isOpenRouterHost(url);
+    const ollama = isOllamaEndpoint(url);
     const models = rawModels
-      .map((m) => toFetchedModel(m, openRouter))
+      .map((m) => toFetchedModel(m, openRouter, ollama))
       .filter((m): m is PiFetchedModel => m !== null);
 
     return { models };
@@ -1234,25 +1393,49 @@ export async function fetchProviderModels(baseUrl: string, apiKey?: string): Pro
  * Markdown、插件面板与内置浏览器网页,是不可信环境(见
  * `docs/dev-rules/electron-security-and-process-boundaries.md`),导出的 JSON
  * 还会经用户手落盘/外传 —— 两条都不该带明文 key。
+ *
+ * `_disabledProviders` 与 `providers` 同样投影:pi 把停用的供应商整块搬进那个
+ * 键(不删除),导出丢掉它的话「导出 → 导入」一个往返就会把用户停用的供应商
+ * 连同其模型与 `activeKeyId` 一并清掉 —— 那是静默数据丢失。
  * 导入侧保持原样:用户显式提供的配置里带 key 时照写(那是他自己的输入)。
  */
 export function exportPiConfig(): PiConfig {
-  const models = readModelsJson();
-  const providers = models?.providers && typeof models.providers === 'object'
-    ? Object.fromEntries(
-        Object.entries(models.providers).map(([id, raw]) => {
-          if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [id, raw];
-          const { apiKey: _apiKey, apiKeys: _apiKeys, activeKeyId: _activeKeyId, ...rest } =
-            raw as Record<string, unknown>;
-          return [id, rest];
-        }),
-      )
-    : {};
+  return buildPiConfigExport(readModelsJson(), readSettings());
+}
+
+/**
+ * 纯函数投影:从 models.json 原文 + settings 生成导出快照。独立成纯函数便于单测
+ * (不必读写真实的 ~/.pi/agent)。
+ */
+export function buildPiConfigExport(
+  models: { providers?: Record<string, unknown>; _disabledProviders?: Record<string, unknown> } | null,
+  settings: PiSettings | null,
+): PiConfig {
+  const providers = exportProviders(models?.providers);
+  const disabledProviders = exportProviders(models?._disabledProviders);
   return {
-    settings: readSettings() ?? {},
+    settings: settings ?? {},
     auth: {},
-    modelsJson: { providers } as PiConfig['modelsJson'],
+    modelsJson: {
+      providers,
+      ...(Object.keys(disabledProviders).length > 0 ? { _disabledProviders: disabledProviders } : {}),
+    } as PiConfig['modelsJson'],
   };
+}
+
+/** 导出投影:逐 provider 剥凭证字段。非对象条目原样保留(畸形行不 silently 丢)。 */
+function exportProviders(
+  bucket: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!bucket || typeof bucket !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(bucket).map(([id, raw]) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [id, raw];
+      const { apiKey: _apiKey, apiKeys: _apiKeys, activeKeyId: _activeKeyId, ...rest } =
+        raw as Record<string, unknown>;
+      return [id, rest];
+    }),
+  );
 }
 
 export function importPiConfig(config: PiConfig): boolean {

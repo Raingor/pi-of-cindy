@@ -1,6 +1,6 @@
 # 本机 Pi 供应商：与 pi-web-switch 对齐的余项清单
 
-> 状态：2026-09-01 晚。基线提交 `6d4a2bfaf`（第一轮语义对齐已合入 main）。
+> 状态：2026-09-02 更新 —— R1–R6 已全部收口（R1/R2/R3/R4 已修复，R5 按最小方案关闭，R6 核实为已解决）。基线提交 `6d4a2bfaf`（第一轮语义对齐已合入 main）。
 > 对照对象：`pi-web-switch` 仓库 `codex/web-pi-chat` 分支
 > （`src/components/providers/ProvidersModelsPage.tsx` + `server/pi-reader.ts`）。
 > 判据以 pi 自身实现为准（pi 0.84.3，
@@ -64,24 +64,33 @@
 - **注意**：pi-web-switch 的测速结果存 localStorage（`speedtest:model-results` 等），
   Cindy 侧是否持久化属产品决策，本项不强制对齐。
 
-### R2 · 配置导出/导入往返丢 `_disabledProviders`（P0，数据丢失）
+### R2 · 配置导出/导入往返丢 `_disabledProviders`（P0，数据丢失）✅ 已修复
+
+> **状态：已修复（2026-09-02）。** `exportPiConfig` 改走纯函数 `buildPiConfigExport`，
+> `providers` 与 `_disabledProviders` 两个桶都走同一套逐 provider 剥凭证投影
+> （`exportProviders`）；`PiModelsJson` 与 `readModelsJson()` / `writeModelsJson()`
+> 的返回类型已放宽为可选 `_disabledProviders`。UI 侧在导出/导入卡片上补了一句
+> 「导出的备份不含密钥：导入后需要重新配置各供应商的密钥」（五语）。
+> 单测锁在 `piReaderProbe.test.ts`（两个桶都在、凭证全剥、空停用桶不写键、
+> 畸形行原样保留）；边界契约测试同步更新为断言两个桶都投影。
 
 - **现象**：`exportPiConfig()`（`piReader.ts:1239`）只投影 `models.providers`，
   `_disabledProviders` 整键不进快照；`importPiConfig()` 经 `writeModelsJson` **整文件
   覆盖**。用户「导出配置 → 导入配置」一个来回，所有被 pi 停用的供应商连同其模型与
   `activeKeyId` 一并消失，且没有任何提示。入口在设置页
   （`SettingsView.tsx:381` 的 `PiConfigImportExport`），是用户可达路径。
-- **要做**：`exportPiConfig` 同样投影 `_disabledProviders`（逐 provider 剥
-  `apiKey`/`apiKeys`/`activeKeyId`，与 `providers` 同一函数）；`PiConfig['modelsJson']`
-  类型加可选 `_disabledProviders`；`readModelsJson()` 的返回类型
-  （`piReader.ts:144`，当前是 `{ providers: Record<string, unknown> }`）一并放宽。
 - **附带**：导出剥掉 key 后再导入会**清空**用户已配的密钥（`writeModelsJson` 覆盖式
-  写入）。这是既有行为，不在本项范围，但应在导出/导入 UI 上写明「导出不含密钥，
-  导入后需重新配置密钥」——否则用户会以为备份是完整的。建议与 R2 同 PR 补文案。
-- **验收**：新增单测锁 `exportPiConfig` 在存在 `_disabledProviders` 时两个 bucket
-  都出现且都无凭证字段；往返后停用供应商仍在。
+  写入）。这是既有行为，本次已在导出/导入 UI 写明「导出不含密钥，导入后需重新配置密钥」。
 
-### R3 · `fetchProviderModels` 缺 Ollama 分支与非 Bearer 鉴权头（P1）
+### R3 · `fetchProviderModels` 缺 Ollama 分支与非 Bearer 鉴权头（P1）✅ 已修复
+
+> **状态：已修复（2026-09-02）。** `fetchProviderModels` / `testProviderConnection`
+> 现在按 `api` wire 选端点与鉴权：loopback+11434 一律判为 Ollama
+> （清单走 `/api/tags`，`source: 'ollama'`）；`anthropic-messages` 用
+> `x-api-key` + `anthropic-version: 2023-06-01`；`google-generative-ai` 的 key
+> 走 query param；其余 wire 维持 Bearer。adhoc 通道（`fetchCliModelsAdhoc`）
+> 已加 `api` 形参并在导入弹窗传表单所选接口协议。全部用 fetch mock 锁在
+> `piReaderProbe.test.ts`（不打真实网络）。
 
 - **现象**：本轮已补齐元数据推断与 OpenRouter 计价，但仍固定
   `GET {baseUrl}/models` + `Authorization: Bearer`。对照 pi-web-switch
@@ -91,25 +100,25 @@
   - **Anthropic** 用 `x-api-key` + `anthropic-version: 2023-06-01`，不是 Bearer
     （pws 的 `makeHeaders()`，`server/pi-reader.ts` 约 :2825）；
   - **Google** 的 key 走 query param 而非 header。
-- **影响面**：本机 `models.json` 现有 4 家都是 OpenAI 兼容端点，所以当前不暴露。
-  但 `api` 字段支持 `anthropic-messages` / `google-generative-ai`
-  （`piCliPanel.ts` 的 `toPiApi`），用户配了这类供应商时「拉取模型」会 401。
-- **要做**：`fetchProviderModels` 接受 `api` 与 `providerId`，按 wire 选端点与鉴权头。
-  签名扩展后 `fetchPiCliProviderModels` 把 `raw.api` 一并传下去
-  （`resolveProviderRuntimeConfigFromRaw` 需增回 `api` 字段）。
-- **验收**：单测覆盖三条鉴权分支的 header 构造 + Ollama 端点选择（用 fetch mock，
-  不打真实网络）。
+- **注**：`POST /api/show` 补 `contextWindow` 的可选增强未做（非必需，现有
+  启发式已给标注）。
 
-### R4 · `testModel` 硬编码 `/chat/completions`（P1）
+### R4 · `testModel` 硬编码 `/chat/completions`（P1）✅ 已修复
 
-- **现象**：`piReader.testModel()` 固定 POST `/chat/completions` 与 OpenAI 风格
-  body。pi-web-switch 的 `/api/pi/model-test` 接受 `apiType` 参数（默认
-  `openai-completions`）。`anthropic-messages` 供应商的单模型测试必然失败。
-- **要做**：与 R3 同批处理——`testModel` 接受 `api`，按 wire 选路径与 body 形状。
-- **依赖**：R1 会重建 testModel 的调用方（改走 providerId），建议 R1 → R4 顺序做，
-  避免改两遍签名。
+> **状态：已修复（2026-09-02）。** `testModel` 新增 `api` 形参，按 wire 选路径与
+> body：anthropic → `/v1/messages`，google → `/v1beta/models/{id}:generateContent`，
+> openai-responses → `/v1/responses`，其余维持 `/chat/completions`；响应判定
+> 也按 wire 分流（`interpretModelProbe`）。主进程三个探测入口
+> （`testPiCliProviderConnection` / `fetchPiCliProviderModels` / `testPiCliModel`）
+> 已把 models.json 的 `api` 传下去。单测同 `piReaderProbe.test.ts`。
 
-### R5 · 面板看不到 pi 内置供应商（P1，信息缺口）
+### R5 · 面板看不到 pi 内置供应商（P1，信息缺口）✅ 已按最小方案关闭
+
+> **状态：已按「不要」分支收口（2026-09-02）。** 面板底部新增一行说明（五语）：
+> 此处只列出 models.json 里的自定义供应商，Pi 内置供应商由 Pi 自己管理。
+> 未新增「已授权内置供应商」只读分组 —— 那需要新的 IPC 面（读 auth.json 键集 +
+> pi-ai 内置目录），与本面板「只读 + 凭证不出主进程」的口径叠加后复杂度不成比例，
+> 且 pi-web-switch 的对应页面同样不列内置供应商。若后续要做，按下面的决策点立项。
 
 - **现象**：`readPiCliProviders()` 只遍历 `models.json` 的两个 bucket。本机
   `auth.json` 里有 `opencode`、`ant-ling`（`type: api_key`）与 `openai-codex`
@@ -122,21 +131,21 @@
   5 分钟缓存），`mergeProviders` 把 `auth.json` 的登录态并进去。**但它的
   `ProvidersModelsPage` 左栏只列 `type === "custom"`**——内置供应商在那个页面上
   也是不可见的，只用于设置页的默认供应商下拉与 chat 的模型选择器。
-- **决策点（需先定再做）**：Cindy 的这个面板要不要列内置供应商？
+- **决策点（如后续要做）**：Cindy 的这个面板要不要列内置供应商？
   - 若要：新增只读的「已授权的 Pi 内置供应商」分组（读 `auth.json` 的 key 集合 +
     pi-ai 目录名），OAuth 条目只显示「已登录」不显示任何 token 派生信息；
-  - 若不要：至少在面板底部一句话说明「此处只列 `models.json` 里的自建供应商，
-    pi 内置供应商在 Pi CLI 内管理」——否则「4 家」这个数字与用户在 pi 里看到的不符。
+  - 若不要：在面板底部一句话说明（已做）。
 - **注意**：`readPiBundledModels`（`maker-host/pi-host.ts:378`）已经通过跑
   `pi` 子命令拿内置目录，但那是给 catalog 用的、带占位 key 的探测路径，语义与
   面板展示不同，不要直接复用。
 
-### R6 · 遗留文案不一致（P2）
+### R6 · 遗留文案不一致（P2）✅ 已核实为已解决
 
-- zh-TW 同一模块 tab 叫「Pi 工作階段」、面板标题叫「Pi 會話」（存量，不在
-  `check:i18n-glossary` 门禁范围）。上一轮 `PI-WORKBENCH-PROGRESS.md` 已记，仍未统一。
-- `check:i18n-glossary` 现有 4 处 `proposed` 告警（`lead` 2 / `harness` 2），
-  属术语未裁决，不阻断。
+> **状态：已核实（2026-09-02）。** 当前 zh-TW locale 里 `piSessions` 的标题/副标题
+> 均为「Pi 任務」，全 locale 无「Pi 會話 / Pi 工作階段」混用；「会话/任務」用词已与
+> `docs/product-rules/task-and-conversation-naming.md` 对齐，本项无需改动。
+> `check:i18n-glossary` 现存 4 处 `proposed` 告警（`lead` 2 / `harness` 2）
+> 属术语未裁决，不阻断，维持现状。
 
 ## 做余项时的约束
 

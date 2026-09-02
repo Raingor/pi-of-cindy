@@ -318,6 +318,11 @@ export interface PiCustomProviderConfig {
 
 export interface PiModelsJson {
   providers: Record<string, PiCustomProviderConfig>;
+  /**
+   * pi 停用供应商的存放桶(整块配置搬进来,不删除)。导出/导入必须带上,
+   * 否则「导出 → 导入」一个往返会把用户停用的供应商连同模型一并清掉。
+   */
+  _disabledProviders?: Record<string, PiCustomProviderConfig>;
 }
 
 export interface PiConfig {

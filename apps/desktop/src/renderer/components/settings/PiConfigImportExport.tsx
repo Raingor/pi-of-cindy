@@ -121,6 +121,12 @@ export function PiConfigImportExport() {
       >
         {t('settings.piConfig.description')}
       </p>
+      <p
+        className="mb-3 text-11 leading-[1.5]"
+        style={{ color: 'var(--settings-section-sublabel)' }}
+      >
+        {t('settings.piConfig.credentialNote')}
+      </p>
 
       <input
         ref={fileInputRef}

@@ -2882,6 +2882,7 @@
       "parseFailed": "プロバイダー設定を解析できませんでした。Pi CLI の models.json を確認してください。",
       "notInstalled": "Pi CLI が見つかりません。インストールして一度実行すると、ここにプロバイダーが表示されます。",
       "empty": "ローカルの Pi CLI にプロバイダーがまだ設定されていません。",
+      "builtinProvidersNote": "ここには Pi CLI の設定ファイル（models.json）内のカスタムプロバイダーのみを表示します。Pi の組み込みプロバイダー（Pi CLI でサインイン済みの OpenAI Codex、Anthropic など）は Pi 側で管理されており、この一覧には含まれません。",
       "railLabel": "ローカルのプロバイダー",
       "selectHint": "左側のプロバイダーを選ぶと詳細が表示されます。",
       "badgeLocal": "ローカル Pi CLI",
@@ -3135,6 +3136,7 @@
     "piConfig": {
       "title": "Pi 設定バックアップ",
       "description": "Pi の設定、認証トークン、カスタムモデルをエクスポート・インポートできます。デフォルトにリセットすることもできます。",
+      "credentialNote": "書き出したバックアップに API キーは含まれません。取り込んだ後、各プロバイダーのキーを再設定する必要があります。無効化したプロバイダーも書き出されます。",
       "export": "エクスポート",
       "exporting": "エクスポート中…",
       "import": "インポート",
