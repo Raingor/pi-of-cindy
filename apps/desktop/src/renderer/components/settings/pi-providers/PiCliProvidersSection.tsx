@@ -46,6 +46,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@/lib/logger';
+import { findCatalogEntry, guessModelMeta } from './modelCatalog';
 
 const log = createLogger('PiCliProvidersSection');
 
@@ -85,6 +86,17 @@ const BADGE_CLASS = cn(
 /** pws DEFAULT_CONTEXT_WINDOW / DEFAULT_MAX_TOKENS。 */
 const DEFAULT_CONTEXT_WINDOW = 262144;
 const DEFAULT_MAX_TOKENS = 32768;
+
+/**
+ * pws fallbackMaxTokens:目录与 id 启发式都不知道输出上限时的末级阶梯。
+ * 与 pws ProvidersModelsPage 逐字对齐。
+ */
+function fallbackMaxTokens(contextWindow?: number): number {
+  if (!contextWindow) return DEFAULT_MAX_TOKENS;
+  if (contextWindow >= 1_000_000) return 65_536;
+  if (contextWindow >= 200_000) return 32_768;
+  return 8192;
+}
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -974,8 +986,34 @@ function ProviderDetail({
   // 模型快捷添加 + 删除确认 + 参数编辑。
   const [quickId, setQuickId] = useState('');
   const [quickBusy, setQuickBusy] = useState(false);
+  const [quickHint, setQuickHint] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editModel, setEditModel] = useState<PiCliModel | null>(null);
+
+  // 快捷添加输入变化 → 实时识别提示(pws 同款:目录命中给出具体参数,启发式只报
+  // 「已推断」)。目录都不认得时不出提示,避免误导。
+  useEffect(() => {
+    const id = quickId.trim();
+    if (!id) {
+      setQuickHint(null);
+      return;
+    }
+    const guess = guessModelMeta(id);
+    const exact = findCatalogEntry(id);
+    if (guess.source === 'catalog' && guess.matched) {
+      setQuickHint(
+        t('settings.piCliProviders.quickAddDetectedCatalog', {
+          name: guess.matched,
+          context: formatTokens(exact?.contextWindow ?? guess.contextWindow ?? 0),
+          maxTokens: formatTokens(exact?.maxTokens ?? guess.maxTokens ?? 0),
+        }),
+      );
+    } else if (guess.source === 'heuristic') {
+      setQuickHint(t('settings.piCliProviders.quickAddDetectedHeuristic'));
+    } else {
+      setQuickHint(null);
+    }
+  }, [quickId, t]);
 
   const runTest = useCallback(async () => {
     if (!api?.testCliProvider || testState === 'testing') return;
@@ -1221,28 +1259,65 @@ function ProviderDetail({
     }
   };
 
+  // 快捷添加(pws handleQuickAdd 同款:目录/启发式自动识别参数)。两个分支:
+  //   - 已存在的 id = 元数据修复:目录认得就回填 name/能力/窗口/输出/价格
+  //     (价格保留用户已设值),并把该模型并入 enabledModels(pws 对已知 id
+  //     会顺手确保启用);
+  //   - 新 id = 带识别出的元数据落库,**不动 enabledModels**(pws "added
+  //     disabled by default"):pi 的白名单语义是「空名单 = 全开」,主动 add
+  //     会把名单物化、反而停用其它所有模型 —— 测速页的 applyPiCliAddModel
+  //     同款语义。用户在模型行自己打开开关。
   const handleQuickAdd = async () => {
     const id = quickId.trim();
     if (!api?.mutateCli || !id || quickBusy) return;
     setQuickBusy(true);
     try {
+      const match = findCatalogEntry(id);
+      const guess = guessModelMeta(id);
+      const existing = provider.models.find((m) => m.id === id);
+      if (existing) {
+        if (match) {
+          await api.mutateCli({
+            action: 'upsert-model',
+            providerId: provider.id,
+            model: {
+              id,
+              name: match.name ?? existing.name,
+              reasoning: match.reasoning ?? existing.reasoning,
+              input: match.input ?? existing.input,
+              contextWindow: match.contextWindow,
+              maxTokens: match.maxTokens,
+              // 价格保留用户已设值(目录价只是免费默认,pws 同款 `existing.cost ?? match.cost`)。
+              cost: existing.cost ?? match.cost,
+            },
+          });
+        }
+        await api.mutateCli({
+          action: 'update-enabled',
+          change: { add: [`${provider.id}/${id}`] },
+        });
+        setQuickId('');
+        setQuickHint(null);
+        await onReload();
+        return;
+      }
+      const cw = match?.contextWindow ?? guess.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
+      const mt = match?.maxTokens ?? guess.maxTokens ?? fallbackMaxTokens(cw);
       await api.mutateCli({
         action: 'upsert-model',
         providerId: provider.id,
         model: {
           id,
-          name: id.split('/').pop() || id,
-          contextWindow: DEFAULT_CONTEXT_WINDOW,
-          maxTokens: DEFAULT_MAX_TOKENS,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          name: match?.name,
+          reasoning: guess.reasoning ?? false,
+          input: guess.input ?? ['text'],
+          contextWindow: cw,
+          maxTokens: mt,
+          cost: match?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         },
       });
-      // 快捷添加的模型默认启用(pws 语义)。
-      await api.mutateCli({
-        action: 'update-enabled',
-        change: { add: [`${provider.id}/${id}`] },
-      });
       setQuickId('');
+      setQuickHint(null);
       await onReload();
     } catch (err) {
       log.warn('quick add failed', { error: err instanceof Error ? err.message : String(err) });
@@ -1777,7 +1852,7 @@ function ProviderDetail({
           </div>
         </div>
 
-        {/* 快捷添加(pws quick add 简版:id → 默认元数据 + 默认启用)。 */}
+        {/* 快捷添加(pws quick add:目录/启发式自动识别参数)。 */}
         <div className="mt-2 flex items-center gap-2">
           <input
             type="text"
@@ -1786,7 +1861,7 @@ function ProviderDetail({
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleQuickAdd();
             }}
-            placeholder="vendor/model-id"
+            placeholder={t('settings.piCliProviders.quickAddPlaceholder')}
             className={cn(INPUT_CLASS, 'min-w-0 flex-1 font-mono')}
           />
           <button
@@ -1799,6 +1874,9 @@ function ProviderDetail({
             {t('settings.piCliProviders.modelAdd')}
           </button>
         </div>
+        {quickHint && (
+          <p className="mt-1.5 text-11 text-[var(--settings-section-desc)]">{quickHint}</p>
+        )}
 
         {provider.models.length === 0 ? (
           <p className="mt-1.5 text-11 text-[var(--settings-section-desc)]">
