@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -95,16 +96,39 @@ const simulatorKitBinary = path.join(
 );
 
 async function inspectSimulatorKitArchitectures() {
-  const { stdout } = await execFileAsync(
-    "xcrun",
-    ["lipo", "-archs", simulatorKitBinary],
-    { maxBuffer: 1024 * 1024 },
-  );
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync(
+      "xcrun",
+      ["lipo", "-archs", simulatorKitBinary],
+      { maxBuffer: 1024 * 1024 },
+    ));
+  } catch (error) {
+    // CLT-only 机器(developer dir 是 CommandLineTools,无完整 Xcode)根本没有
+    // SimulatorKit.framework。这与「SimulatorKit 在但缺目标切片」对策略层是同一种
+    // 输入:返回空列表,让 decideNativeSidecarBuild 走既有的 x86_64 helper
+    // unsupported 回退(应用降级 WDA/MJPEG);arm64 / raw / universal 的
+    // fail-closed 抛错语义不变。不在这里抛错的原因:那会让 x64 包在
+    // CLT-only 机器上也打不出来,违背策略层已定义的回退意图。
+    if (await fileExists(simulatorKitBinary)) {
+      throw error;
+    }
+    return [];
+  }
   const architectures = parseMachOArchitectures(stdout);
   if (architectures.length === 0) {
     throw new Error("SimulatorKit architecture inspection returned no slices");
   }
   return architectures;
+}
+
+async function fileExists(target) {
+  try {
+    await stat(target);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function writeHelperBuildResult(result) {
