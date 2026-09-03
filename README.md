@@ -122,6 +122,61 @@ developers don't need to self-host a server: sign in with your own Cindy
 account in a dev build and develop / test directly against the official
 servers.
 
+## Local packaging & usage (this fork: pi-only rework)
+
+This repository is a **pi-only rework** of the Cindy client: Cindy's own
+harness entries are hidden and the desktop is a workbench for the local
+[pi](https://github.com/earendil-works/pi) CLI (Pi providers, Pi
+dashboard / sessions / memory / subagents, local session import). It shares
+`~/.pi/agent` with the local pi CLI (`models.json` / `sessions/` / packages),
+so sessions imported from the CLI can be continued in the app.
+
+### Packaging
+
+```bash
+# Intel mac (x64 only without a full Xcode; arm64 builds need SimulatorKit from Xcode)
+pnpm release:package -- --region global --no-sign --arch x64
+```
+
+Prerequisites: macOS + Command Line Tools with a working `swiftc`
+(`swiftc -c /tmp/t.swift -o /tmp/t.o` must not error; on SDK/compiler version
+mismatch, reinstall CLT via `sudo softwareupdate --install "Command Line Tools
+for Xcode 26.x"`). No Apple developer certificate needed: `--no-sign` produces
+an ad-hoc signed build for local use.
+
+Artifacts land in `apps/desktop/release/artifacts/global/unversioned/darwin-x64/`:
+
+| File | Purpose |
+| --- | --- |
+| `cindy-unversioned-x64.zip` | ad-hoc signed `Cindy.app` archive, unzip and run |
+| `build-info.json` | build metadata (commit, file sha256) for publishing |
+
+The versionless build (placeholder 0.0.0) **opts out of official auto-update**;
+a release with hot updates requires `--version x.y.z` plus signing and
+log-upload configuration — see the header of
+`apps/desktop/scripts/package-desktop.mjs`.
+
+### Install & use
+
+1. Unzip `cindy-unversioned-x64.zip` and drag `Cindy.app` into Applications.
+2. First launch may be blocked by Gatekeeper (ad-hoc signature): right-click
+   `Cindy.app` → Open → confirm.
+3. Data stays separate from dev builds: packaged app uses
+   `~/Library/Application Support/CindyGlobal`, the dev sandbox uses
+   `CindyGlobal-dev2-dev`.
+4. Configure local Pi providers under Settings → Providers; the app shares
+   `~/.pi/agent/models.json` with the pi CLI.
+
+### Publishing a tag
+
+```bash
+git tag v0.84.3-pi.1 && git push origin v0.84.3-pi.1
+```
+
+Tag names follow `v<pi-version>-pi.<n>` (e.g. `v0.84.3-pi.1`) and mark the
+source revision; installer artifacts are not committed — upload them to a
+GitHub Release as needed.
+
 ## Architecture
 
 - [`DESIGN.md`](DESIGN.md) — visual design system, color tokens, and UI conventions

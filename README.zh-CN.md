@@ -113,6 +113,55 @@ agent；进入后应用内的账号状态显示为「未登录」。依赖服务
 同样来自官方 CDN）。这是有意的设计——外部开发者不需要自建服务端，用 dev
 构建登录自己的 Cindy 账号即可直接对着官方服务器开发和测试。
 
+## 本地打包与使用（本 fork：pi-only 改造分支）
+
+本仓库是 Cindy 客户端的 **pi-only 改造分支**：Cindy 自有 harness 入口已隐藏，
+桌面端以本机 [pi](https://github.com/earendil-works/pi) CLI 为唯一工作台
+（Pi 供应商、Pi 仪表盘 / 任务 / 记忆 / Subagents、本地任务导入等），并与本机
+pi CLI 共用 `~/.pi/agent` 配置（`models.json` / `sessions/` / 扩展包），导入的
+pi CLI 会话可直接继续对话。
+
+### 打包
+
+```bash
+# Intel mac（无完整 Xcode 时必须限定 x64；arm64 包需要完整 Xcode 的 SimulatorKit）
+pnpm release:package -- --region global --no-sign --arch x64
+```
+
+前置要求：macOS + Command Line Tools，且 `swiftc` 可用
+（`swiftc -c /tmp/t.swift -o /tmp/t.o` 不报错；若报 SDK / 编译器版本错配，
+用 `sudo softwareupdate --install "Command Line Tools for Xcode 26.x"` 重装
+CLT）。无 Apple 开发者证书也能打：`--no-sign` 产 ad-hoc 签名包，仅本机使用。
+
+产物在 `apps/desktop/release/artifacts/global/unversioned/darwin-x64/`：
+
+| 文件 | 说明 |
+| --- | --- |
+| `cindy-unversioned-x64.zip` | ad-hoc 签名的 `Cindy.app` 压缩包，解压即用 |
+| `build-info.json` | 构建信息（commit、文件 sha256），发布侧输入 |
+
+版本无关包（占位版本 0.0.0）**不参与官方热更新**，适合本机 / 归档；
+要打参与热更新的正式版本需 `--version x.y.z` + 签名 / log-upload 配置，
+见 `apps/desktop/scripts/package-desktop.mjs` 头注。
+
+### 安装与使用
+
+1. 解压 `cindy-unversioned-x64.zip`，把 `Cindy.app` 拖入「应用程序」。
+2. 首次打开若被 Gatekeeper 拦（ad-hoc 签名）：右键 `Cindy.app` →「打开」→ 确认。
+3. 与开发版数据互不干扰：正式包用 `~/Library/Application Support/CindyGlobal`，
+   dev 沙箱用 `CindyGlobal-dev2-dev`，各自独立登录态与本地数据库。
+4. 应用内「设置 → 模型供应商」配置本机 Pi 供应商；与本机 pi CLI 共享
+   `~/.pi/agent/models.json`，两边改的另一边能看到。
+
+### 发布 tag
+
+```bash
+git tag v0.84.3-pi.1 && git push origin v0.84.3-pi.1
+```
+
+tag 名约定 `v<pi底座版本>-pi.<序号>`（如 `v0.84.3-pi.1`），标记源码版本；
+安装包产物不进 git，按需上传到 GitHub Release。
+
 ## 架构
 
 - [`DESIGN.md`](DESIGN.md) —— 视觉设计系统、颜色 token 与 UI 规范
