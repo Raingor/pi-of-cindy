@@ -3,8 +3,9 @@
  *
  * Used by SettingsView (sidebar labels) and HelpThreadView ("Open X tab" button label).
  *
- * `ghosts` is a real Settings tab that embeds the same plugin catalog as `/plugins`.
- * Legacy `api-keys` / `connections` ids stay on the type for old deep links.
+ * Retired ids (`ghosts` / `agent-island` / `help` / `about` / `api-keys` / `connections` …)
+ * stay on the type + TAB_LABEL_KEY so old deep links keep resolving to a label; only
+ * TAB_IDS decides what is visible and routable.
  */
 
 export type SettingsTab =
@@ -57,17 +58,18 @@ export const TAB_IDS = [
   // 「语音输入」(voice-input)与「IM 机器人」(im-bot)同样下架:两者都依赖
   // Cindy 云端语音/机器人服务,不属于本机 Pi 工作台范围。
   'shortcuts',
-  'agent-island',
   'import',
   // 「第三方平台」(connections)已于 2026-07-15 下架:Slack 官方 MCP 随 cindy-slack
   // 意识化收尾(Google/Jira/GitHub/GitLab 此前已迁意识)。id 仍留在 SettingsTab
   // 类型与 TAB_LABEL_KEY 保留,供旧深链重定向到插件分区。
   'remote-control',
-  'ghosts',
   'builtin-tools',
   'computer-use',
-  'help',
-  'about',
+  // 2026-09-03 用户指令:「灵动岛」「插件」「帮助」「关于」四项从设置下架。
+  //   - agent-island:mac 灵动岛服务与原生 host 保留,只是没有设置入口;
+  //   - ghosts:插件目录在主侧栏「插件」(/plugins)已有常驻入口,设置内嵌是重复入口;
+  //   - help / about:Cindy 自有的上手指引与关于页,不属于本机 Pi 工作台。
+  // 四个 id 仍留在 SettingsTab 类型与 TAB_LABEL_KEY 中,供旧深链回落到通用页。
 ] as const satisfies ReadonlyArray<SettingsTab>;
 
 export type VisibleSettingsTab = (typeof TAB_IDS)[number];

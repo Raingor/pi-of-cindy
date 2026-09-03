@@ -2723,11 +2723,7 @@ function installApplicationMenu(
     {
       label: BRAND_NAME,
       submenu: [
-        {
-          label: labels.about.replace('{{appName}}', BRAND_NAME),
-          click: () => dispatchApplicationMenuCommand(mainWindow, 'open-about'),
-        },
-        { type: 'separator' },
+        // 「关于」设置分区已下架(2026-09-03 用户指令),菜单项没有承载页面,一并移除。
         {
           label: labels.settings,
           accelerator: menuAcceleratorFor('open-settings'),
@@ -2799,10 +2795,7 @@ function installApplicationMenu(
     {
       label: labels.helpMenu,
       submenu: [
-        {
-          label: labels.help,
-          click: () => dispatchApplicationMenuCommand(mainWindow, 'open-help'),
-        },
+        // 「帮助」设置分区已下架,菜单只保留仍有去处的项(发布说明 / 问题反馈 / 安装 CLI)。
         {
           label: labels.releaseNotes,
           click: () => dispatchApplicationMenuCommand(mainWindow, 'open-release-notes'),

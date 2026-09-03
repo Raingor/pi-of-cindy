@@ -76,15 +76,7 @@ export function MenuButton({ onExitFullscreen }: { onExitFullscreen?: () => void
         >
           {t('titleBar.menuItems.resourceUsage')}
         </DropdownMenuItem>
-        <DropdownMenuItem
-          className="focus:bg-titlebar-button-hover"
-          onSelect={() => {
-            log.info('Help clicked');
-            navigate('/settings?tab=help');
-          }}
-        >
-          {t('titleBar.menuItems.help')}
-        </DropdownMenuItem>
+        {/* 「帮助」项已随「帮助」设置分区下架(2026-09-03 用户指令):点了没有去处。 */}
         {/* Issue 页入口:与 macOS 系统菜单「帮助 → 问题反馈」等价,但此处常驻应用内左上角
             菜单,Windows / Linux(无系统菜单)也能访问 —— 否则非 mac 平台无可见入口。
             navigate('/issues') 与 MainLayout 的 'open-issues' 系统菜单命令同一行为。

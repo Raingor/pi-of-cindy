@@ -32,10 +32,23 @@ describe('Settings tab order', () => {
     expect(isSettingsTab('pi-extensions')).toBe(false);
   });
 
-  it('places Plugins immediately before builtin tools', () => {
+  // 2026-09-03 用户指令:灵动岛 / 插件 / 帮助 / 关于 四项从设置下架。
+  // 插件目录仍在主侧栏 /plugins;灵动岛服务与后端模块全部保留,只是没有设置入口。
+  it('drops the retired island / plugins / help / about tabs from the routable set', () => {
+    for (const retired of ['agent-island', 'ghosts', 'help', 'about'] as const) {
+      expect(TAB_IDS as readonly string[]).not.toContain(retired);
+      expect(isSettingsTab(retired)).toBe(false);
+    }
+  });
+
+  it('keeps builtin tools between remote control and computer use', () => {
     const toolsIndex = TAB_IDS.indexOf('builtin-tools');
 
-    expect(TAB_IDS.slice(toolsIndex - 1, toolsIndex + 1)).toEqual(['ghosts', 'builtin-tools']);
+    expect(TAB_IDS.slice(toolsIndex - 1, toolsIndex + 2)).toEqual([
+      'remote-control',
+      'builtin-tools',
+      'computer-use',
+    ]);
   });
 
   // 计费、用量历史、语音输入与 IM 机器人已从可路由 tab 下架:本分支只跑本机 Pi

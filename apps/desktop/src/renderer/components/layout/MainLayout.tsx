@@ -1028,17 +1028,16 @@ export function MainLayout() {
     return window.electronAPI.onApplicationMenuCommand((command) => {
       if (isAppInteractionLocked()) return;
       switch (command) {
-        case 'open-about':
-          navigate('/settings?tab=about');
-          break;
         case 'open-settings':
           if (currentPathRef.current !== '/settings') {
             navigate('/settings');
           }
           break;
         case 'open-agent-island-settings':
-          if (isMac) {
-            navigate('/settings?tab=agent-island');
+          // 「灵动岛」设置分区已下架(灵动岛服务与原生 host 保留)。原生灵动岛上的
+          // 齿轮仍应有去处 —— 降级为打开设置首页,而不是跳一个不存在的分区。
+          if (isMac && currentPathRef.current !== '/settings') {
+            navigate('/settings');
           }
           break;
         case 'check-for-updates':
@@ -1046,10 +1045,6 @@ export function MainLayout() {
           break;
         case 'open-release-notes':
           openNotice();
-          break;
-        case 'open-help':
-          applicationMenuLog.info('Help clicked');
-          navigate('/settings?tab=help&openPanel=help');
           break;
         case 'open-issues':
           navigate('/issues');

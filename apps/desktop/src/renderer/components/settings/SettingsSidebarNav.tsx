@@ -1,20 +1,17 @@
-import type { ComponentType, ReactElement } from 'react';
+import type { ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LucideProps } from 'lucide-react';
 import {
   Activity,
   Boxes,
   Brain,
-  CircleHelp,
   FileUp,
   Gauge,
-  Info,
   Keyboard,
   MessageSquare,
   MonitorCog,
   MonitorSmartphone,
   Package,
-  Plug,
   Settings2,
   Sparkles,
   Users,
@@ -30,33 +27,6 @@ const NAV_ITEM_IDLE_CLASS =
 const NAV_ITEM_ACTIVE_CLASS =
   'border border-[var(--sidebar-item-active-border)] bg-sidebar-item-active font-medium text-[var(--sidebar-item-active-foreground)]';
 
-/** Screen + top capsule: the Dynamic Island silhouette, not a generic window. */
-function AgentIslandNavIcon({
-  size = 15,
-  strokeWidth = 1.8,
-  className,
-  ...props
-}: LucideProps): ReactElement {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      {...props}
-    >
-      <rect x="4.5" y="4.5" width="15" height="15" rx="3.75" />
-      <rect x="7" y="6.25" width="10" height="3.6" rx="1.8" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 type SettingsNavIcon = ComponentType<LucideProps>;
 
 const TAB_ICON: Record<VisibleSettingsTab, SettingsNavIcon> = {
@@ -64,10 +34,8 @@ const TAB_ICON: Record<VisibleSettingsTab, SettingsNavIcon> = {
   personalization: Sparkles,
   providers: Boxes,
   shortcuts: Keyboard,
-  'agent-island': AgentIslandNavIcon,
   import: FileUp,
   'remote-control': MonitorSmartphone,
-  ghosts: Plug,
   'builtin-tools': Wrench,
   'computer-use': MonitorCog,
   'pi-dashboard': Activity,
@@ -76,8 +44,6 @@ const TAB_ICON: Record<VisibleSettingsTab, SettingsNavIcon> = {
   'pi-subagents': Users,
   'pi-speedtest': Gauge,
   'pi-packages': Package,
-  help: CircleHelp,
-  about: Info,
 };
 
 interface SettingsSidebarNavProps {

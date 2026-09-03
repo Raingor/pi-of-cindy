@@ -72,7 +72,7 @@ describe('GhostMainViewNavEntries', () => {
     const manageAlphaButton = screen.getByRole('button', { name: 'Manage Alpha Plugin' });
     expect(manageAlphaButton.querySelector('.lucide-sliders-horizontal')).toBeTruthy();
     fireEvent.click(manageAlphaButton);
-    expect(screen.getByTestId('location').textContent).toBe('/settings?tab=ghosts&ghost=alpha');
+    expect(screen.getByTestId('location').textContent).toBe('/plugins?ghost=alpha');
   });
 
   it('uses the native 18px rail icon geometry without a fallback tile', () => {

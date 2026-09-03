@@ -35,13 +35,25 @@ describe('SettingsSidebarNav', () => {
   });
 
   // Pi-first 改造下架的入口(后端保留),侧栏不再渲染。计费(billing)与
-  // 工具密钥(api-keys)、第三方平台(connections)同批下架;task-import/
-  // plugins(ghosts)/builtin-tools 于 09-01 重新上栏,已从本清单移除。
-  it('does not render the retired Usage / Voice Input / IM Bot / Billing / Import entries', () => {
+  // 工具密钥(api-keys)、第三方平台(connections)同批下架;task-import 于 09-01
+  // 重新上栏,已从本清单移除。灵动岛(agent-island)、插件(ghosts)、帮助
+  // (help)、关于(about)于 09-03 按用户指令下架。
+  it('does not render the retired Usage / Voice Input / IM Bot / Billing / Island / Plugins / Help / About entries', () => {
     render(<SettingsSidebarNav tabIds={TAB_IDS} activeTab="general" onSelectTab={vi.fn()} />);
 
     const tabIds = screen.getAllByRole('tab').map((tab) => tab.id);
-    for (const retired of ['usage', 'voice-input', 'im-bot', 'billing', 'api-keys', 'connections']) {
+    for (const retired of [
+      'usage',
+      'voice-input',
+      'im-bot',
+      'billing',
+      'api-keys',
+      'connections',
+      'agent-island',
+      'ghosts',
+      'help',
+      'about',
+    ]) {
       expect(tabIds).not.toContain(`settings-tab-${retired}`);
     }
   });

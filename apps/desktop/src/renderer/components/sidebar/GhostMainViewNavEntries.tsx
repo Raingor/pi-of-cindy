@@ -61,7 +61,9 @@ export function GhostMainViewNavEntries({ variant }: { variant: 'row' | 'rail' }
     );
     const open = () => navigate(`/apps/${encodeURIComponent(item.ghostId)}`);
     const openDetails = () =>
-      navigate(`/settings?tab=ghosts&ghost=${encodeURIComponent(item.ghostId)}`);
+      // 设置内的「插件」分区已下架(2026-09-03 用户指令),插件详情走主侧栏的
+      // /plugins?ghost=<id> 深链 —— GhostPluginPage 读后即清参数,语义与旧入口一致。
+      navigate(`/plugins?ghost=${encodeURIComponent(item.ghostId)}`);
 
     if (variant === 'rail') {
       return (

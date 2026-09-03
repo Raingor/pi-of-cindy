@@ -12,11 +12,11 @@
  * 新增命令时只改这里一处, 三端的类型与运行时校验自动跟随。
  */
 export const APPLICATION_MENU_COMMANDS = [
-  'open-about',
+  // 'open-about' / 'open-help' 已随「关于」「帮助」设置分区下架(2026-09-03):
+  // 原生菜单不再有对应项,renderer 也没有承载页面,故从白名单移除。
   'open-settings',
   'check-for-updates',
   'open-release-notes',
-  'open-help',
   'open-issues',
   'open-agent-island-settings',
   'toggle-agent-island-sound',

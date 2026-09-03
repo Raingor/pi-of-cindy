@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSyncExternalStore } from 'react';
 import { ArrowLeft, ChevronRight, Puzzle } from 'lucide-react';
@@ -17,10 +17,8 @@ import { NotificationSection } from './NotificationSection';
 import { WindowBehaviorSection } from './WindowBehaviorSection';
 import { ComposerSendShortcutSection } from './ComposerSendShortcutSection';
 import { KeyboardShortcutsSection } from './KeyboardShortcutsSection';
-import { AgentIslandSection } from './AgentIslandSection';
 import { LanguageSection } from './LanguageSection';
 import { LogoutSection } from './LogoutSection';
-import { AboutSection } from './AboutSection';
 import { CompactionSection } from './CompactionSection';
 import { TerminalShellSection } from './TerminalShellSection';
 import { LinkOpenSection } from './LinkOpenSection';
@@ -29,8 +27,6 @@ import { TipsSection } from './TipsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { GitSafetySection } from './GitSafetySection';
 import { SessionImportSection } from './SessionImportSection';
-import { HelpSection } from './HelpSection';
-import { HelpAssistantPanel } from './HelpAssistantPanel';
 import { AgentResourceSection } from './AgentResourceSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { PiCliProvidersSection } from './pi-providers/PiCliProvidersSection';
@@ -45,7 +41,6 @@ import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
 import { ComputerUseSection } from './ComputerUseSection';
 import { useAuth } from '@/contexts/AuthContext';
-import { SettingsCatalogPanel } from './SettingsCatalogPanel';
 import { getLastWorkingDir, subscribeToLastWorkingDir } from '@/state/lastWorkingDir';
 
 const DEFAULT_SETTINGS_MENU_WIDTH = 260;
@@ -61,15 +56,12 @@ export function SettingsView() {
   const { t } = useTranslation();
   const { mode, dataOwnerId } = useAuth();
   const menuWidth = outletContext?.sidebarWidth ?? DEFAULT_SETTINGS_MENU_WIDTH;
-  const isMac = window.electronAPI?.platform === 'darwin';
-  const [helpAssistantOpen, setHelpAssistantOpen] = useState(false);
   const workingDir = useSyncExternalStore(
     subscribeToLastWorkingDir,
     getLastWorkingDir,
     getLastWorkingDir,
   );
   const rawTab = searchParams.get('tab');
-  const shouldRedirectLegacyPluginTabs = rawTab === 'api-keys' || rawTab === 'connections';
 
   const activeTab = useMemo<SettingsTab>(() => {
     const raw = rawTab;
@@ -82,9 +74,10 @@ export function SettingsView() {
     if (raw === 'billing' || raw === 'usage' || raw === 'voice-input' || raw === 'im-bot') {
       return 'general';
     }
-    if (raw === 'agent-island' && !isMac) return 'general';
+    // 2026-09-03 下架:灵动岛 / 插件 / 帮助 / 关于。四者的旧深链一律回落通用页
+    // (isSettingsTab 已不认这些 id,这里只是把意图写明)。
     return isSettingsTab(raw) ? raw : 'general';
-  }, [isMac, rawTab]);
+  }, [rawTab]);
   const piExtensionsPanelOpen =
     activeTab === 'general' &&
     (rawTab === 'pi-extensions' || searchParams.get('openPanel') === 'pi-extensions');
@@ -98,7 +91,13 @@ export function SettingsView() {
       rawTab !== 'im-bot' &&
       rawTab !== 'feishu-bot' &&
       rawTab !== 'slack-bot' &&
-      rawTab !== 'tina'
+      rawTab !== 'tina' &&
+      rawTab !== 'agent-island' &&
+      rawTab !== 'ghosts' &&
+      rawTab !== 'api-keys' &&
+      rawTab !== 'connections' &&
+      rawTab !== 'help' &&
+      rawTab !== 'about'
     ) {
       return;
     }
@@ -106,6 +105,8 @@ export function SettingsView() {
     next.delete('tab');
     next.delete('intent');
     next.delete('imGroup');
+    // 插件深链会带 ?ghost=<id>;tab 作废后它也不该留在 URL 上被别的分区误消费。
+    next.delete('ghost');
     setSearchParams(next, { replace: true });
   }, [rawTab, searchParams, setSearchParams]);
 
@@ -155,21 +156,15 @@ export function SettingsView() {
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
-    if (activeTab !== 'help') {
-      setHelpAssistantOpen(false);
-      return;
-    }
+    if (activeTab === 'general') return;
+    // 「帮助」分区下架后 ?openPanel=help 不再有承载面板,留着会在切分区时反复触发。
     if (searchParams.get('openPanel') !== 'help') return;
-    setHelpAssistantOpen(true);
     const next = new URLSearchParams(searchParams);
     next.delete('openPanel');
     setSearchParams(next, { replace: true });
   }, [activeTab, searchParams, setSearchParams]);
 
-  const visibleTabIds = useMemo(
-    () => TAB_IDS.filter((tabId) => isMac || tabId !== 'agent-island'),
-    [isMac],
-  );
+  const visibleTabIds = useMemo(() => TAB_IDS, []);
 
   // deep-link: ?section=... → scroll to a section inside the active tab.
   useEffect(() => {
@@ -187,11 +182,8 @@ export function SettingsView() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [searchParams]);
 
-  // 旧「工具密钥」「第三方平台」深链落到设置里的插件分区,不再离开设置。
-  if (shouldRedirectLegacyPluginTabs) {
-    return <Navigate to="/settings?tab=ghosts" replace />;
-  }
-
+  // 旧「工具密钥」「第三方平台」深链已随插件分区下架:上面的 activeTab 回落 +
+  // URL 清理会把它们收到通用页,不再单独 Navigate。
   return (
     <div
       className="h-full w-full overflow-hidden bg-[var(--settings-bg)]"
@@ -232,8 +224,8 @@ export function SettingsView() {
         </aside>
 
         {/* Content column — capped and centered in the remaining space.
-            Most tabs scroll as a page; Session Import and Plugins use a fixed-height
-            workspace so only their inner lists scroll.
+            Most tabs scroll as a page; Session Import uses a fixed-height
+            workspace so only its inner lists scroll.
             right padding mirrors sidebar's 24px left inset.
             右侧贴 46px 标题栏起排，不跟随左侧页头高度下移。
             scrollbar-gutter:stable —— 所有分区都预留同一滚动条槽位；即使
@@ -242,9 +234,7 @@ export function SettingsView() {
           ref={contentScrollRef}
           className={cn(
             'flex h-full min-h-0 min-w-0 flex-1 flex-col pl-4 pr-6 [scrollbar-gutter:stable]',
-            activeTab === 'import' || activeTab === 'ghosts'
-              ? 'overflow-hidden'
-              : 'overflow-y-auto',
+            activeTab === 'import' ? 'overflow-hidden' : 'overflow-y-auto',
           )}
         >
           {/* key={activeTab}:切分区时 wrapper 重挂跑 150ms 淡入(面板内容本就
@@ -253,8 +243,7 @@ export function SettingsView() {
             key={`${activeTab}:${piExtensionsPanelOpen ? 'pi-extensions' : 'root'}`}
             className={cn(
               'mx-auto w-full min-w-0 max-w-[920px] px-1 animate-fade-in',
-              activeTab === 'import' || activeTab === 'ghosts' ? 'h-full min-h-0' : 'pb-32',
-              activeTab === 'ghosts' && 'max-w-none px-0',
+              activeTab === 'import' ? 'h-full min-h-0' : 'pb-32',
             )}
           >
             {activeTab === 'general' && (
@@ -461,17 +450,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {activeTab === 'ghosts' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-ghosts"
-                aria-labelledby="settings-tab-ghosts"
-                className="h-full min-h-0"
-              >
-                <SettingsCatalogPanel />
-              </div>
-            )}
-
             {activeTab === 'builtin-tools' && (
               <div
                 role="tabpanel"
@@ -500,18 +478,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {isMac && activeTab === 'agent-island' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-agent-island"
-                aria-labelledby="settings-tab-agent-island"
-              >
-                <section className="pb-[18px]" aria-label={t('settings.sections.agentIsland')}>
-                  <AgentIslandSection />
-                </section>
-              </div>
-            )}
-
             {activeTab === 'import' && (
               <div
                 role="tabpanel"
@@ -521,22 +487,6 @@ export function SettingsView() {
               >
                 <section className="h-full min-h-0" aria-label={t('settings.sections.import')}>
                   <SessionImportSection />
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'help' && (
-              <div role="tabpanel" id="settings-panel-help" aria-labelledby="settings-tab-help">
-                <section aria-label={t('settings.sections.help')}>
-                  <HelpSection onAskHelp={() => setHelpAssistantOpen(true)} />
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'about' && (
-              <div role="tabpanel" id="settings-panel-about" aria-labelledby="settings-tab-about">
-                <section aria-label={t('settings.sections.about')}>
-                  <AboutSection />
                 </section>
               </div>
             )}
@@ -595,7 +545,6 @@ export function SettingsView() {
           </div>
         </div>
       </div>
-      <HelpAssistantPanel open={helpAssistantOpen} onClose={() => setHelpAssistantOpen(false)} />
     </div>
   );
 }
