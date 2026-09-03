@@ -144,6 +144,32 @@ mismatch, reinstall CLT via `sudo softwareupdate --install "Command Line Tools
 for Xcode 26.x"`). No Apple developer certificate needed: `--no-sign` produces
 an ad-hoc signed build for local use.
 
+Packaging compiles six macOS native helpers with `swiftc`. When `swiftc` cannot
+be fixed and a runnable build is needed first, specific helpers can be given up
+explicitly:
+
+```bash
+# skip all; or name them: CINDY_SKIP_MAC_SWIFT_HELPERS=agent-island,voice-input
+CINDY_SKIP_MAC_SWIFT_HELPERS=all \
+  pnpm release:package -- --region global --no-sign --arch x64
+```
+
+| helper key | feature lost when skipped |
+| --- | --- |
+| `agent-island` | Dynamic Island overlay and its interactions |
+| `computer-permission-guide` | Computer-use system permission guide |
+| `voice-input` | Voice input (text insertion + modifier-key listener) |
+| `xbox-gamepad` | Xbox gamepad control |
+| `session-drag-release` | Session drag-and-drop release preview |
+
+**This is an informed trade-off:** the packaged app only reads prebuilt helpers
+from `resources/tools/` (runtime compilation happens in dev mode only), and end
+users have no `swiftc`, so it cannot be recovered after install — the feature
+simply does not work (logged as an error, not a crash). Slim builds are for
+local use or archiving only, never for distribution; the packaging run prints
+the skipped features again at the end. For a complete build, fix CLT and repack
+without the environment variable.
+
 Artifacts land in `apps/desktop/release/artifacts/global/unversioned/darwin-x64/`:
 
 | File | Purpose |

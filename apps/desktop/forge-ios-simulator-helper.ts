@@ -6,6 +6,11 @@ const IOS_SIMULATOR_HELPER_EXECUTABLE = 'ios-simulator-sidecar';
 const IOS_SIMULATOR_HELPER_BUILD_RESULT = 'build-result.json';
 const IOS_SIMULATOR_PACKAGED_BUILD_RESULT = 'native-helper-build-result.json';
 const IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON = 'simulator-kit-architecture-unavailable';
+// SimulatorKit.framework 整个不存在(CLT-only 机器,无完整 Xcode)。与上面那个
+// reason 分开校验:上面要求架构列表非空(framework 在、只是缺切片),这个必须为空
+// (探测都没做成)。同源定义见
+// packages/ios-simulator-runtime/scripts/native-sidecar-build-policy.mjs。
+const IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON = 'simulator-kit-framework-unavailable';
 
 type IOSSimulatorHelperBuildResult =
   | {
@@ -18,7 +23,9 @@ type IOSSimulatorHelperBuildResult =
       schemaVersion: 1;
       status: 'unsupported';
       targetArchitecture: 'x86_64';
-      reason: typeof IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON;
+      reason:
+        | typeof IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON
+        | typeof IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON;
       simulatorKitArchitectures: string[];
     };
 
@@ -74,10 +81,15 @@ function readBuildResult(resultPath: string): IOSSimulatorHelperBuildResult {
   const unsupportedValid =
     result.status === 'unsupported' &&
     result.targetArchitecture === 'x86_64' &&
-    result.reason === IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON &&
     simulatorKitArchitectures !== null &&
-    simulatorKitArchitectures.length > 0 &&
-    !simulatorKitArchitectures.includes('x86_64');
+    (result.reason === IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON
+      // framework 在、只是没有 x86_64 切片:列表必须非空且确实不含 x86_64。
+      ? simulatorKitArchitectures.length > 0 &&
+        !simulatorKitArchitectures.includes('x86_64')
+      // framework 整个缺失:列表必须为空 —— 非空说明探测成功过,那就该走上面
+      // 那条 reason,混用一律判无效(fail-closed)。
+      : result.reason === IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON &&
+        simulatorKitArchitectures.length === 0);
   if (!commonValid || (!builtValid && !unsupportedValid)) {
     throw new Error(
       `[forge:postPackage] invalid iOS Simulator helper build result at ${resultPath}`,

@@ -782,6 +782,12 @@ const IOS_SIMULATOR_HELPER_BUILD_RESULT_RELATIVE_PATH = path.join(
 );
 const IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON =
   'simulator-kit-architecture-unavailable';
+// SimulatorKit.framework 整个不存在(只装了 Command Line Tools、无完整 Xcode 的
+// 打包机)。与上面那个 reason 分开校验:上面要求架构列表非空(framework 在、
+// 只是没有 x86_64 切片),这个必须为空(探测都没做成)。同源定义见
+// packages/ios-simulator-runtime/scripts/native-sidecar-build-policy.mjs。
+const IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON =
+  'simulator-kit-framework-unavailable';
 
 function expectedIOSSimulatorHelperArchitecture(packageArch) {
   switch (packageArch) {
@@ -831,15 +837,26 @@ export function inspectPackagedIOSSimulatorHelper(appPath, packageArch) {
       }`,
     );
   }
+  const architectures = Array.isArray(result?.simulatorKitArchitectures)
+    ? result.simulatorKitArchitectures
+    : null;
+  const reasonValid =
+    result?.reason === IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON
+      // framework 在、只是没有 x86_64 切片:列表必须非空且确实不含 x86_64。
+      ? architectures !== null &&
+        architectures.length > 0 &&
+        !architectures.includes('x86_64')
+      // framework 整个缺失:列表必须为空 —— 非空说明探测成功过,那就该走上面
+      // 那条 reason,混用一律判无效(fail-closed)。
+      : result?.reason === IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON &&
+        architectures !== null &&
+        architectures.length === 0;
   if (
     result?.schemaVersion !== 1 ||
     result?.status !== 'unsupported' ||
     result?.targetArchitecture !== 'x86_64' ||
-    result?.reason !== IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON ||
-    !Array.isArray(result?.simulatorKitArchitectures) ||
-    result.simulatorKitArchitectures.length === 0 ||
-    result.simulatorKitArchitectures.includes('x86_64') ||
-    !result.simulatorKitArchitectures.every((architecture) => typeof architecture === 'string')
+    !reasonValid ||
+    !architectures.every((architecture) => typeof architecture === 'string')
   ) {
     throw new Error('packaged iOS Simulator helper build result is invalid');
   }

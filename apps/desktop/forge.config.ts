@@ -19,6 +19,11 @@ import {
   brandExecutableName,
   resolveCindyRegion,
 } from '@cindy/maker-shared/brand-identity';
+import {
+  MAC_SWIFT_HELPERS,
+  resolveSkippedMacSwiftHelpers,
+  type MacSwiftHelperKey,
+} from './scripts/ci/mac-swift-helpers.mjs';
 import { stageMacIOSSimulatorHelper } from './forge-ios-simulator-helper';
 import { stagePackagedThirdPartyNotices } from './forge-third-party-notices';
 import { READ_SHEET_RUNTIME_PACKAGES } from '../../packages/lizi-mcps/src/cindy-docs/readSheetRuntimeDeps';
@@ -981,6 +986,22 @@ function runSwiftcForTarget(src: string, dest: string, target: string, extraArgs
   if (r.status !== 0) throw new Error(`[forge] swiftc failed for ${label} (${target}) with exit code ${r.status}`);
 }
 
+/**
+ * 精简打包 gate:CINDY_SKIP_MAC_SWIFT_HELPERS 命中的 helper 不编译。
+ *
+ * 每次跳过都打一条醒目 warning —— 被放弃的功能在装出来的包里静默失效,
+ * 日志是唯一能事后追溯「这个包缺什么」的地方。详见 forge-mac-swift-helpers.ts。
+ */
+function shouldSkipMacSwiftHelper(key: MacSwiftHelperKey): boolean {
+  if (!resolveSkippedMacSwiftHelpers(process.env.CINDY_SKIP_MAC_SWIFT_HELPERS).has(key)) {
+    return false;
+  }
+  console.warn(
+    `[forge:prePackage] WARN 跳过 macOS Swift helper "${key}" — 本次产物中「${MAC_SWIFT_HELPERS[key]}」不可用(CINDY_SKIP_MAC_SWIFT_HELPERS)`,
+  );
+  return true;
+}
+
 function buildSwiftHelperForForgeArch(
   src: string,
   dest: string,
@@ -1009,6 +1030,7 @@ function buildSwiftHelperForForgeArch(
 
 function buildMacXboxGamepadHelper(platform: ForgePlatform, arch: ForgeArch): void {
   if (process.platform !== 'darwin' || !isMacForgePlatform(platform)) return;
+  if (shouldSkipMacSwiftHelper('xbox-gamepad')) return;
   const src = path.join(__dirname, 'native', 'xbox-gamepad', 'macos-xbox-gamepad-helper.swift');
   const destDir = path.join(__dirname, 'resources', 'tools', 'xbox-gamepad');
   const dest = path.join(destDir, 'cindy-macos-xbox-gamepad-helper');
@@ -1029,6 +1051,7 @@ function buildMacXboxGamepadHelper(platform: ForgePlatform, arch: ForgeArch): vo
 
 function buildMacVoiceInputTextInsertionHelper(platform: ForgePlatform, arch: ForgeArch): void {
   if (process.platform !== 'darwin' || !isMacForgePlatform(platform)) return;
+  if (shouldSkipMacSwiftHelper('voice-input')) return;
   const src = path.join(__dirname, 'native', 'voice-input', 'macos-text-insertion-helper.swift');
   const destDir = path.join(__dirname, 'resources', 'tools', 'voice-input');
   const dest = path.join(destDir, 'xdt-macos-text-insertion-helper');
@@ -1051,6 +1074,8 @@ function buildMacVoiceInputTextInsertionHelper(platform: ForgePlatform, arch: Fo
 
 function buildMacVoiceInputModifierShortcutListener(platform: ForgePlatform, arch: ForgeArch): void {
   if (process.platform !== 'darwin' || !isMacForgePlatform(platform)) return;
+  // 与 text insertion 同属「语音输入」一个功能,共用同一个 key(已在上一处打过 warning)。
+  if (resolveSkippedMacSwiftHelpers(process.env.CINDY_SKIP_MAC_SWIFT_HELPERS).has('voice-input')) return;
   const src = path.join(__dirname, 'native', 'voice-input', 'macos-modifier-shortcut-listener.swift');
   const destDir = path.join(__dirname, 'resources', 'tools', 'voice-input');
   const dest = path.join(destDir, 'xdt-macos-modifier-shortcut-listener');
@@ -1120,6 +1145,7 @@ function buildWindowsVoiceInputFunctionKeyListener(targetPlatform: string): void
 
 function buildMacAgentIslandHelper(platform: ForgePlatform, arch: ForgeArch): void {
   if (process.platform !== 'darwin' || !isMacForgePlatform(platform)) return;
+  if (shouldSkipMacSwiftHelper('agent-island')) return;
   const src = path.join(__dirname, 'native', 'agent-island', 'macos-agent-island-helper.swift');
   const gifSrc = path.join(__dirname, 'native', 'agent-island', 'running-agent.gif');
   const soundsSrc = path.join(__dirname, 'native', 'agent-island', 'sounds');
@@ -1162,6 +1188,7 @@ function buildMacAgentIslandHelper(platform: ForgePlatform, arch: ForgeArch): vo
 
 function buildMacComputerPermissionGuideHelper(platform: ForgePlatform, arch: ForgeArch): void {
   if (process.platform !== 'darwin' || !isMacForgePlatform(platform)) return;
+  if (shouldSkipMacSwiftHelper('computer-permission-guide')) return;
   const src = path.join(
     __dirname,
     'native',
@@ -1189,6 +1216,7 @@ function buildMacComputerPermissionGuideHelper(platform: ForgePlatform, arch: Fo
 
 function buildMacSessionDragReleaseHelper(platform: ForgePlatform, arch: ForgeArch): void {
   if (process.platform !== 'darwin' || !isMacForgePlatform(platform)) return;
+  if (shouldSkipMacSwiftHelper('session-drag-release')) return;
   const src = path.join(
     __dirname,
     'native',

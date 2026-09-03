@@ -133,6 +133,28 @@ pnpm release:package -- --region global --no-sign --arch x64
 用 `sudo softwareupdate --install "Command Line Tools for Xcode 26.x"` 重装
 CLT）。无 Apple 开发者证书也能打：`--no-sign` 产 ad-hoc 签名包，仅本机使用。
 
+打包时会现场用 `swiftc` 编译 6 个 macOS 原生 helper。`swiftc` 修不了、又只想
+先拿到能跑的包时，可以显式放弃其中一部分：
+
+```bash
+# 全部跳过；也可点名:CINDY_SKIP_MAC_SWIFT_HELPERS=agent-island,voice-input
+CINDY_SKIP_MAC_SWIFT_HELPERS=all \
+  pnpm release:package -- --region global --no-sign --arch x64
+```
+
+| helper key | 跳过后失效的功能 |
+| --- | --- |
+| `agent-island` | 灵动岛悬浮窗与其交互 |
+| `computer-permission-guide` | 自动操作的系统权限引导弹窗 |
+| `voice-input` | 语音输入（文本插入 + 修饰键监听） |
+| `xbox-gamepad` | Xbox 手柄操控 |
+| `session-drag-release` | 会话拖拽释放预览 |
+
+**代价是知情放弃**：packaged 应用只从 `resources/tools/` 读预编译产物（dev 模式
+才会运行时现场编译），用户机器上没有 `swiftc`，装完救不回来——表现是功能不工作
+加日志报错，不是崩溃。因此精简包只适合本机自用 / 归档，不能对外分发；打包结尾会
+再列一遍本次放弃了哪些功能。要完整包就修好 CLT 后不设该环境变量重打。
+
 产物在 `apps/desktop/release/artifacts/global/unversioned/darwin-x64/`：
 
 | 文件 | 说明 |

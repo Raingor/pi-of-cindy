@@ -84,6 +84,10 @@ import {
   debianArch,
 } from './ci/package-lib.mjs';
 import { applyMacSigningConfigToEnv, applyReleaseCdnBaseUrlToEnv } from './ci/release-regions.mjs';
+import {
+  describeSkippedMacSwiftHelpers,
+  resolveSkippedMacSwiftHelpers,
+} from './ci/mac-swift-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -184,6 +188,12 @@ function runForgeMake({ platform, arch, region, version, versionless, noSign, we
   // --no-sign:摘掉 CINDY_WIN_SIGN_CMD,让 forge postPackage 的内部 exe 签名一并
   // 跳过(forge.config.ts 只认这个 env;不摘的话外部签名命令失败会挂整个 make)。
   if (noSign) delete forgeEnv.CINDY_WIN_SIGN_CMD;
+  // forge make 内的 Vite renderer 构建会在单个大字符串上跑正则(source map /
+  // 第三方声明汇总),Node 默认 ~4GB old-space 在本仓当前体量下会 OOM
+  // (FATAL ERROR: Reached heap limit,栈顶是 Runtime_RegExpExec)。与 desktop
+  // 的 typecheck script 同一处置:显式给 8GB。调用方已设 NODE_OPTIONS 时尊重
+  // 其取值,不覆盖(CI 可能有自己的内存预算)。
+  if (!forgeEnv.NODE_OPTIONS) forgeEnv.NODE_OPTIONS = '--max-old-space-size=8192';
   execSync(`npx electron-forge make --platform ${platform} --arch ${arch}`, {
     cwd: DESKTOP_ROOT,
     stdio: 'inherit',
@@ -699,6 +709,17 @@ async function main() {
   }
   if (versionless) {
     console.log('注意: 版本无关包(0.0.0)不参与热更新,仅供本地/社区使用,不能作为发布产物。');
+  }
+  // 精简打包(CINDY_SKIP_MAC_SWIFT_HELPERS)必须在结尾再报一次:中途的 warning
+  // 早被 forge 的上千行输出刷掉了,而「这个包缺哪些功能」是拿到产物后唯一要问的事。
+  const skippedHelpers = describeSkippedMacSwiftHelpers(
+    resolveSkippedMacSwiftHelpers(process.env.CINDY_SKIP_MAC_SWIFT_HELPERS),
+  );
+  if (skippedHelpers.length > 0) {
+    console.log('');
+    console.log('注意: 精简打包 —— 以下功能在本次产物中不可用(缺对应 macOS Swift helper):');
+    for (const line of skippedHelpers) console.log(`  - ${line}`);
+    console.log('  仅适合本机自用 / 归档,不能对外分发。完整包需修好 CLT 后不设该环境变量重打。');
   }
 }
 

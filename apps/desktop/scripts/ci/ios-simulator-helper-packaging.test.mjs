@@ -108,6 +108,37 @@ describe('packaged iOS Simulator Helper inspection', () => {
     expect(fs.existsSync(manifestPath)).toBe(false);
   });
 
+  it('accepts the framework-missing result with an empty architecture list', () => {
+    // CLT-only 打包机:SimulatorKit.framework 不存在,探测拿不到任何切片。
+    const appPath = createApp();
+    unsupportedBuildResult(appPath, {
+      reason: 'simulator-kit-framework-unavailable',
+      simulatorKitArchitectures: [],
+    });
+    expect(inspectPackagedIOSSimulatorHelper(appPath, 'x64')).toMatchObject({
+      status: 'unsupported',
+      result: { reason: 'simulator-kit-framework-unavailable' },
+    });
+  });
+
+  it('rejects mixing the two unsupported reasons with the wrong architecture list', () => {
+    // framework-missing 但列表非空 ⇒ 探测其实成功过,该走另一条 reason。
+    const bogusMissing = createApp();
+    unsupportedBuildResult(bogusMissing, {
+      reason: 'simulator-kit-framework-unavailable',
+      simulatorKitArchitectures: ['arm64e'],
+    });
+    expect(() => inspectPackagedIOSSimulatorHelper(bogusMissing, 'x64')).toThrow(
+      /build result is invalid/,
+    );
+    // architecture-unavailable 但列表为空 ⇒ 探测没做成,不能当「确实缺切片」。
+    const bogusArch = createApp();
+    unsupportedBuildResult(bogusArch, { simulatorKitArchitectures: [] });
+    expect(() => inspectPackagedIOSSimulatorHelper(bogusArch, 'x64')).toThrow(
+      /build result is invalid/,
+    );
+  });
+
   it('fails when a missing Helper has no explicit unsupported result', () => {
     const appPath = createApp();
     expect(() => inspectPackagedIOSSimulatorHelper(appPath, 'x64')).toThrow(

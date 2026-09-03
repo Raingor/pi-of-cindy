@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON,
   IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON,
   decideNativeSidecarBuild,
   parseMachOArchitectures,
@@ -46,6 +47,33 @@ describe("native sidecar build policy", () => {
       targetArchitectures: ["x86_64"],
       reason: IOS_SIMULATOR_HELPER_UNSUPPORTED_REASON,
     });
+  });
+
+  // CLT-only 机器(无完整 Xcode)根本没有 SimulatorKit.framework,探测返回空列表。
+  // 这与「framework 在但缺切片」必须用不同 reason 上报:读侧的 fail-closed 校验
+  // 靠 reason 决定「架构列表该为空还是该非空」,混用就分不清探测是否做成过。
+  it("reports the framework-missing reason when no slices could be inspected", () => {
+    expect(
+      decideNativeSidecarBuild({
+        outputMode: "helper",
+        targetArchitecture: "x86_64",
+        simulatorKitArchitectures: [],
+      }),
+    ).toEqual({
+      action: "unsupported",
+      targetArchitectures: ["x86_64"],
+      reason: IOS_SIMULATOR_HELPER_FRAMEWORK_MISSING_REASON,
+    });
+  });
+
+  it("keeps arm64 fail-closed even when the framework is entirely missing", () => {
+    expect(() =>
+      decideNativeSidecarBuild({
+        outputMode: "helper",
+        targetArchitecture: "arm64",
+        simulatorKitArchitectures: [],
+      }),
+    ).toThrow("missing required architecture(s): arm64");
   });
 
   it("keeps raw, arm64, and universal builds fail-closed when a slice is missing", () => {
