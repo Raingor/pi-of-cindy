@@ -1,6 +1,7 @@
 export type DbTxName =
   | 'codex.importMessages'
   | 'claude.importMessages'
+  | 'pi.importMessages'
   | 'rewind.commit'
   | 'session.treeRehydrate'
   | 'fork.session'
@@ -805,6 +806,7 @@ export interface WechatUnbindCleanupResult {
 export type DbTxArgsByName = {
   'codex.importMessages': CodexImportMessagesArgs;
   'claude.importMessages': ClaudeImportMessagesArgs;
+  'pi.importMessages': ClaudeImportMessagesArgs;
   'rewind.commit': RewindCommitArgs;
   'session.treeRehydrate': SessionTreeRehydrateArgs;
   'fork.session': ForkSessionArgs;
@@ -856,6 +858,7 @@ export type DbTxArgsByName = {
 export type DbTxResultByName = {
   'codex.importMessages': { changed: number };
   'claude.importMessages': { changed: number };
+  'pi.importMessages': { changed: number };
   'rewind.commit': undefined;
   'session.treeRehydrate': { messageCount: number; hiddenClientIds: string[] };
   'fork.session': { messageCount: number };

@@ -274,7 +274,10 @@ function dispatchTx(readyDb, payload) {
     case 'codex.importMessages':
       return codexImportMessages(readyDb, request.args);
     case 'claude.importMessages':
-      return claudeImportMessages(readyDb, request.args);
+      return claudeImportMessages(readyDb, request.args, 'claude-import');
+    case 'pi.importMessages':
+      // 与 tx.ts 的 opHandlers 同语义:同一实现,id 前缀区分来源。
+      return claudeImportMessages(readyDb, request.args, 'pi-import');
     case 'rewind.commit':
       return rewindCommit(readyDb, request.args);
     case 'session.treeRehydrate':
@@ -1247,7 +1250,7 @@ function codexImportMessages(readyDb, args) {
   return { changed };
 }
 
-function claudeImportMessages(readyDb, args) {
+function claudeImportMessages(readyDb, args, idPrefix) {
   const payload = asRecord(args, 'claude.importMessages args');
   const sessionId = expectString(payload.sessionId, 'sessionId');
   const importClientIdPrefix = expectString(payload.importClientIdPrefix, 'importClientIdPrefix');
@@ -1297,7 +1300,7 @@ function claudeImportMessages(readyDb, args) {
       const key = expectNumber(row.lineNo, 'row.lineNo') + '-' + expectNumber(row.partIndex, 'row.partIndex');
       const role = expectString(row.role, 'row.role');
       count += upsert.run({
-        id: 'claude-import-' + sdkSessionId + '-' + key,
+        id: idPrefix + '-' + sdkSessionId + '-' + key,
         clientId: importClientIdPrefix + key,
         sessionId,
         role,

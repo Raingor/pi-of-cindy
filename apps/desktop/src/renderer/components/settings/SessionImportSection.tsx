@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { formatSidebarTime, formatSidebarTimeAbsolute } from '@/features/cc-agent/lib/formatSidebarTime';
 import { SessionShareImportWizard } from './SessionShareImportWizard';
 
-type ImportSource = 'codex' | 'claude';
+type ImportSource = 'codex' | 'claude' | 'pi';
 type SourceFilter = 'all' | ImportSource;
 type PlacementFilter = 'all' | 'project' | 'dialogue';
 
@@ -30,11 +30,13 @@ interface ScanResult {
   sources: {
     codexHomes: string[];
     claudeRoots: string[];
+    piRoots: string[];
   };
   candidates: ImportCandidate[];
   rejected: {
     codex: number;
     claude: number;
+    pi: number;
     existing: number;
   };
   currentProjectDirs: string[];
@@ -442,7 +444,7 @@ function ScanSummary({ scan }: { scan: ScanResult }) {
       />
       <SummaryCell
         label={t('settings.sessionImport.summary.filtered')}
-        value={scan.rejected.codex + scan.rejected.claude + scan.rejected.existing}
+        value={scan.rejected.codex + scan.rejected.claude + scan.rejected.pi + scan.rejected.existing}
         hint={t('settings.sessionImport.summary.filteredHint')}
       />
     </div>
@@ -475,7 +477,7 @@ function FilterBar({
   onPlacementChange: (value: PlacementFilter) => void;
 }) {
   const { t } = useTranslation();
-  const sourceFilters: SourceFilter[] = ['all', 'codex', 'claude'];
+  const sourceFilters: SourceFilter[] = ['all', 'codex', 'claude', 'pi'];
   const placementFilters: PlacementFilter[] = ['all', 'project', 'dialogue'];
   return (
     <div className="grid gap-2 xl:grid-cols-2">
@@ -562,7 +564,7 @@ function SessionImportRow({
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <span className="shrink-0 whitespace-nowrap rounded-full border border-[var(--settings-input-border)] px-1.5 py-0.5 text-10 uppercase text-[var(--settings-section-desc)]">
-            {item.source === 'codex' ? 'Codex' : 'Claude'}
+            {item.source === 'codex' ? 'Codex' : item.source === 'claude' ? 'Claude' : 'Pi'}
           </span>
           {item.archived && (
             <span className="shrink-0 whitespace-nowrap rounded-full border border-[var(--settings-input-border)] px-1.5 py-0.5 text-10 text-[var(--settings-section-desc)]">

@@ -4438,10 +4438,11 @@ interface ElectronAPI {
         sources: {
           codexHomes: string[];
           claudeRoots: string[];
+          piRoots: string[];
         };
         candidates: Array<{
           key: string;
-          source: 'codex' | 'claude';
+          source: 'codex' | 'claude' | 'pi';
           id: string;
           title: string;
           cwd: string;
@@ -4454,12 +4455,13 @@ interface ElectronAPI {
         rejected: {
           codex: number;
           claude: number;
+          pi: number;
           existing: number;
         };
         currentProjectDirs: string[];
       }>;
       importSelected: (
-        items: Array<{ source: 'codex' | 'claude'; id: string }>,
+        items: Array<{ source: 'codex' | 'claude' | 'pi'; id: string }>,
       ) => Promise<{ inserted: number; updated: number; scanned: number }>;
       linkCodexProject: (
         workingDir: string,

@@ -1245,7 +1245,7 @@
     },
     "sessionImport": {
       "title": "Local Session Import",
-      "description": "Read-only scan of local Claude Code and Codex history. Only checked sessions in the list will be imported; skipped internal sessions are hidden and cannot be imported.",
+      "description": "Read-only scan of local Pi, Claude Code, and Codex history. Only checked sessions in the list will be imported; skipped internal sessions are hidden and cannot be imported.",
       "scan": "Scan",
       "scanning": "Scanning",
       "emptyTitle": "Scan local history first",
@@ -1277,6 +1277,7 @@
         "all": "All",
         "codex": "Codex",
         "claude": "Claude",
+        "pi": "Pi",
         "project": "Existing projects",
         "dialogue": "Chat"
       },

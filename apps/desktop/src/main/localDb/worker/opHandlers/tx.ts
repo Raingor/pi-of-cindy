@@ -39,7 +39,11 @@ export function tx(db: Database.Database, args: unknown): unknown {
     case 'codex.importMessages':
       return codexImportMessages(db, txArgs);
     case 'claude.importMessages':
-      return claudeImportMessages(db, txArgs);
+      return claudeImportMessages(db, txArgs, 'claude-import');
+    case 'pi.importMessages':
+      // 与 claude.importMessages 同一实现(pi 导入行走同一 messages 行形状);
+      // 仅 id 前缀区分来源,便于诊断与幂等键隔离。
+      return claudeImportMessages(db, txArgs, 'pi-import');
     case 'rewind.commit':
       return rewindCommit(db, txArgs);
     case 'session.treeRehydrate':
@@ -916,7 +920,11 @@ function codexImportMessages(db: Database.Database, args: unknown): { changed: n
   return { changed: transaction() as number };
 }
 
-function claudeImportMessages(db: Database.Database, args: unknown): { changed: number } {
+function claudeImportMessages(
+  db: Database.Database,
+  args: unknown,
+  idPrefix: string,
+): { changed: number } {
   const payload = asRecord(args, 'claude.importMessages args');
   const sessionId = expectString(payload.sessionId, 'sessionId');
   const importClientIdPrefix = expectString(payload.importClientIdPrefix, 'importClientIdPrefix');
@@ -966,7 +974,7 @@ function claudeImportMessages(db: Database.Database, args: unknown): { changed: 
       const key = `${expectNumber(row.lineNo, 'row.lineNo')}-${expectNumber(row.partIndex, 'row.partIndex')}`;
       const role = expectString(row.role, 'row.role');
       changed += upsert.run({
-        id: `claude-import-${sdkSessionId}-${key}`,
+        id: `${idPrefix}-${sdkSessionId}-${key}`,
         clientId: `${importClientIdPrefix}${key}`,
         sessionId,
         role,

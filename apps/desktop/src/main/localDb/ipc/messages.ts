@@ -30,6 +30,7 @@ import {
 } from '../../cindy-media/ledger';
 import { importExternalCodexMessagesForSession } from '../../maker-host/codex-local-sessions';
 import { importExternalClaudeCodeMessagesForSession } from '../../maker-host/claude-local-sessions';
+import { importExternalPiMessagesForSession } from '../../maker-host/pi-local-sessions';
 import { isDeviceLinkInvoke } from '../../device-link/invoke-context';
 import { onMessageCreated as onChatMessageCreatedForEmbedding } from '../../embedders/chat-history-embedder';
 import { recomputePrRefsForSession, recordPrRefsForMessage } from '../../git-context/prRefsStore';
@@ -632,7 +633,7 @@ export function registerMessageIpc(): void {
  * messages:list 的「按需导入外部 CLI 会话历史」副作用。
  *
  * 普通 Cindy 任务不需要外部 CLI 历史导入；只有带有明确来源前缀的任务才运行对应 importer。
- * 这样可以避免每次切换普通任务都先为两个 importer 各做一次 sessions 查询。device-link 远程读
+ * 这样可以避免每次切换普通任务都先为各 importer 做一次 sessions 查询。device-link 远程读
  * 仍遵循首页/分页语义，但首页也只对 Codex/Claude 来源任务运行对应 importer。
  *
  * 抽成可注入函数仅为单测(规则 14):默认依赖即生产实现,Electron `ipcMain.handle` 只做 adapter。
@@ -643,6 +644,7 @@ export async function runMessagesListImportSideEffects(
     isDeviceLink?: () => boolean;
     importCodex?: (id: string) => Promise<void>;
     importClaude?: (id: string) => Promise<void>;
+    importPi?: (id: string) => Promise<void>;
   } = {},
   opts: { deviceLinkFirstPage?: boolean } = {},
 ): Promise<void> {
@@ -655,6 +657,7 @@ export async function runMessagesListImportSideEffects(
   if (isDeviceLink() && !opts.deviceLinkFirstPage) return;
   const importCodex = deps.importCodex ?? importExternalCodexMessagesForSession;
   const importClaude = deps.importClaude ?? importExternalClaudeCodeMessagesForSession;
+  const importPi = deps.importPi ?? importExternalPiMessagesForSession;
   if (sessionId.startsWith('codex-')) {
     await importCodex(sessionId).catch((err) => {
       log.warn('external Codex message import failed', {
@@ -667,6 +670,15 @@ export async function runMessagesListImportSideEffects(
   if (sessionId.startsWith('claude-')) {
     await importClaude(sessionId).catch((err) => {
       log.warn('external Claude Code message import failed', {
+        sessionId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
+    return;
+  }
+  if (sessionId.startsWith('pi-')) {
+    await importPi(sessionId).catch((err) => {
+      log.warn('external pi message import failed', {
         sessionId,
         err: err instanceof Error ? err.message : String(err),
       });

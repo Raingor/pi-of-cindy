@@ -1245,7 +1245,7 @@
     },
     "sessionImport": {
       "title": "本地任务导入",
-      "description": "只读扫描本机 Claude Code 与 Codex 历史。只有列表里勾选的任务会被导入；已跳过的内部 Agent 会话不会展示，也不会导入。",
+      "description": "只读扫描本机 Pi、Claude Code 与 Codex 历史。只有列表里勾选的任务会被导入；已跳过的内部 Agent 会话不会展示，也不会导入。",
       "scan": "扫描",
       "scanning": "扫描中",
       "emptyTitle": "先扫描本地历史",
@@ -1277,6 +1277,7 @@
         "all": "全部",
         "codex": "Codex",
         "claude": "Claude",
+        "pi": "Pi",
         "project": "已有项目",
         "dialogue": "对话"
       },

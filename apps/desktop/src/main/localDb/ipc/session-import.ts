@@ -18,6 +18,10 @@ import {
   importExternalClaudeCodeSessions,
   scanExternalClaudeCodeSessions,
 } from '../../maker-host/claude-local-sessions.js';
+import {
+  importExternalPiSessions,
+  scanExternalPiSessions,
+} from '../../maker-host/pi-local-sessions.js';
 import { dialogueWorkspaceRootDir } from '../dialogueWorkspace.js';
 import {
   normalizeWorkingDirForGrouping,
@@ -26,7 +30,7 @@ import {
 
 const log = createLogger('session-import');
 
-type ImportSource = 'codex' | 'claude';
+type ImportSource = 'codex' | 'claude' | 'pi';
 type SidebarBucket = 'project' | 'dialogue';
 
 interface ImportCandidate {
@@ -46,11 +50,13 @@ interface SessionImportScanResult {
   sources: {
     codexHomes: string[];
     claudeRoots: string[];
+    piRoots: string[];
   };
   candidates: ImportCandidate[];
   rejected: {
     codex: number;
     claude: number;
+    pi: number;
     existing: number;
   };
   currentProjectDirs: string[];
@@ -126,15 +132,17 @@ export function registerSessionImportIpc(): void {
     const selected = normalizeImportRequest(request);
     const codexIds = selected.filter((item) => item.source === 'codex').map((item) => item.id);
     const claudeIds = selected.filter((item) => item.source === 'claude').map((item) => item.id);
-    const [codex, claude] = await Promise.all([
+    const piStems = selected.filter((item) => item.source === 'pi').map((item) => item.id);
+    const [codex, claude, pi] = await Promise.all([
       importExternalCodexSessions(codexIds),
       importExternalClaudeCodeSessions(claudeIds),
+      importExternalPiSessions(piStems),
     ]);
     invalidateSessionImportScanCache();
     return {
-      inserted: codex.inserted + claude.inserted,
-      updated: codex.updated + claude.updated,
-      scanned: codex.scanned + claude.scanned,
+      inserted: codex.inserted + claude.inserted + pi.inserted,
+      updated: codex.updated + claude.updated + pi.updated,
+      scanned: codex.scanned + claude.scanned + pi.scanned,
     };
   });
 
@@ -179,9 +187,10 @@ export function registerSessionImportIpc(): void {
 
 async function runSessionImportScan(): Promise<SessionImportScanResult> {
   const currentProjectDirs = await readCurrentProjectDirs();
-  const [codex, claude] = await Promise.all([
+  const [codex, claude, pi] = await Promise.all([
     scanExternalCodexSessions(),
     scanExternalClaudeCodeSessions(),
+    scanExternalPiSessions(),
   ]);
   const existingSdkSessionKinds = await readExistingSdkSessionKinds();
   let existingCount = 0;
@@ -246,14 +255,44 @@ async function runSessionImportScan(): Promise<SessionImportScanResult> {
         projectDir,
       }];
     }),
+    // 本机 pi CLI 会话(~/.pi/agent/sessions):dedup 键是 **JSONL 绝对路径**
+    // (pi 的会话钥匙与 sdk_session_id 语义),候选 id 只是文件名 stem。
+    ...pi.candidates.flatMap((item): ImportCandidate[] => {
+      const existingKind = existingSdkSessionKinds.get(`pi:${item.sourceFile}`);
+      if (existingKind) {
+        existingCount += 1;
+        return [];
+      }
+      const cwd = normalizeWorkingDirForStorage(item.cwd) ?? item.cwd;
+      const projectDir = normalizeWorkingDir(cwd);
+      if (isManagedDialogueWorkingDir(projectDir)) {
+        existingCount += 1;
+        managedDialogueCount += 1;
+        return [];
+      }
+      return [{
+        key: `pi:${item.id}`,
+        source: 'pi',
+        id: item.id,
+        title: item.title,
+        cwd,
+        updatedAt: new Date(item.updatedAt).toISOString(),
+        archived: item.archived,
+        workspaceKind: 'project',
+        sidebarBucket: 'project',
+        projectDir,
+      }];
+    }),
   ].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 
   log.info('session import scan complete', {
     codexHomes: codex.homes.length,
     claudeRoots: claude.roots.length,
+    piRoots: pi.roots.length,
     candidates: candidates.length,
     rejectedCodex: codex.rejectedCount,
     rejectedClaude: claude.rejectedCount,
+    rejectedPi: pi.rejectedCount,
     existing: existingCount,
     managedDialogue: managedDialogueCount,
   });
@@ -262,11 +301,13 @@ async function runSessionImportScan(): Promise<SessionImportScanResult> {
     sources: {
       codexHomes: codex.homes,
       claudeRoots: claude.roots,
+      piRoots: pi.roots,
     },
     candidates,
     rejected: {
       codex: codex.rejectedCount,
       claude: claude.rejectedCount,
+      pi: pi.rejectedCount,
       existing: existingCount,
     },
     currentProjectDirs: [...currentProjectDirs].sort(),
@@ -287,7 +328,7 @@ function normalizeImportRequest(request: SessionImportRequest): Array<{ source: 
   if (!request || !Array.isArray(request.items)) return [];
   const out: Array<{ source: ImportSource; id: string }> = [];
   for (const item of request.items) {
-    const source = item.source === 'codex' || item.source === 'claude' ? item.source : null;
+    const source = item.source === 'codex' || item.source === 'claude' || item.source === 'pi' ? item.source : null;
     const id = typeof item.id === 'string' ? item.id : '';
     if (source && id) out.push({ source, id });
   }
@@ -314,6 +355,8 @@ async function readExistingSdkSessionKinds(): Promise<Map<string, 'project' | 'd
     const workspaceKind = row.workspaceKind === 'dialogue' ? 'dialogue' : 'project';
     if (row.agentKind === 'codex') out.set(`codex:${row.sdkSessionId}`, workspaceKind);
     if (row.agentKind === 'cc') out.set(`claude:${row.sdkSessionId}`, workspaceKind);
+    // pi 的 sdk_session_id = session JSONL 绝对路径(与扫描侧的 dedup 键同口径)。
+    if (row.agentKind === 'pi') out.set(`pi:${row.sdkSessionId}`, workspaceKind);
   }
   return out;
 }

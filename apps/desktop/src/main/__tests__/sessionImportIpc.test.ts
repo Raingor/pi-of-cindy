@@ -64,6 +64,12 @@ vi.mock('../maker-host/claude-local-sessions.js', () => ({
   scanExternalClaudeCodeSessions: vi.fn(),
 }));
 
+// pi 扫描默认空(单测不触真实 ~/.pi;需要 pi 候选的用例单独 mockResolvedValue)。
+vi.mock('../maker-host/pi-local-sessions.js', () => ({
+  importExternalPiSessions: vi.fn(),
+  scanExternalPiSessions: vi.fn(),
+}));
+
 import { registerSessionImportIpc } from '../localDb/ipc/session-import';
 import { getRawDb } from '../localDb/index.js';
 import {
@@ -74,6 +80,10 @@ import {
   importExternalClaudeCodeSessions,
   scanExternalClaudeCodeSessions,
 } from '../maker-host/claude-local-sessions.js';
+import {
+  importExternalPiSessions,
+  scanExternalPiSessions,
+} from '../maker-host/pi-local-sessions.js';
 
 function stubDb(): void {
   vi.mocked(getRawDb).mockReturnValue({
@@ -107,6 +117,8 @@ describe('session import IPC', () => {
     mocks.currentUserId = 'test-user';
     mocks.sdkSessionRows = [];
     stubDb();
+    vi.mocked(scanExternalPiSessions).mockResolvedValue({ roots: [], candidates: [], rejectedCount: 0 });
+    vi.mocked(importExternalPiSessions).mockResolvedValue({ roots: 0, scanned: 0, inserted: 0, updated: 0 });
     registerSessionImportIpc();
   });
 
@@ -226,6 +238,84 @@ describe('session import IPC', () => {
     const result = await scan?.();
     expect(result).toMatchObject({
       candidates: [{ key: 'claude:claude-fresh-cli-session' }],
+      rejected: { existing: 1 },
+    });
+  });
+
+  it('lists pi CLI sessions as candidates and imports them through the pi branch', async () => {
+    // pi 候选 id = JSONL 文件名 stem;dedup 键 = JSONL 绝对路径(sdk_session_id 语义)。
+    const sessionFile = path.join('/Users', 'me', '.pi', 'agent', 'sessions', '--tmp--proj', '2026-08-31T07-38-59-815Z_01a056c1.jsonl');
+    vi.mocked(scanExternalCodexSessions).mockResolvedValue({ homes: [], candidates: [], rejectedCount: 0 });
+    vi.mocked(scanExternalClaudeCodeSessions).mockResolvedValue({ roots: [], candidates: [], rejectedCount: 0 });
+    vi.mocked(importExternalCodexSessions).mockResolvedValue({ homes: 0, scanned: 0, inserted: 0, updated: 0 });
+    vi.mocked(importExternalClaudeCodeSessions).mockResolvedValue({ roots: 0, scanned: 0, inserted: 0, updated: 0 });
+    vi.mocked(scanExternalPiSessions).mockResolvedValue({
+      roots: [path.join('/Users', 'me', '.pi', 'agent', 'sessions')],
+      candidates: [
+        {
+          source: 'pi',
+          id: '2026-08-31T07-38-59-815Z_01a056c1',
+          title: 'Pi CLI session',
+          cwd: path.join('/tmp', 'proj'),
+          updatedAt: new Date(1_779_200_006_000).toISOString(),
+          archived: false,
+          sourceFile: sessionFile,
+        },
+      ],
+      rejectedCount: 0,
+    });
+
+    const scan = mocks.handlers.get('local-db:session-import:scan');
+    const scanResult = await scan?.();
+    expect(scanResult).toMatchObject({
+      sources: { piRoots: [path.join('/Users', 'me', '.pi', 'agent', 'sessions')] },
+      candidates: [
+        {
+          key: 'pi:2026-08-31T07-38-59-815Z_01a056c1',
+          source: 'pi',
+          cwd: path.join('/tmp', 'proj'),
+        },
+      ],
+      rejected: { pi: 0 },
+    });
+
+    // 导入:pi 分支按 file stem 调 importExternalPiSessions。
+    vi.mocked(importExternalPiSessions).mockResolvedValue({ roots: 1, scanned: 1, inserted: 1, updated: 0 });
+    const importHandler = mocks.handlers.get('local-db:session-import:import');
+    const importResult = await importHandler?.(undefined, {
+      items: [{ source: 'pi', id: '2026-08-31T07-38-59-815Z_01a056c1' }],
+    });
+    expect(importExternalPiSessions).toHaveBeenCalledWith(['2026-08-31T07-38-59-815Z_01a056c1']);
+    expect(importResult).toEqual({ inserted: 1, updated: 0, scanned: 1 });
+  });
+
+  it('drops pi candidates whose session file already backs a live pi session row', async () => {
+    const sessionFile = path.join('/Users', 'me', '.pi', 'agent', 'sessions', 'dup.jsonl');
+    mocks.sdkSessionRows = [{ agentKind: 'pi', sdkSessionId: sessionFile, workspaceKind: 'project' }];
+    vi.mocked(scanExternalCodexSessions).mockResolvedValue({ homes: [], candidates: [], rejectedCount: 0 });
+    vi.mocked(scanExternalClaudeCodeSessions).mockResolvedValue({ roots: [], candidates: [], rejectedCount: 0 });
+    vi.mocked(importExternalCodexSessions).mockResolvedValue({ homes: 0, scanned: 0, inserted: 0, updated: 0 });
+    vi.mocked(importExternalClaudeCodeSessions).mockResolvedValue({ roots: 0, scanned: 0, inserted: 0, updated: 0 });
+    vi.mocked(scanExternalPiSessions).mockResolvedValue({
+      roots: [path.join('/Users', 'me', '.pi', 'agent', 'sessions')],
+      candidates: [
+        {
+          source: 'pi',
+          id: 'dup',
+          title: 'Already imported',
+          cwd: path.join('/tmp', 'proj'),
+          updatedAt: new Date(1_779_200_007_000).toISOString(),
+          archived: false,
+          sourceFile: sessionFile,
+        },
+      ],
+      rejectedCount: 0,
+    });
+
+    const scan = mocks.handlers.get('local-db:session-import:scan');
+    const result = await scan?.();
+    expect(result).toMatchObject({
+      candidates: [],
       rejected: { existing: 1 },
     });
   });

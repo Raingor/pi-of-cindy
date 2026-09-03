@@ -1245,7 +1245,7 @@
     },
     "sessionImport": {
       "title": "本地任務匯入",
-      "description": "只讀掃描本機 Claude Code 與 Codex 歷史。只有列表裡勾選的任務會被匯入；已跳過的內部 Agent 會話不會展示，也不會匯入。",
+      "description": "只讀掃描本機 Pi、Claude Code 與 Codex 歷史。只有列表裡勾選的任務會被匯入；已跳過的內部 Agent 會話不會展示，也不會匯入。",
       "scan": "掃描",
       "scanning": "掃描中",
       "emptyTitle": "先掃描本地歷史",
@@ -1277,6 +1277,7 @@
         "all": "全部",
         "codex": "Codex",
         "claude": "Claude",
+        "pi": "Pi",
         "project": "已有專案",
         "dialogue": "對話"
       },
