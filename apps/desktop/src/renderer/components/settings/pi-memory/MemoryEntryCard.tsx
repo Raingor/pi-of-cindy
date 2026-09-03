@@ -51,7 +51,7 @@ function renderInline(text: string, q: string): ReactNode {
       return (
         <code
           key={i}
-          className="rounded border px-1 py-px font-mono text-[11px]"
+          className="rounded border px-1 py-px font-mono text-11"
           style={{
             borderColor: 'var(--settings-theme-card-border)',
             color: 'var(--settings-section-title)',
