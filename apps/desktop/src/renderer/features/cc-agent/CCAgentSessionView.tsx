@@ -54,6 +54,8 @@ import { setRemoteReceiptDisplayReady } from '@/lib/sessionAttentionStore';
 import { shortSessionId } from '@/lib/sessionId';
 import { ChatInput } from '@/components/new-chat/ChatInput';
 import { GoalIndicator } from '@/components/new-chat/GoalIndicator';
+import { SessionIdsIndicator } from './composer/SessionIdsIndicator';
+import { resolveSessionRuntimeIds } from './lib/sessionRuntimeIds';
 import { PinnedPlanPanel } from '@/components/new-chat/PinnedPlanPanel';
 import { sessionsStore } from '@/lib/sessionsStore';
 import { useStopOrcaCollab } from './hooks/useStopOrcaCollab';
@@ -801,6 +803,19 @@ export function CCAgentSessionView({
       ? sessionSnapshotPatchBufferRef.current.merge(sessionId, sessionBase)
       : null;
   const isOrcaLeadSessionView = session?.orcaRole === 'lead';
+
+  // composer 上方要展示的两个 id。Intercom ID 从 sdk_session_id(pi 的 session
+  // JSONL 绝对路径)推出:pi-intercom 的在场身份就是 pi 运行时 session id。
+  // 会话未加载时为 null,指示条自己不渲染。
+  const sessionRuntimeIds = useMemo(
+    () =>
+      resolveSessionRuntimeIds({
+        sessionId,
+        agentKind: session?.agentKind,
+        sdkSessionId: session?.sdkSessionId,
+      }),
+    [session?.agentKind, session?.sdkSessionId, sessionId],
+  );
 
   // worktree-parallel-sessions:订阅当前 session 的 worktree 创建态(creating/failed)。
   // 触发源:NewMakerDraftRoute 的 worktree 异步创建路径。
@@ -4727,6 +4742,9 @@ export function CCAgentSessionView({
               </InteractionPromptHost>
               {/* 会话内 /goal 进行中状态条(composer 上方);无 goal 时返回 null 不占位。 */}
               <GoalIndicator sessionId={sessionId} />
+              {/* 任务 ID / Intercom ID 信息条:跟跨会话协同(pi-intercom)用的是 pi 运行时
+                 session id,而排查 Cindy 侧数据用的是任务 ID —— 两者不同,直接都露出。 */}
+              <SessionIdsIndicator ids={sessionRuntimeIds} />
               {/* 互斥:控制端能终结的 pending interaction 会接管 composer；
                  Desktop-only 只读确认只能提示等待，必须保留 ChatInput，避免控制端
                  既处理不了确认又无法继续发送或排队消息。

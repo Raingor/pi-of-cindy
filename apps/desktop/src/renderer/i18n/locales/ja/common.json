@@ -9095,6 +9095,13 @@
       "untitled": "無題のセッション",
       "moreActions": "その他の操作"
     },
+    "sessionIds": {
+      "sessionLabel": "タスク ID",
+      "intercomLabel": "Intercom ID",
+      "sessionCopied": "タスク ID をコピーしました",
+      "intercomCopied": "Intercom ID をコピーしました",
+      "copyFailed": "コピーに失敗しました"
+    },
     "gitContext": {
       "detached": "Detached HEAD",
       "branchAria": "現在のブランチ {{branch}}",

@@ -9095,6 +9095,13 @@
       "untitled": "제목 없는 세션",
       "moreActions": "더 보기"
     },
+    "sessionIds": {
+      "sessionLabel": "작업 ID",
+      "intercomLabel": "Intercom ID",
+      "sessionCopied": "작업 ID를 복사했습니다",
+      "intercomCopied": "Intercom ID를 복사했습니다",
+      "copyFailed": "복사에 실패했습니다"
+    },
     "gitContext": {
       "detached": "Detached HEAD",
       "branchAria": "현재 브랜치 {{branch}}",

@@ -9095,6 +9095,13 @@
       "untitled": "未命名任務",
       "moreActions": "更多操作"
     },
+    "sessionIds": {
+      "sessionLabel": "任務 ID",
+      "intercomLabel": "Intercom ID",
+      "sessionCopied": "任務 ID 已複製",
+      "intercomCopied": "Intercom ID 已複製",
+      "copyFailed": "複製失敗"
+    },
     "gitContext": {
       "detached": "分離 HEAD",
       "branchAria": "當前分支 {{branch}}",

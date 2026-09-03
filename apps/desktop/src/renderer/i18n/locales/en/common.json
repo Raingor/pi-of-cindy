@@ -9089,6 +9089,13 @@
       "untitled": "Untitled session",
       "moreActions": "More actions"
     },
+    "sessionIds": {
+      "sessionLabel": "Session ID",
+      "intercomLabel": "Intercom ID",
+      "sessionCopied": "Session ID copied",
+      "intercomCopied": "Intercom ID copied",
+      "copyFailed": "Copy failed"
+    },
     "gitContext": {
       "detached": "Detached HEAD",
       "branchAria": "Current branch {{branch}}",
