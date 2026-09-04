@@ -1048,6 +1048,24 @@ function writeResourceSessionToVault(
   }
 }
 
+/**
+ * Passport 会话的单独事务写入包装。
+ *
+ * 当前**没有调用方**,但不得删 —— 它是 8 个 vault 变更 helper
+ * (remember / replace / remove × resource / passport + membership / account)对称
+ * 家族的一员,`__tests__/authLoginFlowReset.test.ts` 逐个断言它们存在且**都经由
+ * mutateAuthAccountVault**(「任何 vault 变更都走事务包装器」这条不变量),同时还拿
+ * 它的函数头当作定位锚切分 writeResourceSessionToVault 的函数体。
+ *
+ * “没人调”是设计使然而非遗漏:登录提交路径(commitDesktopLoginSessions)把
+ * passport 与 resource 两次写入**批在同一个事务里**,直接调纯写函数
+ * writePassportSessionToVault;而 resource 侧的孪生兄弟 rememberResourceSession 有
+ * 独立调用方,所以只有 passport 这一支悬空。日后出现需要单独轮换 passport
+ * (不伴随 resource 写入)的路径时,入口就是这里。
+ *
+ * 因此只抑制 lint、不动代码。
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 测试契约保留的对称 helper,见上方注释
 async function rememberPassportSession(input: {
   realm: AuthRegion;
   passportId: string;
