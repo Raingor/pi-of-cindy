@@ -1,17 +1,18 @@
 /**
  * userInfoSectionHover.test.ts
  * ---------------------------------------------------------------------------
- * Regression test for: user-message-selected-full-row-bg (回路 #2, 方案 D)
+ * UserInfoSection 的源码契约测试(静态扫描,不挂载组件)。
  *
- * Current contract: UserInfoSection follows the CREATE AGENT sidebar capsule
- * design. Flame keeps a .flame-btn marker class, but it now sits inside the
- * compact account pill instead of the old 66px full-row footer.
+ * 2026-09-03 用户指令移除登录后,这一格从「账号胶囊」变成单一的「打开设置」入口:
+ * 头像 / 昵称 / 账号切换 / 退出 / 移动端下载 / 更新历史火焰全部撤掉,只留设置按钮
+ * 与版本行。原来这份文件守的是方案 D 的三层 hover 叠色契约(胶囊承载 hover +
+ * .flame-btn / .mobile-download-btn 两个 :has() 例外),内嵌次级按钮没了,那套契约
+ * 也随之作废 —— 现在守的是新形态:
  *
- * 这份测试做静态源码扫描,确保以下契约不被未来的提交悄悄回退:
- * 1. 外层 div keeps the sidebar footer slot, while the visible account card is
- *    the rounded tokenized capsule.
- * 2. 内部主按钮不再有 hover:bg-sidebar-item-hover (避免双层叠色)
- * 3. Flame button className 列表带有 'flame-btn' 标识符 (供 :has() 选择器钩取)
+ * 1. 底部 footer slot 与胶囊尺寸不变(展开 h-10 胶囊 / rail 66px 居中),换皮不换位;
+ * 2. 颜色仍走 --sidebar-user-card-* 语义 token(浅/深色双模式同源,不得硬编码);
+ * 3. 版本行的区域标注仍来自 shared 单点,不在组件里另写映射;
+ * 4. 账号相关的一切(useAuth / 头像 / 账号切换 / 退出 / 移动端下载 / 火焰)不得回流。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -22,46 +23,72 @@ const sourcePath = resolve(__dirname, '..', 'components', 'sidebar', 'UserInfoSe
 const source = readFileSync(sourcePath, 'utf8');
 const localePath = resolve(__dirname, '..', 'i18n', 'locales', 'zh-CN', 'common.json');
 const locale = JSON.parse(readFileSync(localePath, 'utf8')) as {
-  sidebar: {
-    user: {
-      settingsLink: string;
-      settingsLinkBeta: string;
-      moreLabel: string;
-      canaryBadge: string;
-      downloadMobile: string;
-    };
-    mobileDownload: { title: string };
-  };
+  sidebar: { user: { openSettings: string } };
 };
 
-// ── 改动 1: 外层 footer slot + tokenized account capsule ────────────────
+// ── 形态 1: footer slot + tokenized 胶囊 ────────────────────────────────
 
-describe('UserInfoSection — outer wrapper takes over full-row hover', () => {
+describe('UserInfoSection — 底部 footer slot 与胶囊形态', () => {
   it('outer div keeps the sidebar footer slot', () => {
     expect(source).toContain('mt-auto px-3 pb-3 pt-2');
   });
 
-  it('visible user card uses the rounded tokenized capsule style', () => {
+  it('展开态是与旧账号胶囊同尺寸的整行按钮(h-10 / rounded-full / px-[7px])', () => {
     expect(source).toContain(
-      'flex h-10 items-center rounded-full border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)] px-[7px]',
+      "'flex h-10 w-full items-center gap-[10px] rounded-full px-[7px] text-left'",
     );
   });
 
-  it('visible user card uses the CREATE AGENT sidebar user tokens', () => {
+  it('沿用 CREATE AGENT 侧栏的 user card 语义 token', () => {
     expect(source).toContain('border-[var(--sidebar-user-card-border)]');
     expect(source).toContain('bg-[var(--sidebar-user-card-bg)]');
     expect(source).toContain('text-[var(--sidebar-user-card-text)]');
   });
 
-  it('capsule owns the hover state via the glass hover token', () => {
+  it('按钮自己承载 hover(不再有内嵌次级按钮需要 :has() 还原底色)', () => {
     expect(source).toContain("'transition-colors hover:bg-[var(--sidebar-user-card-bg-hover)]'");
+    expect(source).not.toContain('has-[.flame-btn:hover]');
+    expect(source).not.toContain('has-[.mobile-download-btn:hover]');
   });
 
-  it('capsule hover is suppressed while the flame button is hovered (:has() exclusion)', () => {
-    // 悬停火焰按钮时胶囊底色还原,只让火焰自己高亮 —— 方案 D 语义
-    expect(source).toContain("'has-[.flame-btn:hover]:bg-[var(--sidebar-user-card-bg)]'");
+  it('rail 态保留 66px 居中槽位', () => {
+    expect(source).toContain(
+      'className="mt-auto flex h-[66px] flex-col items-center justify-center px-3"',
+    );
+  });
+
+  it('两态都有可见的键盘焦点环', () => {
+    expect(
+      source.match(
+        /focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-\[var\(--focus-ring\)\]/g,
+      ),
+    ).toHaveLength(2);
   });
 });
+
+// ── 形态 2: 打开设置 ────────────────────────────────────────────────────
+
+describe('UserInfoSection — 打开设置入口', () => {
+  it('两态都是同一个设置按钮,点了进 /settings', () => {
+    expect(source).toContain("import { Settings } from 'lucide-react';");
+    expect(source).toContain("const settingsLabel = t('sidebar.user.openSettings');");
+    expect(source).toContain("const isOnSettings = location.pathname === '/settings';");
+    expect(source).toContain("if (!isOnSettings) navigate('/settings');");
+    expect(source.match(/onClick=\{openSettings\}/g)).toHaveLength(2);
+    expect(source.match(/aria-label=\{settingsLabel\}/g)).toHaveLength(2);
+    expect(locale.sidebar.user.openSettings).toBe('设置');
+  });
+
+  it('两态都把完整版本号放在托管 Tip 里(不用原生 title)', () => {
+    // 图标按铮不得靠原生 title 做提示,契约见 iconButtonTooltips.test.ts。
+    expect(source).not.toContain('title={appVersionLabelDetail}');
+    // rail 态没有可见文字,Tip 里要带上按铮名;展开态按铮自带文字,只需版本号。
+    expect(source).toContain('text={`${settingsLabel} · ${appVersionLabelDetail}`}');
+    expect(source).toContain('<Tip text={appVersionLabelDetail} side="right">');
+  });
+});
+
+// ── 形态 3: 版本行 ──────────────────────────────────────────────────────
 
 describe('UserInfoSection — version label', () => {
   it('labels only the non-global builds alongside the app version', () => {
@@ -84,11 +111,12 @@ describe('UserInfoSection — version label', () => {
     );
     expect(source).not.toContain('XD.Inc');
     expect(source).toContain('{appVersionLabel}');
-    expect(source).toContain('title={appVersionLabelDetail}');
   });
 
   it('shows the Beta label only after the persisted channel state has loaded', () => {
-    expect(source).toContain("import { useBetaChannelSettings } from '@/hooks/useBetaChannelSettings';");
+    expect(source).toContain(
+      "import { useBetaChannelSettings } from '@/hooks/useBetaChannelSettings';",
+    );
     expect(source).toContain(
       'const showBetaLabel = !betaChannelState.loading && betaChannelState.enableBeta;',
     );
@@ -98,147 +126,36 @@ describe('UserInfoSection — version label', () => {
   });
 });
 
-describe('UserInfoSection — Canary avatar badge', () => {
-  it('shows only the shield decoration when isCanary is true', () => {
-    expect(source).toContain(
-      "import { Flame, LogOut, Settings, Shield, Smartphone, UserPlus, UserRound } from 'lucide-react';",
-    );
-    expect(source).toContain('const { user, mode, isCanary, beginAddAccount } = useAuth();');
-    expect(source).toContain('{isCanary && (');
-    expect(source).toContain("aria-label={t('sidebar.user.canaryBadge')}");
-    expect(source).not.toContain("isCanary && 'ring-[1.5px] ring-foreground'");
-    expect(source).not.toContain("user.role === 'admin'");
-    expect(locale.sidebar.user.canaryBadge).toBe('灰度用户');
+// ── 形态 4: 账号概念不得回流 ────────────────────────────────────────────
+
+describe('UserInfoSection — 账号入口已随登录一起下架', () => {
+  it('不再读 auth 状态', () => {
+    expect(source).not.toContain('useAuth');
+    expect(source).not.toContain('isCanary');
+    expect(source).not.toContain('displayName');
+    expect(source).not.toContain('avatar');
   });
 
-  it('keeps the collapsed settings Tip from overlapping the Canary native title', () => {
-    expect(
-      source.match(/title=\{isCanary \? t\('sidebar\.user\.canaryBadge'\) : undefined\}/g),
-    ).toHaveLength(1);
-    expect(source).toMatch(
-      /className="relative h-\[27px\] w-\[27px\] shrink-0"\s+title=\{isCanary \? t\('sidebar\.user\.canaryBadge'\) : undefined\}/,
-    );
-    expect(source).not.toMatch(
-      /className="relative h-9 w-9 shrink-0"\s+title=\{isCanary \? t\('sidebar\.user\.canaryBadge'\) : undefined\}/,
-    );
-  });
-});
-
-describe('UserInfoSection — 未登录态头像兜底', () => {
-  it('未登录(跳过登录)态用中性人形图标,不拿状态文案取首字', () => {
-    // 状态名四语各不相同(未登录 / Not signed in / 未ログイン / 로그인하지 않음),
-    // 取首字会渲染成「未」/「N」这类无意义字符,所以这里必须走图标分支。
-    expect(source).toContain('const showNotSignedInGlyph = !user && isLocal;');
-    // 折叠 rail(36px 圆)与展开胶囊(27px 圆)两处兜底都要接上
-    expect(source).toMatch(
-      /showNotSignedInGlyph \? \(\s*\n\s*<UserRound aria-hidden="true" size=\{18\}/,
-    );
-    expect(source).toMatch(
-      /showNotSignedInGlyph \? \(\s*\n\s*<UserRound aria-hidden="true" size=\{15\}/,
-    );
+  it('不再有账号切换 / 退出 / 添加账号', () => {
+    expect(source).not.toContain('AccountSwitcherDialog');
+    expect(source).not.toContain('beginAddAccount');
+    expect(source).not.toContain('useLogout');
+    expect(source).not.toContain('DropdownMenu');
+    expect(source).not.toContain("t('sidebar.user.menuLogout')");
+    expect(source).not.toContain("t('sidebar.user.moreLabel'");
   });
 
-  it('已登录用户仍使用姓名首字兜底', () => {
-    expect(source).toContain(
-      "const displayName = user?.name ?? (isLocal ? t('settings.userProfile.local.name') : '');",
-    );
-    expect(source).toContain('const initial = displayName.charAt(0).toUpperCase();');
-  });
-});
-
-describe('UserInfoSection — mobile download entry', () => {
-  it('uses the local Lucide Smartphone icon in a matching 22x22 capsule action', () => {
-    expect(source).toContain(
-      "import { Flame, LogOut, Settings, Shield, Smartphone, UserPlus, UserRound } from 'lucide-react';",
-    );
-    expect(source).toMatch(/'mobile-download-btn',\s*\n\s*'flex h-\[22px\] w-\[22px\]/);
-    expect(source).toContain("!isCollapsed && 'mr-1'");
-    expect(source).toContain('<Smartphone className="h-3 w-3" aria-hidden="true" />');
+  it('不再有移动端下载与更新历史火焰(两者各自另有去处,见组件头注释)', () => {
+    expect(source).not.toContain('MobileDownloadDialog');
+    expect(source).not.toContain('Smartphone');
+    expect(source).not.toContain('Flame');
+    expect(source).not.toContain('flame-btn');
+    expect(source).not.toContain('onOpenUpdateNotice');
+    expect(source).not.toContain('useUpdateStatus');
+    expect(source).not.toContain('useUpdateBannerDismiss');
   });
 
-  it('suppresses capsule hover while the mobile button owns the hover state', () => {
-    expect(source).toContain("'has-[.mobile-download-btn:hover]:bg-[var(--sidebar-user-card-bg)]'");
-  });
-
-  it('opens the mobile download dialog with an accessible label', () => {
-    expect(source).toContain('onClick={() => setMobileDownloadOpen(true)}');
-    expect(source).toContain("aria-label={t('sidebar.user.downloadMobile')}");
-    expect(source).toContain("navigate('/settings?tab=remote-control')");
-    expect(source).toContain("const remoteAvailable = mode === 'cloud';");
-    expect(source).toContain('remoteAvailable={remoteAvailable}');
-    expect(locale.sidebar.user.downloadMobile).toBe('下载 Cindy 移动端');
-    expect(locale.sidebar.mobileDownload.title).toBe('远程控制 Cindy');
-  });
-
-  it('keeps the same entry and dialog available in the collapsed sidebar', () => {
-    expect(source).toContain(
-      'className="mt-auto flex h-[66px] flex-col items-center justify-center gap-1 px-3"',
-    );
-    expect(source).toContain('{mobileDownloadEntry}');
-  });
-});
-
-// ── 改动 2: 内部主按钮去掉冗余 hover / 圆角 ───────────────────────────
-
-describe('UserInfoSection — inner main button no longer owns hover background', () => {
-  it('does not contain a "rounded-full" + "hover:bg-sidebar-item-hover" combo on the same className line', () => {
-    // 旧 className 长这样: 'flex w-full items-center gap-[10px] rounded-full',
-    // 我们要求这一行(主按钮第一行 cn() 字面量)不再带 rounded-full
-    expect(source).not.toMatch(/'flex w-full items-center gap-\[10px\] rounded-full'/);
-  });
-
-  it('main button does not own hover:bg-sidebar-item-hover (delegated to outer div)', () => {
-    // 旧第二行: 'transition-colors text-left hover:bg-sidebar-item-hover',
-    expect(source).not.toMatch(/'transition-colors text-left hover:bg-sidebar-item-hover'/);
-  });
-
-  it('main button keeps its layout classes (flex / w-full / gap)', () => {
-    // 保留布局,只去掉视觉
-    expect(source).toMatch(/'flex min-w-0 flex-1 items-center gap-\[10px\]'/);
-  });
-
-  it('main button keeps text-left for left-aligned content', () => {
-    expect(source).toMatch(/'text-left'/);
-  });
-
-  it('main button opens the accessible More menu instead of navigating directly', () => {
-    expect(source).not.toContain('onClick={handleClick}');
-    expect(source).not.toContain('role="link"');
-    expect(source).toContain(
-      "const moreLabel = t('sidebar.user.moreLabel', { name: displayName });",
-    );
-    expect(source).toContain('aria-label={moreLabel}');
-    expect(source).toContain('<DropdownMenuTrigger asChild>');
-    expect(locale.sidebar.user.moreLabel).toBe('更多，当前用户：{{name}}');
-  });
-
-  it('offers settings, account switching, and logout from the More menu', () => {
-    expect(source).toContain("t('sidebar.user.menuSettings')");
-    expect(source).toContain("t('sidebar.user.menuAddAccount')");
-    expect(source).toContain("t('sidebar.user.menuLogout')");
-    expect(source).toContain('setAccountSwitcherOpen(true)');
-  });
-});
-
-// ── 改动 3: Flame button 加 .flame-btn 标识 class ────────────────────────
-
-describe('UserInfoSection — Flame button carries .flame-btn marker class', () => {
-  it("Flame button className list includes 'flame-btn' as the first entry", () => {
-    // 关键: 外层 div 的 has-[.flame-btn:hover] 选择器必须能钩到这个 class
-    expect(source).toMatch(/'flame-btn',\s*\n\s*'flex h-\[22px\] w-\[22px\]/);
-  });
-
-  it('Flame button retains its own hover:bg-sidebar-item-hover (capsule highlight when hovered)', () => {
-    // Flame 自己的胶囊 hover 不能丢,这是方案 D 的视觉表达
-    expect(source).toMatch(/'transition-colors hover:bg-sidebar-item-hover'/);
-  });
-
-  it('Flame button keeps rounded-full + 22x22 size inside the account capsule', () => {
-    expect(source).toContain(
-      'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full',
-    );
-    expect(source).toContain(
-      'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)]',
-    );
+  it('不再引用已下架的「远程连接」设置分区', () => {
+    expect(source).not.toContain('remote-control');
   });
 });

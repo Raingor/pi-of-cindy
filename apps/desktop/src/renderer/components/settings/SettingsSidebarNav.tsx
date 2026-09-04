@@ -7,15 +7,11 @@ import {
   Brain,
   FileUp,
   Gauge,
-  Keyboard,
   MessageSquare,
-  MonitorCog,
-  MonitorSmartphone,
   Package,
   Settings2,
   Sparkles,
   Users,
-  Wrench,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -33,11 +29,7 @@ const TAB_ICON: Record<VisibleSettingsTab, SettingsNavIcon> = {
   general: Settings2,
   personalization: Sparkles,
   providers: Boxes,
-  shortcuts: Keyboard,
   import: FileUp,
-  'remote-control': MonitorSmartphone,
-  'builtin-tools': Wrench,
-  'computer-use': MonitorCog,
   'pi-dashboard': Activity,
   'pi-sessions': MessageSquare,
   'pi-memory': Brain,

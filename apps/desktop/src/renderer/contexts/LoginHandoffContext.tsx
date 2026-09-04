@@ -32,6 +32,27 @@ import {
  *   (附录 B 分层基准:Splash 静态布局=wave4,demo 只验阶段-文案-时序)。
  * - authenticated 冷启动:品牌 Splash 淡出直入主界面,不闪登录面板,overlay 平滑卸载。
  *
+ * **2026-09-03(用户指令移除登录)后本 fork 只走 authenticated 分支。**
+ * 入场动画本身一字不改 —— 品牌资产、Splash 五帧、淡出时长、reduced-motion
+ * 直落全部保留,只是不再有「往登录面板交接」这一支。
+ *
+ * 这不是清理残局而是**必需**:unauthenticated 分支会停在 `awaiting-panel` 等
+ * LoginPage 的 reportLoginPanelMounted(),而那个面板已经永远不会挂载(路由都拆了)。
+ * 品牌 overlay 在 done 之前恒挂且不透白底全盖,一旦钉到这一支就是**永久卡在开机
+ * 动画里进不了应用**。
+ *
+ * 而这个分支在本 fork 里是真能被钉到的:启动期 owner 过渡会先广播一次
+ * notifyRendererAuthBoundaryPending()(canEnterApp=false 的边界态快照),该推送会
+ * bump AuthContext 的 authStateVersionRef 从而使 initialize() 的返回值被守卫丢弃;
+ * 若末尾没有一次 local 终态推送追上来,renderer 就停在
+ * `authResolved=true ∧ canEnterApp=false`。main 侧已把冷启动终点改成直接落 local
+ * (authManager.finishColdStartWithoutAccount)把窗口挤到最小,但那是时序层的缓解,
+ * 不是结构保证 —— 真正的保证是这里不再依赖 authenticated 入参判分支。
+ *
+ * 分支恢复方式:登录线若重新启用,把下方 nextBranch 改回按 props.authenticated 取值
+ * 即可 —— unauthenticated 那条链的全部 phase、时序常量、panelMounted 信号与
+ * LoginPage 的两个报告口都原样留着,没有删任何东西。
+ *
  * 推进锚 = 品牌资产 onload ∧ auth 初始化完成 ∧ Splash 已退场;未登录分支另需
  * 「面板已挂载」信号后才进 panel 步。冷启动每次播放(仅未登录分支);尺寸切换/reset
  * 不重播(playedRef 进程级一次);prefers-reduced-motion 直落终态。
@@ -125,20 +146,22 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export function LoginHandoffProvider({
-  children,
-  authResolved,
-  authenticated,
-  coverHeld = false,
-}: {
+export function LoginHandoffProvider(props: {
   children: ReactNode;
   /** auth 初始化完成(= !isInitializing;App.tsx 内层 host 从 useAuth 取,避免本模块传递性引入 AuthContext 重依赖)。 */
   authResolved: boolean;
-  /** auth 初始化结果分支(仅在 authResolved 后读)。 */
-  authenticated: boolean;
+  /**
+   * auth 初始化结果分支。
+   *
+   * 2026-09-03 移除登录后**本模块不再读它**(故故意不解构):分支恒为
+   * authenticated,原因见文件头注释。入参留在宣告里是为了不动宕上的宣告契约,
+   * 也方便日后重新启用登录线时一行改回去。
+   */
+  authenticated?: boolean;
   /** 已登录但 LocalDbGate 还不能画主界面时由 App 壳下传,避免本模块 import AppShellCover/Auth。 */
   coverHeld?: boolean;
 }) {
+  const { children, authResolved, coverHeld = false } = props;
   const [phase, setPhase] = useState<LoginHandoffPhase>('boot');
   const [branch, setBranch] = useState<LoginHandoffBranch>(null);
   const [brandReady, setBrandReady] = useState(false);
@@ -148,7 +171,6 @@ export function LoginHandoffProvider({
 
   // 冷启动只播一次:进程生命周期内 resize/reset/登出重回 /login 均不重播。
   const playedRef = useRef(false);
-  const panelMountedRef = useRef(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const schedule = useCallback((fn: () => void, ms: number) => {
@@ -168,11 +190,9 @@ export function LoginHandoffProvider({
   const reportBrandAssetsReady = useCallback(() => setBrandReady(true), []);
   const reportSplashExited = useCallback(() => setSplashExited(true), []);
   const reportLoginPanelMounted = useCallback(() => {
-    panelMountedRef.current = true;
     setPanelMounted(true);
   }, []);
   const reportLoginPanelUnmounted = useCallback(() => {
-    panelMountedRef.current = false;
     setPanelMounted(false);
   }, []);
   const reportPanelBottomReserve = useCallback(
@@ -186,7 +206,10 @@ export function LoginHandoffProvider({
     if (!brandReady || !splashExited || !authResolved) return;
     playedRef.current = true;
 
-    const nextBranch: LoginHandoffBranch = authenticated ? 'authenticated' : 'unauthenticated';
+    // 本 fork 无登录线:恒走「品牌 Splash 淡出直入主界面」。不读 props.authenticated
+    // 的原因见文件头注释:启动期存在 authResolved 与 canEnterApp 不同步的瞬态,
+    // 在那里钉成 unauthenticated 会永久卡在 awaiting-panel(登录面板不存在了)。
+    const nextBranch: LoginHandoffBranch = 'authenticated';
     setBranch(nextBranch);
 
     // reduced-motion 直落终态:无位移/无渐入过程。
@@ -195,21 +218,10 @@ export function LoginHandoffProvider({
       return;
     }
 
-    if (nextBranch === 'authenticated') {
-      // 品牌 Splash 淡出直入主界面,不闪登录面板。
-      setPhase('brand-exit');
-      schedule(() => setPhase('done'), LOGIN_HANDOFF_TIMINGS.brandExitMs);
-      return;
-    }
-
-    setPhase('settle');
-    schedule(() => setPhase('shift'), LOGIN_HANDOFF_TIMINGS.settleMs);
-    schedule(
-      // 未登录分支另需「面板已挂载」信号后才进 panel 步。
-      () => setPhase(panelMountedRef.current ? 'panel' : 'awaiting-panel'),
-      LOGIN_HANDOFF_TIMINGS.settleMs + LOGIN_HANDOFF_TIMINGS.shiftMs,
-    );
-  }, [brandReady, splashExited, authResolved, authenticated, schedule]);
+    // 品牌 Splash 淡出直入主界面,不闪登录面板。
+    setPhase('brand-exit');
+    schedule(() => setPhase('done'), LOGIN_HANDOFF_TIMINGS.brandExitMs);
+  }, [brandReady, splashExited, authResolved, schedule]);
 
   // awaiting-panel → panel:面板挂载信号到达即刻放行。
   useEffect(() => {

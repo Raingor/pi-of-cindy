@@ -308,15 +308,18 @@ describe('icon-only button tooltip coverage', () => {
     expect(windowControls).toContain("aria-label={t('titleBar.closing.title')}");
   });
 
-  it('gives both sidebar footer icon actions visible, state-aware tips', () => {
+  it('gives the sidebar footer settings action a visible, version-bearing tip', () => {
     const source = rendererSource('components/sidebar/UserInfoSection.tsx');
 
+    // 2026-09-03 移除登录后底部只剩一个设置按铮:rail 态图标孤立,必须有 Tip;
+    // 展开态按铮自带文字 label,完整版本号走 title 属性就够。
     expect(source).toContain("import { Tip } from '@/components/ui/tooltip';");
-    expect(source).toContain('<Tip text={moreLabel} side="right">');
-    expect(source).toContain("text={t('sidebar.user.downloadMobile')}");
-    expect(source).toMatch(
-      /text=\{\s*isFlameReopen\s*\? t\('sidebar\.user\.reopenUpdateBanner'\)\s*: t\('sidebar\.user\.viewReleaseNotes'\)\s*\}/,
-    );
+    expect(source).toContain('text={`${settingsLabel} · ${appVersionLabelDetail}`}');
+    expect(source).toContain('side="right"');
+    // 旧的三个图标动作(更多菜单 / 移动端下载 / 更新历史火焰)已随账号胶囊下架。
+    expect(source).not.toContain('moreLabel');
+    expect(source).not.toContain('downloadMobile');
+    expect(source).not.toContain('isFlameReopen');
   });
 
   it('does not exempt session-row icon actions from visible tips', () => {

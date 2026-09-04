@@ -53,7 +53,6 @@ import {
   ChevronDown,
   Loader2,
   Monitor,
-  MonitorCog,
   MonitorSmartphone,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -130,13 +129,8 @@ export function MachineSwitcherMenu({
   const triggerLabel = t('ccAgent.sidebar.machineSwitcher.menuTrigger');
   const settingsItems = (
     <>
-      <DropdownMenuItem
-        className={MENU_ITEM_CLASS}
-        onSelect={() => navigate('/settings?tab=remote-control')}
-      >
-        <MonitorCog size={14} strokeWidth={2} className="shrink-0 opacity-70" />
-        <span className="truncate">{t('ccAgent.sidebar.machineSwitcher.remoteSettings')}</span>
-      </DropdownMenuItem>
+      {/* 2026-09-03 下架「远程连接」设置分区后,这里原有的「远程设置」深链入口一并
+          移除:远程设备能力(device-link / relay)本身保留,但没有设置页可跳。 */}
       {onOpenDisplaySettings ? (
         <DropdownMenuItem
           className={MENU_ITEM_CLASS}

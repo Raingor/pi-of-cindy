@@ -6923,6 +6923,7 @@
       "settingsLink": "设置，当前用户：{{name}}",
       "settingsLinkBeta": "设置，当前用户：{{name}}，Beta 测试渠道已开启",
       "moreLabel": "更多，当前用户：{{name}}",
+      "openSettings": "设置",
       "menuSettings": "设置",
       "menuAddAccount": "登录更多账号",
       "menuLogout": "退出",

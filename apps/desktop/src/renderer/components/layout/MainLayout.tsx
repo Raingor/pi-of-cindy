@@ -1164,7 +1164,8 @@ export function MainLayout() {
           navigate('/cc-agent/new');
           return true;
         case 'settings':
-          navigate('/settings?tab=shortcuts');
+          // 以前落在「键盘快捷键」分区;该分区 2026-09-03 下架后直接开设置首页。
+          navigate('/settings');
           return true;
         case 'manageTasks':
           navigate('/cc-agent/scheduled');
@@ -1373,7 +1374,6 @@ export function MainLayout() {
               forceMountFeatureContent={location.pathname === '/cc-agent/new'}
               onDragStart={handleDragStart}
               onResetWidth={resetWidth}
-              onOpenUpdateNotice={openNotice}
               onOpenVersionNotice={openVersionNotice}
               peekState={sidebarPeek.isPeekVisible ? sidebarPeek.peekState : null}
               peekDrawerProps={sidebarPeek.drawerProps}

@@ -584,26 +584,23 @@ describe('远程机器切换入口并入 SidebarTopNav(置顶段上方,固定不
     expect(menuSource).toContain('{settingsItems}');
     expect(menuSource).toContain('MACHINE_ALL');
     expect(menuSource).toContain('MACHINE_LOCAL');
-    expect(menuSource).toContain("navigate('/settings?tab=remote-control')");
     expect(menuSource).toContain('useMachineSwitcher');
-    // 范围菜单底部:远程连接设置在上、侧边栏显示设置在下;点后者后等本菜单关完
-    // 再开段头那份菜单,避免两个 Radix 菜单抢焦点把新开的立刻关掉。
+    // 设置菜单底部只剩侧边栏显示设置:「远程连接」设置分区 2026-09-03 已下架,
+    // 这里原先的「远程设置」深链入口随之移除(远程设备能力本身保留)。点显示设置后
+    // 等本菜单关完再开段头那份菜单,避免两个 Radix 菜单抢焦点把新开的立刻关掉。
+    expect(menuSource).not.toContain("navigate('/settings?tab=remote-control')");
+    expect(menuSource).not.toContain('MonitorCog');
+    expect(menuSource).not.toContain("t('ccAgent.sidebar.machineSwitcher.remoteSettings')");
     expect(menuSource).toContain('onOpenDisplaySettings');
     expect(menuSource).toContain("t('ccAgent.sidebar.organizeSidebar')");
     expect(menuSource).toContain('window.setTimeout(() => onOpenDisplaySettings(), 0)');
-    expect(menuSource).toContain('<MonitorCog size={14} strokeWidth={2}');
     expect(menuSource).toContain('<SlidersHorizontal size={14} strokeWidth={2}');
     expect(menuSource).not.toContain('EllipsisVertical');
     // 设置项抽到 settingsItems:有远程时先画设备列表再 separator,再插入该片段;
-    // 无远程时菜单只有这一段。片段内部远程连接设置在上、显示设置在下。
+    // 无远程时菜单只有这一段。
     const settingsItemsIndex = menuSource.indexOf('{settingsItems}');
     const separatorIndex = menuSource.indexOf('<DropdownMenuSeparator');
     expect(settingsItemsIndex).toBeGreaterThan(separatorIndex);
-    const remoteSettingsIndex = menuSource.indexOf(
-      "t('ccAgent.sidebar.machineSwitcher.remoteSettings')",
-    );
-    const displaySettingsIndex = menuSource.indexOf("t('ccAgent.sidebar.organizeSidebar')");
-    expect(displaySettingsIndex).toBeGreaterThan(remoteSettingsIndex);
   });
 
   it('非会话视图选机器时切回会话视图(与新建 / 搜索行同惯例,Codex P2)', () => {

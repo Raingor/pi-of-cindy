@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useSyncExternalStore } from 'react';
 import { ArrowLeft, ChevronRight, Puzzle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -9,16 +8,11 @@ import { Tip } from '@/components/ui/tooltip';
 import { TAB_IDS, isSettingsTab } from '@/lib/tabLabels';
 import type { SettingsTab } from '@/lib/tabLabels';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
-import { UserProfileCard } from './UserProfileCard';
 import { AppearanceSection } from './AppearanceSection';
-import { McpServersSection } from './McpServersSection';
-import { RemoteControlSection } from './RemoteControlSection';
 import { NotificationSection } from './NotificationSection';
 import { WindowBehaviorSection } from './WindowBehaviorSection';
 import { ComposerSendShortcutSection } from './ComposerSendShortcutSection';
-import { KeyboardShortcutsSection } from './KeyboardShortcutsSection';
 import { LanguageSection } from './LanguageSection';
-import { LogoutSection } from './LogoutSection';
 import { CompactionSection } from './CompactionSection';
 import { TerminalShellSection } from './TerminalShellSection';
 import { LinkOpenSection } from './LinkOpenSection';
@@ -38,10 +32,7 @@ import { PiMemorySection } from './pi-memory/PiMemorySection';
 import { PiSubagentsSection } from './pi-subagents/PiSubagentsSection';
 import { PiSpeedTestSection } from './pi-speedtest/PiSpeedTestSection';
 import { CollaborationSection } from './CollaborationSection';
-import { BuiltinToolsSection } from './BuiltinToolsSection';
-import { ComputerUseSection } from './ComputerUseSection';
 import { useAuth } from '@/contexts/AuthContext';
-import { getLastWorkingDir, subscribeToLastWorkingDir } from '@/state/lastWorkingDir';
 
 const DEFAULT_SETTINGS_MENU_WIDTH = 260;
 
@@ -56,17 +47,13 @@ export function SettingsView() {
   const { t } = useTranslation();
   const { mode, dataOwnerId } = useAuth();
   const menuWidth = outletContext?.sidebarWidth ?? DEFAULT_SETTINGS_MENU_WIDTH;
-  const workingDir = useSyncExternalStore(
-    subscribeToLastWorkingDir,
-    getLastWorkingDir,
-    getLastWorkingDir,
-  );
   const rawTab = searchParams.get('tab');
 
   const activeTab = useMemo<SettingsTab>(() => {
     const raw = rawTab;
-    // legacy 别名:旧「远端机器」(remote) /「设备互联」(devices) 已并入「远程控制」(remote-control)。
-    if (raw === 'remote' || raw === 'devices') return 'remote-control';
+    // legacy 别名:旧「远端机器」(remote) /「设备互联」(devices) 曾并入「远程控制」
+    // (remote-control);该分区 2026-09-03 已整体下架,三个旧 id 一律回落通用页。
+    if (raw === 'remote' || raw === 'devices') return 'general';
     // 已下架分区的深链一律回落通用页:IM 机器人(含旧 feishu-bot / slack-bot / tina
     // 别名)、语音输入、计费与用量历史都不再是可路由 tab —— 本机 Pi 工作台的用量
     // 口径统一由 Pi 仪表盘(pi-dashboard)承担。
@@ -74,8 +61,9 @@ export function SettingsView() {
     if (raw === 'billing' || raw === 'usage' || raw === 'voice-input' || raw === 'im-bot') {
       return 'general';
     }
-    // 2026-09-03 下架:灵动岛 / 插件 / 帮助 / 关于。四者的旧深链一律回落通用页
-    // (isSettingsTab 已不认这些 id,这里只是把意图写明)。
+    // 2026-09-03 下架:灵动岛 / 插件 / 帮助 / 关于,以及自动操作 / 工具 /
+    // 远程连接 / 键盘快捷键。旧深链一律回落通用页(isSettingsTab 已不认这些
+    // id,这里只是把意图写明)。
     return isSettingsTab(raw) ? raw : 'general';
   }, [rawTab]);
   const piExtensionsPanelOpen =
@@ -97,7 +85,13 @@ export function SettingsView() {
       rawTab !== 'api-keys' &&
       rawTab !== 'connections' &&
       rawTab !== 'help' &&
-      rawTab !== 'about'
+      rawTab !== 'about' &&
+      rawTab !== 'remote' &&
+      rawTab !== 'devices' &&
+      rawTab !== 'remote-control' &&
+      rawTab !== 'builtin-tools' &&
+      rawTab !== 'computer-use' &&
+      rawTab !== 'shortcuts'
     ) {
       return;
     }
@@ -107,6 +101,8 @@ export function SettingsView() {
     next.delete('imGroup');
     // 插件深链会带 ?ghost=<id>;tab 作废后它也不该留在 URL 上被别的分区误消费。
     next.delete('ghost');
+    // 远程控制的设备子页深链(?section=devices)同理。
+    next.delete('section');
     setSearchParams(next, { replace: true });
   }, [rawTab, searchParams, setSearchParams]);
 
@@ -268,11 +264,6 @@ export function SettingsView() {
                   </>
                 ) : (
                   <>
-                    {/* Section — User Info (pb 18) */}
-                    <section className="pb-[18px]" aria-label={t('settings.sections.user')}>
-                      <UserProfileCard />
-                    </section>
-
                     {/* Section — Appearance (py 18) */}
                     <section className="py-[18px]" aria-label={t('settings.sections.appearance')}>
                       <AppearanceSection />
@@ -367,11 +358,6 @@ export function SettingsView() {
                     <section className="py-[18px]" aria-label={t('settings.sections.experimental')}>
                       <ExperimentalSection />
                     </section>
-
-                    {/* Section — Logout (pt 18) */}
-                    <section className="pt-[18px]" aria-label={t('settings.sections.logout')}>
-                      <LogoutSection />
-                    </section>
                   </>
                 )}
               </div>
@@ -410,19 +396,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {activeTab === 'shortcuts' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-shortcuts"
-                aria-labelledby="settings-tab-shortcuts"
-              >
-                {/* 应用级快捷键改绑; registry 见 shared/appShortcuts.ts。 */}
-                <section aria-label={t('settings.sections.shortcuts')}>
-                  <KeyboardShortcutsSection />
-                </section>
-              </div>
-            )}
-
             {activeTab === 'providers' && (
               <div
                 role="tabpanel"
@@ -434,46 +407,6 @@ export function SettingsView() {
                     「模型供应商」分区(pi-only 口径,组件与后端保留仅隐藏 UI)。 */}
                 <section className="pb-[18px]" aria-label={t('settings.piCliProviders.title')}>
                   <PiCliProvidersSection />
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'remote-control' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-remote-control"
-                aria-labelledby="settings-tab-remote-control"
-              >
-                <section aria-label={t('settings.sections.remoteControl')}>
-                  <RemoteControlSection />
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'builtin-tools' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-builtin-tools"
-                aria-labelledby="settings-tab-builtin-tools"
-              >
-                <section className="pb-[18px]" aria-label={t('settings.builtinTools.title')}>
-                  <BuiltinToolsSection workingDir={workingDir ?? undefined} />
-                </section>
-                {/* 外部(自定义)MCP 与内置工具同页管理:内置在上、外部在下,组成「工具」页。 */}
-                <section className="pb-[18px]" aria-label={t('settings.sections.mcpServers')}>
-                  <McpServersSection />
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'computer-use' && (
-              <div
-                role="tabpanel"
-                id="settings-panel-computer-use"
-                aria-labelledby="settings-tab-computer-use"
-              >
-                <section className="pb-[18px]" aria-label={t('settings.computerUse.title')}>
-                  <ComputerUseSection workingDir={workingDir ?? undefined} />
                 </section>
               </div>
             )}

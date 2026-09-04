@@ -4,6 +4,10 @@
  * 与首屏 ConnectProviderCard 共享同一判定与 dismiss key(useProviderOnboarding):
  * 任一处 dismiss,两处一起消失。骨架对齐 UpgradeBanner(自判 visible、不可见渲染
  * null、挂载处零开销),但这是引导不是告警——用中性 token,不用 amber。
+ *
+ * 2026-09-03 pi-only fork 移除登录后,CTA 不再按登录态分岸:永远直跳供应商
+ * 设置页。原来的非 cloud 分支走 useSignInToCindy(),它会 exitLocalMode() 再跳
+ * /login —— 在本 fork 里等于把会话推回 signed-out 后卡在空白页。
  */
 
 import { Unplug, X } from 'lucide-react';
@@ -13,7 +17,6 @@ import type { CSSProperties } from 'react';
 
 import { cn } from '@/lib/utils';
 import { useProviderOnboarding } from '@/hooks/useProviderOnboarding';
-import { useSignInToCindy } from '@/hooks/useSignInToCindy';
 
 export function ConnectProviderBanner({
   className,
@@ -24,12 +27,9 @@ export function ConnectProviderBanner({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const signInToCindy = useSignInToCindy();
   const onboarding = useProviderOnboarding();
 
   if (!onboarding.visible) return null;
-
-  const cloudMode = onboarding.authMode === 'cloud';
 
   return (
     <div
@@ -47,12 +47,10 @@ export function ConnectProviderBanner({
       </span>
       <button
         type="button"
-        onClick={() => (cloudMode ? navigate('/settings?tab=providers') : void signInToCindy())}
+        onClick={() => navigate('/settings?tab=providers')}
         className="shrink-0 text-xs font-medium text-[var(--text-primary)] transition-opacity hover:opacity-70"
       >
-        {cloudMode
-          ? t('onboarding.connectProvider.banner.connectCta')
-          : t('onboarding.connectProvider.banner.loginCta')}
+        {t('onboarding.connectProvider.banner.connectCta')}
       </button>
       <button
         type="button"

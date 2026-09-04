@@ -2200,9 +2200,24 @@ function commitCloudAppSession(ownerId: string): void {
   }
 }
 
-async function finishColdStartSignedOut(reason: string): Promise<AuthState> {
-  await recoverAccountFreeOwnerAtStartup('signed-out', reason);
-  return snapshotLoggedOutAuthState();
+/**
+ * 冷启动链的统一终点。
+ *
+ * 2026-09-03 移除登录后它落在 **local**(而不是 signed-out):本 fork 没有登录线,
+ * signed-out 不再是一个用户能停留的态。注意这不能只靠 initialize() 尾部的收口
+ * 补救 —— 先提交 signed-out 再转 local 会多广播一次 auth:state-change,而那次推送会
+ * 抢先于 initialize() 的返回值到达 renderer(AuthContext 的 authStateVersionRef 守卫
+ * 会丢弃返回值),造出 `authResolved=true ∧ canEnterApp=false` 的瞬态;
+ * LoginHandoff 的推进锚恰好在此时对齐就会把开机动画钉成 unauthenticated 分支,
+ * 停在 awaiting-panel 等一个永远不会挂载的登录面板 —— 表现是永久卡在入场动画。
+ * 所以此处必须一步到 local,不给那个瞬态留窗口。
+ *
+ * 预期副作用不变:reason 照旧传(日志与 owner 过渡可追溯),之前各分支对磁盘凭证的
+ * 清理/保留行为也照旧 —— 只改「最终停在哪个会话模式」。
+ */
+async function finishColdStartWithoutAccount(reason: string): Promise<AuthState> {
+  await recoverAccountFreeOwnerAtStartup('local', reason);
+  return snapshotAuthState();
 }
 
 export function setAccountSwitchTeardown(teardown: AccountSwitchTeardown | null): void {
@@ -3785,7 +3800,35 @@ export async function updateServerProfile(
   };
 }
 
+/**
+ * pi-only fork 的启动入口:本分支没有登录线,冒出水面的只能是本地会话。
+ *
+ * 2026-09-03 用户指令:移除登录,点开就直接进操作面板。实现上不去拆
+ * signed-out 那条完整的冷启动链(凭证对账、relogin marker、多实例墤碎……那些
+ * 都是真存在的失败模式,拆了反而会把旧凭证的清理一起丢掉),而是在它之后
+ * 加一道**单一收口**:只要最终落在 signed-out,就接着提交一次本地会话。
+ *
+ * 为什么是收口而不是逐个 return 点:signed-out 的出口有十几个(含两个
+ * 不走 finishColdStartSignedOut 的 tombstone 分支——passive / foreign-device 共库
+ * 实例),漏任何一个都是白屏:ProtectedRoute 会跳 /login,而那条路由已经不
+ * 存在了。收口只看终态,不可能漏分支。
+ *
+ * 副窗 / renderer reload 各自都会再调一次 auth:initialize:那时 mode 已经是
+ * local,命中函数头部的快路径直接返回,不会重复提交 owner。
+ *
+ * 隐私协议同意弹窗随登录页一起没了(用户 2026-09-03 明确拍板,推翻同年
+ * 07-29「跳过登录也要过协议门」的产品裁决)。可接受的前提是未同意态下
+ * acceptPrivacyConsent 广播的 allowed 恒为 false,TapDB 不会被拉起 —— 不同意
+ * 不上报这一层不靠弹窗守。
+ */
 export async function initialize(options: AuthInitializeOptions = {}): Promise<AuthState> {
+  const state = await initializeAuthSession(options);
+  if (state.mode !== 'signed-out') return state;
+  log.info('pi-only fork has no sign-in line — committing the account-free local session');
+  return enterLocalMode();
+}
+
+async function initializeAuthSession(options: AuthInitializeOptions = {}): Promise<AuthState> {
   // Local mode is a committed account-free session. It must win before any
   // persisted cloud refresh token is inspected or any auth network call runs.
   if (getActiveAppSession().mode === 'local') {
@@ -3825,15 +3868,20 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
 
   // passive 实例在本进程登出过:磁盘上的 token 是 primary 的,不能拿它把自己登回去
   // （副窗 mount / renderer reload 都会走到这里）。直到显式登录或进程重启为止。
+  //
+  // 墓碑落在 local 而非 signed-out(2026-09-03 移除登录):墓碑要防的是「拿别人的
+  // 云端凭证把自己登回去」,local 是无账号会话(owner = LOCAL_DATA_OWNER_ID、不碰
+  // primary 的 token),保护意图完整保留。而若留在 signed-out,本 fork 没有登录页
+  // 可去,副窗会直接卡在开机动画里(详见下方 initialize 注释的单一收口)。
   if (passiveLocalSignOut) {
-    log.info('passive shared-userData instance stays signed out locally (tombstone)');
-    commitVolatileAppSession('signed-out');
-    return snapshotLoggedOutAuthState();
+    log.info('passive shared-userData instance stays account-free locally (tombstone)');
+    commitVolatileAppSession('local');
+    return snapshotAuthState();
   }
   if (foreignDeviceLocalSignOut) {
-    log.info('foreign-device instance stays signed out locally (tombstone)');
-    commitVolatileAppSession('signed-out');
-    return snapshotLoggedOutAuthState();
+    log.info('foreign-device instance stays account-free locally (tombstone)');
+    commitVolatileAppSession('local');
+    return snapshotAuthState();
   }
 
   // release-relogin-on-update: if the auto-updater dropped a relogin marker
@@ -3858,8 +3906,8 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
         reloginFlag.version,
       );
       passiveLocalSignOut = true;
-      commitVolatileAppSession('signed-out');
-      return snapshotLoggedOutAuthState();
+      commitVolatileAppSession('local');
+      return snapshotAuthState();
     }
     log.info('relogin marker hit for v%s — clearing persisted auth', reloginFlag.version);
     lastAcceptedRefreshToken = null;
@@ -3870,7 +3918,7 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
     removeSafe(LEGACY_ACCOUNT_REFRESH_TOKEN_KEY);
     removeSafe(LEGACY_REFRESH_TOKEN_KEY);
     clearReloginFlag();
-    return finishColdStartSignedOut('cold-start-relogin-required');
+    return finishColdStartWithoutAccount('cold-start-relogin-required');
   }
 
   // Old Feishu-auth refresh tokens are intentionally not portable to auth-server.
@@ -3892,7 +3940,7 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
       'cold-start active credential reconciliation failed; preserving credentials for retry',
       error,
     );
-    return finishColdStartSignedOut('cold-start-credential-reconcile-unavailable');
+    return finishColdStartWithoutAccount('cold-start-credential-reconcile-unavailable');
   }
   if (!persistedSession) {
     // 旧版只保存裸 refresh token，没有 realm 可供校验。只有独占 userData 的
@@ -3906,8 +3954,10 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
         'passive shared-userData instance found an unscoped legacy refresh token; refusing to assign a realm or rotate it',
       );
       passiveLocalSignOut = true;
-      commitActiveAppSession('signed-out');
-      return snapshotLoggedOutAuthState();
+      // 墓碑同样落 local:拒绝认领这把无 realm 的 legacy token,但不把自己停在
+      // signed-out(本 fork 无登录页,那等于卡在开机动画)。
+      commitActiveAppSession('local');
+      return snapshotAuthState();
     }
     if (legacyToken && writePersistedAuthSession(legacyToken, AUTH_REGION)) {
       removeSafe(LEGACY_RESOURCE_REFRESH_TOKEN_KEY);
@@ -3915,7 +3965,7 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
     }
   }
   if (!persistedSession) {
-    return finishColdStartSignedOut('cold-start-no-persisted-session');
+    return finishColdStartWithoutAccount('cold-start-no-persisted-session');
   }
   try {
     await loadClientEndpointsForRealm(persistedSession.realm);
@@ -3923,7 +3973,7 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
     // 对端区域清单暂不可用时保留原子凭据；退回构建区 refresh 会把有效 token
     // 当成非法凭据，因此本次仅以未登录放行 UI，下一次 initialize/重启可重试。
     log.warn('persisted auth realm manifest unavailable; keeping session for retry', error);
-    return finishColdStartSignedOut('cold-start-realm-manifest-unavailable');
+    return finishColdStartWithoutAccount('cold-start-realm-manifest-unavailable');
   }
   const storedToken = persistedSession.refreshToken;
 
@@ -3949,8 +3999,11 @@ export async function initialize(options: AuthInitializeOptions = {}): Promise<A
       // A signed-out fallback is not safe until the shared Ghost projection
       // has been swept. Otherwise the previous cloud owner's links remain
       // available to local/anonymous Agent processes during a slow refresh.
-      await recoverAccountFreeOwnerAtStartup('signed-out', 'cold-start-timeout-recovery');
-      return snapshotLoggedOutAuthState();
+      //
+      // 2026-09-03 移除登录后这里也落 local:sweep 语义不变(两个模式走的是同一条
+      // recoverAccountFreeOwnerAtStartup),只是终态从登录页改成本地会话。
+      await recoverAccountFreeOwnerAtStartup('local', 'cold-start-timeout-recovery');
+      return snapshotAuthState();
     },
     onLateResult: (state) =>
       log.info(
@@ -4025,7 +4078,7 @@ async function runColdStartRefreshFlow(
       // 共享 userData 的另一个实例已切到其它区域。旧区域请求无论成功失败都不能
       // 覆盖/删除新原子记录；本实例本次以未登录返回，后续 initialize 可加载新清单。
       log.warn('cold-start auth realm changed on disk; discarding stale refresh result');
-      return finishColdStartSignedOut('cold-start-realm-changed');
+      return finishColdStartWithoutAccount('cold-start-realm-changed');
     }
     if (!refreshResult.ok) {
       // 只在「确定性凭据失效」时清除 token。429 限流 / 5xx / 断网等瞬时失败保留 token,
@@ -4064,7 +4117,7 @@ async function runColdStartRefreshFlow(
           `cold-start refresh still failing after ${attempts} attempt(s) — keeping refresh token, starting logged out`,
         );
       }
-      return finishColdStartSignedOut(`cold-start-refresh-${action.kind}`);
+      return finishColdStartWithoutAccount(`cold-start-refresh-${action.kind}`);
     }
 
     const refreshData = refreshResult.data as RefreshResponse;
@@ -4110,7 +4163,7 @@ async function runColdStartRefreshFlow(
           },
         );
       }
-      return finishColdStartSignedOut('cold-start-credential-ownership-lost');
+      return finishColdStartWithoutAccount('cold-start-credential-ownership-lost');
     }
     lastAcceptedRefreshToken = refreshData.refreshToken;
     if (
@@ -4122,7 +4175,7 @@ async function runColdStartRefreshFlow(
       log.warn(
         `cold-start refresh rejected cross-realm personal session realm=${storedRealm} buildRegion=${AUTH_REGION}`,
       );
-      return finishColdStartSignedOut('cold-start-incompatible-membership');
+      return finishColdStartWithoutAccount('cold-start-incompatible-membership');
     }
     const previousSession = getActiveAppSession();
     await withCloudOwnerCommit({
@@ -4198,8 +4251,7 @@ async function runColdStartRefreshFlow(
       resetActiveAuthRealmToBuild();
     }
     if (epochChanged('catch-return')) return snapshotAuthState();
-    await finishColdStartSignedOut('cold-start-local-state-sync-failed');
-    return snapshotLoggedOutAuthState();
+    return finishColdStartWithoutAccount('cold-start-local-state-sync-failed');
   }
 }
 

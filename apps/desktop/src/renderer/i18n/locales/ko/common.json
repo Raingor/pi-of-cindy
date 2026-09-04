@@ -6923,6 +6923,7 @@
       "settingsLink": "설정, 현재 사용자: {{name}}",
       "settingsLinkBeta": "설정, 현재 사용자: {{name}}, 베타 채널 활성화됨",
       "moreLabel": "더 보기, 현재 사용자: {{name}}",
+      "openSettings": "설정",
       "menuSettings": "설정",
       "menuAddAccount": "다른 계정으로 로그인",
       "menuLogout": "로그아웃",

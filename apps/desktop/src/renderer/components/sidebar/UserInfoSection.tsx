@@ -1,71 +1,41 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Flame, LogOut, Settings, Shield, Smartphone, UserPlus, UserRound } from 'lucide-react';
+import { Settings } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
-import { useUpdateStatus } from '@/hooks/useUpdateStatus';
-import { useUpdateBannerDismiss } from '@/hooks/useUpdateBannerDismiss';
 import { useBetaChannelSettings } from '@/hooks/useBetaChannelSettings';
 import { Tip } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useLogout } from '@/hooks/useLogout';
 import { CURRENT_CINDY_REGION } from '../../../shared/brandRegion';
 import { shouldLabelRegion } from '../../../shared/regionCode';
-import { MobileDownloadDialog } from './MobileDownloadDialog';
-import { AccountSwitcherDialog } from './AccountSwitcherDialog';
 
 interface UserInfoSectionProps {
   isCollapsed: boolean;
-  onOpenUpdateNotice?: () => void;
 }
 
-export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSectionProps) {
-  const { user, mode, isCanary, beginAddAccount } = useAuth();
-  const { handleLogout } = useLogout();
+/**
+ * 侧栏底部区 F3 —— 一个「打开设置」按钮 + 版本行。
+ *
+ * 2026-09-03 用户指令:本 fork 移除登录,底部原来的账号胶囊(头像 / 昵称 /
+ * 账号切换 / 退出 / 移动端下载 / 更新历史火焰)整块换成单一的设置入口。account
+ * 概念在 pi-only 分支已不存在(应用常驻本地会话,见 authManager 的自动本地模式),
+ * 那些入口留着只会指向不可达的登录线。
+ *
+ * 版本行留在这里:「关于」分区已下架,这是构建版本在 UI 上唯一的落点(hover 看
+ * 完整的 version · commit)。
+ *
+ * 被撤掉的两个入口各自另有去处,不是唯一路径:
+ *   - 更新历史 → 原生菜单「查看版本日志」(`open-release-notes`);
+ *   - 移动端下载 → 依赖 Cindy 云端账号,本分支不适用。
+ * 唯一真实损失是「唤回被关掉的更新横幅」(原火焰按钮的第二职责),版本无关的
+ * 本地构建收不到更新,对本分支无影响。
+ */
+export function UserInfoSection({ isCollapsed }: UserInfoSectionProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [avatarError, setAvatarError] = useState(false);
-  const [mobileDownloadOpen, setMobileDownloadOpen] = useState(false);
-  const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
-  const mobileDownloadButtonRef = useRef<HTMLButtonElement>(null);
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
-
-  // 火焰按钮双职责:
-  // - 正常情况(无 pending update 或 banner 未 dismiss)→ 弹更新历史 Dialog。
-  // - 有 pending update 且 banner 已被 dismiss → 涂黑 + 点击唤回 banner
-  //   (更新历史入口暂时让位,banner 再次出现后关掉才会回到"历史入口"模式)。
-  const { status } = useUpdateStatus();
-  const { dismissed, restore } = useUpdateBannerDismiss();
   const { state: betaChannelState } = useBetaChannelSettings();
-  const hasPendingUpdate = status === 'ready' || status === 'superseding';
-  const isFlameReopen = hasPendingUpdate && dismissed;
   const showBetaLabel = !betaChannelState.loading && betaChannelState.enableBeta;
 
-  // 头像地址变化(设置页改头像 / 服务端资料更新)时重置加载失败标记,
-  // 让新地址有机会渲染,而不是永远停在首字母兜底。
-  const isLocal = mode === 'local';
-  const displayName = user?.name ?? (isLocal ? t('settings.userProfile.local.name') : '');
-  const moreLabel = t('sidebar.user.moreLabel', { name: displayName });
-  const avatarUrl = user?.avatar ?? null;
-  useEffect(() => {
-    setAvatarError(false);
-  }, [avatarUrl]);
-
-  if (!user && !isLocal) return null;
-
-  const initial = displayName.charAt(0).toUpperCase();
-  // 未登录(跳过登录)态没有身份可展示:头像兜底用中性人形图标,而不是拿状态文案
-  // 取首字——那会渲染成「未」/「N」这类无意义字符,且四语各不相同。
-  const showNotSignedInGlyph = !user && isLocal;
   const appDisplayVersion = window.electronAPI.appDisplayVersion;
   const appDisplayVersionDetail = window.electronAPI.appDisplayVersionDetail;
   // 版本行的区域前缀。「哪些区域要标」只有 CINDY_REGION_CODE 一个事实源(issue
@@ -86,223 +56,71 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
   const appVersionLabelDetail = appRegionLabel
     ? `${appRegionLabel} · ${appDisplayVersionDetail}`
     : appDisplayVersionDetail;
-  const remoteAvailable = mode === 'cloud';
 
+  const settingsLabel = t('sidebar.user.openSettings');
+  const isOnSettings = location.pathname === '/settings';
   const openSettings = () => {
-    if (location.pathname !== '/settings') navigate('/settings');
+    if (!isOnSettings) navigate('/settings');
   };
-
-  const openAddAccount = async () => {
-    const result = await beginAddAccount();
-    if (!result.success) return;
-    setAccountSwitcherOpen(false);
-    navigate('/add-account', {
-      state: { returnTo: `${location.pathname}${location.search}` },
-    });
-  };
-
-  const renderMoreMenu = (trigger: ReactNode) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" sideOffset={8} className="min-w-[190px]">
-        <DropdownMenuItem onSelect={openSettings} className="gap-2.5">
-          <Settings className="h-4 w-4" aria-hidden="true" />
-          {t('sidebar.user.menuSettings')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setAccountSwitcherOpen(true)} className="gap-2.5">
-          <UserPlus className="h-4 w-4" aria-hidden="true" />
-          {t('sidebar.user.menuAddAccount')}
-        </DropdownMenuItem>
-        {mode === 'cloud' ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => void handleLogout()}
-              className="gap-2.5 text-[var(--error-fg-strong)] focus:text-[var(--error-fg-strong)]"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-              {t('sidebar.user.menuLogout')}
-            </DropdownMenuItem>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
-  const openRemoteSettings = () => {
-    setMobileDownloadOpen(false);
-    navigate('/settings?tab=remote-control');
-  };
-
-  const openLinkedDevices = () => {
-    setMobileDownloadOpen(false);
-    navigate('/settings?tab=remote-control&section=devices');
-  };
-
-  const mobileDownloadEntry = (
-    <Tip text={t('sidebar.user.downloadMobile')} side="right">
-      <button
-        ref={mobileDownloadButtonRef}
-        type="button"
-        onClick={() => setMobileDownloadOpen(true)}
-        aria-label={t('sidebar.user.downloadMobile')}
-        className={cn(
-          'mobile-download-btn',
-          'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full',
-          !isCollapsed && 'mr-1',
-          'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)]',
-          'text-[var(--sidebar-user-card-text)] transition-colors hover:bg-sidebar-item-hover',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
-        )}
-      >
-        <Smartphone className="h-3 w-3" aria-hidden="true" />
-      </button>
-    </Tip>
-  );
 
   if (isCollapsed) {
     return (
-      <>
-        <div className="mt-auto flex h-[66px] flex-col items-center justify-center gap-1 px-3">
-          <Tip text={moreLabel} side="right">
-            {renderMoreMenu(<button
-              ref={moreButtonRef}
-              aria-label={moreLabel}
-              className="flex min-w-0 items-center justify-center text-left"
-            >
-              <div className="relative h-9 w-9 shrink-0">
-                {user?.avatar && !avatarError ? (
-                  <img
-                    src={user.avatar}
-                    alt={displayName}
-                    className="h-9 w-9 rounded-full object-cover"
-                    onError={() => setAvatarError(true)}
-                  />
-                ) : (
-                  <div
-                    className={cn(
-                      'flex h-9 w-9 items-center justify-center rounded-full',
-                      'border border-sidebar-border bg-sidebar-item-hover text-base font-medium text-foreground',
-                    )}
-                  >
-                    {showNotSignedInGlyph ? (
-                      <UserRound aria-hidden="true" size={18} strokeWidth={1.75} />
-                    ) : (
-                      initial
-                    )}
-                  </div>
-                )}
-                {isCanary && (
-                  <span
-                    aria-label={t('sidebar.user.canaryBadge')}
-                    className={cn(
-                      'absolute -bottom-0.5 -right-0.5',
-                      'flex h-3 w-3 items-center justify-center rounded-full',
-                      'bg-foreground text-background ring-2 ring-sidebar',
-                    )}
-                  >
-                    <Shield size={8} strokeWidth={2.5} />
-                  </span>
-                )}
-              </div>
-            </button>)}
-          </Tip>
-          {mobileDownloadEntry}
-        </div>
-        <MobileDownloadDialog
-          open={mobileDownloadOpen}
-          onOpenChange={setMobileDownloadOpen}
-          remoteAvailable={remoteAvailable}
-          onOpenRemoteSettings={openRemoteSettings}
-          onOpenDevices={openLinkedDevices}
-          triggerRef={mobileDownloadButtonRef}
-        />
-        <AccountSwitcherDialog
-          open={accountSwitcherOpen}
-          onOpenChange={setAccountSwitcherOpen}
-          onAddAccount={() => void openAddAccount()}
-          triggerRef={moreButtonRef}
-        />
-      </>
+      <div className="mt-auto flex h-[66px] flex-col items-center justify-center px-3">
+        <Tip text={`${settingsLabel} · ${appVersionLabelDetail}`} side="right">
+          <button
+            type="button"
+            onClick={openSettings}
+            aria-label={settingsLabel}
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-full',
+              'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)]',
+              'text-[var(--sidebar-user-card-text)] transition-colors',
+              'hover:bg-[var(--sidebar-user-card-bg-hover)]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+            )}
+          >
+            <Settings aria-hidden="true" size={17} strokeWidth={1.75} />
+          </button>
+        </Tip>
+      </div>
     );
   }
 
   return (
     <div className="mt-auto px-3 pb-3 pt-2">
-      {/* 胶囊整体承载 hover(方案 D):玻璃底色加深一档;悬停右侧操作按钮时用
-        :has() 把胶囊底色还原,只让当前按钮高亮,避免双层叠色。 */}
-      <div
-        className={cn(
-          'flex h-10 items-center rounded-full border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)] px-[7px]',
-          'transition-colors hover:bg-[var(--sidebar-user-card-bg-hover)]',
-          'has-[.flame-btn:hover]:bg-[var(--sidebar-user-card-bg)]',
-          'has-[.mobile-download-btn:hover]:bg-[var(--sidebar-user-card-bg)]',
-        )}
-      >
-        {renderMoreMenu(<button
-          ref={moreButtonRef}
-          aria-label={moreLabel}
-          className={cn('flex min-w-0 flex-1 items-center gap-[10px]', 'text-left')}
+      {/* 胶囊沿用原账号卡的 --sidebar-user-card-* 语义 token(浅/深色双模式同源),
+        整体承载 hover,不再有内嵌的次级按钮需要 :has() 还原底色。
+        完整版本号走 Tip 而非原生 title:图标按钮的提示必须是可见的托管 Tip
+        (契约由 __tests__/iconButtonTooltips.test.ts 全局扫描守住)。 */}
+      <Tip text={appVersionLabelDetail} side="right">
+        <button
+          type="button"
+          onClick={openSettings}
+          aria-label={settingsLabel}
+          className={cn(
+            'flex h-10 w-full items-center gap-[10px] rounded-full px-[7px] text-left',
+            'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)]',
+            'transition-colors hover:bg-[var(--sidebar-user-card-bg-hover)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+          )}
         >
-          {/* Avatar — admin 用户加 1.5px 反色描边 + 右下角盾牌角标 */}
-          <div
-            className="relative h-[27px] w-[27px] shrink-0"
-            title={isCanary ? t('sidebar.user.canaryBadge') : undefined}
-          >
-            {user?.avatar && !avatarError ? (
-              <img
-                src={user.avatar}
-                alt={displayName}
-                className={cn('h-[27px] w-[27px] rounded-full object-cover')}
-                onError={() => setAvatarError(true)}
-              />
-            ) : (
-              <div
-                className={cn(
-                  'flex h-[27px] w-[27px] items-center justify-center rounded-full',
-                  'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)] text-14 font-medium text-[var(--sidebar-user-card-text)]',
-                )}
-              >
-                {showNotSignedInGlyph ? (
-                  <UserRound aria-hidden="true" size={15} strokeWidth={1.75} />
-                ) : (
-                  initial
-                )}
-              </div>
-            )}
-            {isCanary && (
-              // ring-2 ring-sidebar 用 sidebar 背景色作为分隔环，避免角标和头像糊在一起
-              <span
-                aria-label={t('sidebar.user.canaryBadge')}
-                className={cn(
-                  'absolute -bottom-0.5 -right-0.5',
-                  'flex h-3 w-3 items-center justify-center rounded-full',
-                  'bg-[var(--sidebar-user-card-text)] text-background ring-2 ring-sidebar',
-                )}
-              >
-                <Shield size={8} strokeWidth={2.5} />
-              </span>
-            )}
-          </div>
-
-          {/* Name & plan — fade in/out with collapse。
-            折叠 rail（64px）下必须整个移出布局（hidden）——flex-1 占位会把
-            头像挤出 64px 可视区（旧 w-0 折叠时代 opacity 即可，rail 时代不行）。 */}
-          <div
+          {/* 27px 圆形图标槽 —— 沿用原头像位的尺寸,底部区高度不变。 */}
+          <span
             className={cn(
-              'flex min-w-0 flex-1 flex-col justify-center',
-              'transition-opacity duration-200 ease-in-out',
-              'opacity-100',
+              'flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-full',
+              'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)]',
+              'text-[var(--sidebar-user-card-text)]',
             )}
           >
-            <p className="truncate text-14 font-semibold leading-[1.286] text-[var(--sidebar-user-card-text)]">
-              {displayName}
-            </p>
+            <Settings aria-hidden="true" size={15} strokeWidth={1.75} />
+          </span>
+
+          <span className="flex min-w-0 flex-1 flex-col justify-center">
+            <span className="truncate text-14 font-semibold leading-[1.286] text-[var(--sidebar-user-card-text)]">
+              {settingsLabel}
+            </span>
             {/* 2px gap 与同栏 userNameContainer 保持一致。 */}
-            <p
-              className="flex min-w-0 items-center gap-1 text-10 leading-[1.3] text-[var(--sidebar-user-card-text)]"
-              title={appVersionLabelDetail}
-            >
+            <span className="flex min-w-0 items-center gap-1 text-10 leading-[1.3] text-[var(--sidebar-user-card-text)]">
               <span className="truncate opacity-80">{appVersionLabel}</span>
               {showBetaLabel ? (
                 <span
@@ -312,74 +130,10 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
                   {t('settings.betaChannel.badge')}
                 </span>
               ) : null}
-            </p>
-          </div>
-        </button>)}
-
-        {mobileDownloadEntry}
-
-        {/* Flame icon button — 默认打开更新历史;banner 被 dismiss 且有 pending
-          update 时切换为「唤回 banner」入口,视觉涂黑(fill 实心 + foreground 主色)
-          告诉用户还有更新等待确认。 */}
-        {(onOpenUpdateNotice || isFlameReopen) && (
-          <Tip
-            text={
-              isFlameReopen
-                ? t('sidebar.user.reopenUpdateBanner')
-                : t('sidebar.user.viewReleaseNotes')
-            }
-            side="right"
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isFlameReopen) {
-                  restore();
-                } else {
-                  onOpenUpdateNotice?.();
-                }
-              }}
-              aria-label={
-                isFlameReopen
-                  ? t('sidebar.user.reopenUpdateBanner')
-                  : t('sidebar.user.viewReleaseNotes')
-              }
-              className={cn(
-                'flame-btn',
-                'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full',
-                'border border-[var(--sidebar-user-card-border)] bg-[var(--sidebar-user-card-bg)]',
-                'transition-colors hover:bg-sidebar-item-hover',
-                'transition-opacity duration-200 ease-in-out',
-                'opacity-100',
-              )}
-            >
-              <Flame
-                className={cn(
-                  'h-3 w-3',
-                  isFlameReopen
-                    ? 'fill-current text-[var(--sidebar-user-card-text)]'
-                    : 'text-[var(--sidebar-user-card-text)]',
-                )}
-              />
-            </button>
-          </Tip>
-        )}
-      </div>
-
-      <MobileDownloadDialog
-        open={mobileDownloadOpen}
-        onOpenChange={setMobileDownloadOpen}
-        remoteAvailable={remoteAvailable}
-        onOpenRemoteSettings={openRemoteSettings}
-        onOpenDevices={openLinkedDevices}
-        triggerRef={mobileDownloadButtonRef}
-      />
-      <AccountSwitcherDialog
-        open={accountSwitcherOpen}
-        onOpenChange={setAccountSwitcherOpen}
-        onAddAccount={() => void openAddAccount()}
-        triggerRef={moreButtonRef}
-      />
+            </span>
+          </span>
+        </button>
+      </Tip>
     </div>
   );
 }

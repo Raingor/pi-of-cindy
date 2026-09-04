@@ -57,19 +57,24 @@ export const TAB_IDS = [
   // SettingsTab 类型与 TAB_LABEL_KEY 保留,供旧深链重定向到插件分区。
   // 「语音输入」(voice-input)与「IM 机器人」(im-bot)同样下架:两者都依赖
   // Cindy 云端语音/机器人服务,不属于本机 Pi 工作台范围。
-  'shortcuts',
   'import',
   // 「第三方平台」(connections)已于 2026-07-15 下架:Slack 官方 MCP 随 cindy-slack
   // 意识化收尾(Google/Jira/GitHub/GitLab 此前已迁意识)。id 仍留在 SettingsTab
   // 类型与 TAB_LABEL_KEY 保留,供旧深链重定向到插件分区。
-  'remote-control',
-  'builtin-tools',
-  'computer-use',
   // 2026-09-03 用户指令:「灵动岛」「插件」「帮助」「关于」四项从设置下架。
   //   - agent-island:mac 灵动岛服务与原生 host 保留,只是没有设置入口;
   //   - ghosts:插件目录在主侧栏「插件」(/plugins)已有常驻入口,设置内嵌是重复入口;
   //   - help / about:Cindy 自有的上手指引与关于页,不属于本机 Pi 工作台。
   // 四个 id 仍留在 SettingsTab 类型与 TAB_LABEL_KEY 中,供旧深链回落到通用页。
+  //
+  // 2026-09-03 用户指令(同批次):「自动操作」「工具」「远程连接」「键盘快捷键」
+  // 四项也从设置下架 —— 都是 Cindy 自有能力,不属于本机 Pi 工作台:
+  //   - computer-use:Cindy 自有的电脑操作能力(pi 侧不经由本面板配置);
+  //   - builtin-tools:Cindy 内置工具 + 外部 MCP 清单,pi 的工具与 MCP 由 pi 自己管;
+  //   - remote-control:手机远程操控与设备互联,依赖 Cindy 云端账号;
+  //   - shortcuts:Cindy 应用级快捷键改绑。
+  // 同样只摘 UI 入口:main 侧服务、Section 组件与 shared/appShortcuts.ts 注册表全部
+  // 保留,四个 id 也留在 SettingsTab 类型与 TAB_LABEL_KEY 中供旧深链回落到通用页。
 ] as const satisfies ReadonlyArray<SettingsTab>;
 
 export type VisibleSettingsTab = (typeof TAB_IDS)[number];

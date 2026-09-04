@@ -7,7 +7,7 @@
  *   3. dismiss 与卡片共享同一 key:banner 上点 X,key 写入(两处一起消失)。
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,13 +95,17 @@ describe('ConnectProviderBanner', () => {
     expect(screen.getByTestId('location').textContent).toBe('/settings?tab=providers');
   });
 
-  it('local 模式 CTA 变登录,落 /login', async () => {
+  // 2026-09-03 移除登录后 CTA 不再按登录态分岸:local 模式(本 fork 的常态)也落
+  // 供应商设置页。旧行为走 useSignInToCindy(),它会 exitLocalMode() 再跳 /login ——
+  // 在没有登录路由的 fork 里等于把会话推回 signed-out 后卡在空白页。
+  it('local 模式 CTA 同样落 /settings?tab=providers,不碰 exitLocalMode', () => {
     authState.mode = 'local';
     renderBanner();
 
-    fireEvent.click(screen.getByText('onboarding.connectProvider.banner.loginCta'));
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
-    expect(exitLocalModeMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('onboarding.connectProvider.banner.loginCta')).toBeNull();
+    fireEvent.click(screen.getByText('onboarding.connectProvider.banner.connectCta'));
+    expect(screen.getByTestId('location').textContent).toBe('/settings?tab=providers');
+    expect(exitLocalModeMock).not.toHaveBeenCalled();
   });
 
   it('有已连接来源 → 渲染 null', () => {

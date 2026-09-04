@@ -239,15 +239,16 @@ describe('ConnectProviderCard', () => {
     expect(screen.getByTestId('location').textContent).toBe('/settings?tab=providers&wizard=1');
   });
 
-  it('local(跳过登录)模式 → 推荐行为「登录 Cindy」,点击落 /login', async () => {
+  // 2026-09-03 移除登录后,xd 官方供应商这一行只在 cloud 模式渲染:它靠 Cindy 云端
+  // 账号才能连,而登录线已不存在。旧行为点它会 exitLocalMode() 再跳 /login ——
+  // 在没有登录路由的 fork 里等于把会话推回 signed-out 后卡在空白页。
+  it('local(本 fork 常态)模式 → 整行 Cindy 推荐位不渲染,也不碰 exitLocalMode', async () => {
     authState.mode = 'local';
     await renderCardSettled();
 
-    const loginRow = screen.getByText('onboarding.connectProvider.cindy.loginTitle');
-    fireEvent.click(loginRow.closest('button')!);
-    // local 模式登录必须先 exitLocalMode(GuestRoute 对 local 一律弹回首页)再进 /login。
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
-    expect(exitLocalModeMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('onboarding.connectProvider.cindy.loginTitle')).toBeNull();
+    expect(screen.queryByText('onboarding.connectProvider.cindy.title')).toBeNull();
+    expect(exitLocalModeMock).not.toHaveBeenCalled();
   });
 
   it('「其他供应商」懒加载预设,展开后点预设行落 connect=<presetId>', async () => {

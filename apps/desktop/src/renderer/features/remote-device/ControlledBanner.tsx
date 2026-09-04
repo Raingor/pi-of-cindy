@@ -172,7 +172,9 @@ export function ControlledBanner({
     }
   };
   const onViewControllers = () => {
-    navigate('/settings?tab=remote-control');
+    // 「远程连接」设置分区 2026-09-03 已下架(远程设备能力保留),多控制方时只能
+    // 送到设置首页——不再担保能在那里看到控制方列表。
+    navigate('/settings');
   };
 
   // hover Tip:第一行完整 label(设备名不截断,窄宽时 chip 里那行会 truncate),

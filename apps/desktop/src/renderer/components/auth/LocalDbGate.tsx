@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useAppShellCover } from '@/contexts/AppShellCoverContext';
@@ -41,9 +41,8 @@ const DECISION_RETRY_DELAY_MS = 1_000;
 
 export function LocalDbGate() {
   const { t } = useTranslation();
-  const { dataOwnerId, mode, logout, exitLocalMode } = useAuth();
+  const { dataOwnerId } = useAuth();
   const { reportLocalDbGate } = useAppShellCover();
-  const navigate = useNavigate();
   const [decision, setDecision] = useState<GateDecision>({ phase: 'checking' });
   const [retryNonce, setRetryNonce] = useState(0);
   const retryCountRef = useRef(0);
@@ -168,24 +167,12 @@ export function LocalDbGate() {
 
   if (decision.phase === 'fatal') {
     // 全屏恢复界面接管：阻断主功能区渲染，并给出「重启并安装更新」等恢复路径。
-    return (
-      <LocalDbFatalScreen
-        code={decision.code}
-        message={decision.message}
-        onBackToLogin={() => {
-          const leave = mode === 'local' ? exitLocalMode() : logout();
-          void leave.then(
-            () => navigate('/login', { replace: true }),
-            (err) => {
-              // The fatal screen must always have an escape hatch. A failed
-              // teardown is still logged, but must not trap the user here.
-              log.warn('failed to leave the current session from local-db fatal screen', err);
-              navigate('/login', { replace: true });
-            },
-          );
-        }}
-      />
-    );
+    //
+    // 不再传 onBackToLogin(于是弹框不出 cancel 按铮):2026-09-03 移除登录后「返回
+    // 登录」不再是逗留的逃生口——它会 exitLocalMode() 把会话推回 signed-out 后跳一条
+    // 已不存在的路由,结果是从一个有恢复按铮的错误页掉进彻底的空白页。主恢复路径
+    // (重启装更新 / 检查更新)不受影响。
+    return <LocalDbFatalScreen code={decision.code} message={decision.message} />;
   }
 
   return <Outlet />;

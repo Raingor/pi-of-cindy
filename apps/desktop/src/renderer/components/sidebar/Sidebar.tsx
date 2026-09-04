@@ -51,12 +51,12 @@ interface SidebarProps {
   onDragStart?: (e: React.PointerEvent) => void;
   /** Double-click handler to reset width to default. */
   onResetWidth?: () => void;
-  /** Open the update notice dialog to review release notes. */
-  onOpenUpdateNotice?: () => void;
   /**
    * Open the update notice dialog pinned to one version — used by UpdateBanner
-   * to preview the notes of the downloaded-but-not-yet-installed update, which
-   * `onOpenUpdateNotice`'s history range (`<= appVersion`) cannot reach.
+   * to preview the notes of the downloaded-but-not-yet-installed update.
+   *
+   * (底部区原有的「打开更新历史」火焰入口已随账号胶囊一并移除,历史对话框
+   * 改由原生菜单「查看版本日志」单独拉起。)
    */
   onOpenVersionNotice?: (version: string) => void;
   /**
@@ -78,7 +78,6 @@ export function Sidebar({
   forceMountFeatureContent = false,
   onDragStart,
   onResetWidth,
-  onOpenUpdateNotice,
   onOpenVersionNotice,
   peekState = null,
   peekDrawerProps,
@@ -244,9 +243,9 @@ export function Sidebar({
           onOpenVersionNotice={onOpenVersionNotice}
         />
 
-        {/* Bottom: User info (Shell-level, shared across all features)
-          isCollapsed 在这里表达"窄布局"（rail 居中头像）；完全隐藏态 w-0 整体裁掉。 */}
-        <UserInfoSection isCollapsed={isRail} onOpenUpdateNotice={onOpenUpdateNotice} />
+        {/* Bottom: 「打开设置」入口 + 版本行(Shell-level, shared across all features)
+          isCollapsed 在这里表达"窄布局"（rail 居中图标）；完全隐藏态 w-0 整体裁掉。 */}
+        <UserInfoSection isCollapsed={isRail} />
       </div>
 
       {/* Resize handle — expanded 和 rail 态都保留（rail 靠拖拽进出，F1 / F6）。

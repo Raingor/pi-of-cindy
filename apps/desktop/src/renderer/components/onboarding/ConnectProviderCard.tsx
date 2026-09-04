@@ -25,7 +25,6 @@ import { cn } from '@/lib/utils';
 import { hasProviderLogo, ProviderLogoMark } from '@/components/icons/ProviderLogoMark';
 import { providerMonogram } from '@/lib/providerModels';
 import { useProviderOnboarding } from '@/hooks/useProviderOnboarding';
-import { useSignInToCindy } from '@/hooks/useSignInToCindy';
 import type { ProviderOnboardingRow } from '@/hooks/useProviderOnboarding';
 import type { ProviderLogoRouting } from '@/components/icons/ProviderLogoMark';
 
@@ -39,7 +38,6 @@ function rowIcon(id: string, name: string, routing?: ProviderLogoRouting): React
 export function ConnectProviderCard({ className }: { className?: string }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const signInToCindy = useSignInToCindy();
   const onboarding = useProviderOnboarding({ loadPresets: true });
   const [othersOpen, setOthersOpen] = useState(false);
 
@@ -104,22 +102,20 @@ export function ConnectProviderCard({ className }: { className?: string }) {
             />
           );
         })}
-        {/* 推荐行:Cindy AI(cloud)/ 登录 Cindy(signed-out・local) */}
-        <ProviderRow
-          icon={rowIcon('xd', xdProvider?.name ?? 'Cindy AI')}
-          label={
-            cloudMode
-              ? (xdProvider?.name ?? t('onboarding.connectProvider.cindy.title'))
-              : t('onboarding.connectProvider.cindy.loginTitle')
-          }
-          sub={
-            cloudMode
-              ? t('onboarding.connectProvider.cindy.desc')
-              : t('onboarding.connectProvider.cindy.loginDesc')
-          }
-          badge={t('onboarding.connectProvider.recommendedLabel')}
-          onClick={() => (cloudMode ? goConnect('xd') : void signInToCindy())}
-        />
+        {/* 推荐行:Cindy AI(cloud)。
+            2026-09-03 pi-only fork 移除登录后,非 cloud 模式下原本的「登录 Cindy」分支
+            已不可达:xd 官方供应商靠 Cindy 云端账号才能连,而登录线已不存在。
+            旧实现点它会 exitLocalMode() 再跳 /login,在本 fork 里等于把会话推回
+            signed-out 后卡在空白页 —— 所以整行只在 cloud 模式下渲染。 */}
+        {cloudMode ? (
+          <ProviderRow
+            icon={rowIcon('xd', xdProvider?.name ?? 'Cindy AI')}
+            label={xdProvider?.name ?? t('onboarding.connectProvider.cindy.title')}
+            sub={t('onboarding.connectProvider.cindy.desc')}
+            badge={t('onboarding.connectProvider.recommendedLabel')}
+            onClick={() => goConnect('xd')}
+          />
+        ) : null}
         {primaryRows.map(renderRow)}
 
         {moreRows.length > 0 && (

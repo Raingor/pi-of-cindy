@@ -138,71 +138,74 @@ function fireAnchors() {
 }
 
 describe('LoginHandoff 时序(fake-timer)', () => {
-  it('settle 0.3s→shift 650ms→panel 420ms 上滑→slogan +100ms/500ms,Slogan 最后出现(demo splashHandoff 对照)', () => {
+  // 2026-09-03 移除登录后本 fork 恒走品牌淡出分支(原因见 LoginHandoffContext 文件头)。
+  // 未登录那条四段编舞(settle→shift→panel→slogan)已不可达,但时序常量与 easing
+  // 仍被 LoginPage / LoginBrandStage 的样式消费,继续在此锚定防漂。
+  it('品牌 Splash 淡出 500ms 直落 done(brandExit 分支),不经四段编舞', () => {
     render(
       <LoginHandoffProvider authResolved authenticated={false}>
         <Probe />
       </LoginHandoffProvider>,
     );
     expect(probe.current!.phase).toBe('boot');
-    // 面板先挂载(未登录冷启动 LoginPage 在 env passed 后即挂,handoff 前不显示)
-    act(() => probe.current!.reportLoginPanelMounted());
-    expect(probe.current!.panelRevealed).toBe(false);
 
     fireAnchors();
-    expect(probe.current!.phase).toBe('settle');
-    expect(probe.current!.panelRevealed).toBe(false);
-    expect(probe.current!.sloganRevealed).toBe(false);
+    expect(probe.current!.branch).toBe('authenticated');
+    expect(probe.current!.phase).toBe('brand-exit');
+    expect(probe.current!.isPlaying).toBe(true);
 
-    act(() => vi.advanceTimersByTime(T.settleMs - 1));
-    expect(probe.current!.phase).toBe('settle');
-    act(() => vi.advanceTimersByTime(1));
-    expect(probe.current!.phase).toBe('shift');
-
-    act(() => vi.advanceTimersByTime(T.shiftMs - 1));
-    expect(probe.current!.phase).toBe('shift');
-    act(() => vi.advanceTimersByTime(1));
-    // t=950ms:面板入场(420ms cubic-bezier(.35,.1,.25,1) 由消费端 style 承载)
-    expect(probe.current!.phase).toBe('panel');
-    expect(probe.current!.panelRevealed).toBe(true);
-    expect(probe.current!.sloganRevealed).toBe(false); // Slogan 尚未出现
-
-    act(() => vi.advanceTimersByTime(T.sloganDelayMs - 1));
-    expect(probe.current!.phase).toBe('panel');
-    act(() => vi.advanceTimersByTime(1));
-    expect(probe.current!.phase).toBe('slogan');
-    expect(probe.current!.sloganRevealed).toBe(true); // Slogan 最后出现
-
-    act(() => vi.advanceTimersByTime(T.sloganMs + T.doneBufferMs - 1));
-    expect(probe.current!.phase).toBe('slogan');
+    act(() => vi.advanceTimersByTime(T.brandExitMs - 1));
+    expect(probe.current!.phase).toBe('brand-exit');
     act(() => vi.advanceTimersByTime(1));
     expect(probe.current!.phase).toBe('done');
     expect(probe.current!.isPlaying).toBe(false);
-    // 时序常量本体锚定(demo 逐字):300/650/420/100/500 + 三条 easing
+    expect(vi.getTimerCount()).toBe(0);
+    // 全程不经未登录分支的中间相
+    expect(probe.current!.phase).not.toBe('awaiting-panel');
+  });
+
+  it('时序常量本体锚定(demo 逐字):300/650/420/100/500/brandExit 500 + 三条 easing', () => {
     expect(T.settleMs).toBe(300);
     expect(T.shiftMs).toBe(650);
     expect(T.panelMs).toBe(420);
     expect(T.panelRisePx).toBe(20);
     expect(T.sloganDelayMs).toBe(100);
     expect(T.sloganMs).toBe(500);
+    expect(T.brandExitMs).toBe(500);
     expect(T.shiftEasing).toBe('cubic-bezier(.33,0,.18,1)');
     expect(T.panelEasing).toBe('cubic-bezier(.35,.1,.25,1)');
     expect(T.sloganEasing).toBe('cubic-bezier(.55,.06,.38,.96)');
   });
 
-  it('未登录另需「面板已挂载」信号才进 panel 步(awaiting-panel 门)', () => {
+  // 回归守卫(本轮实际踩到的坑):启动期 owner 过渡会先广播一次 canEnterApp=false
+  // 的边界态快照,若那一刻恰好与推进锚对齐,旧实现会把分支钉成 unauthenticated 并停在
+  // awaiting-panel 等 LoginPage —— 而登录面板已随登录线下架,永远不会挂载,品牌 overlay
+  // 就永久盖在最上层,表现是卡在开机动画里进不了应用。所以「宿主说没登录」也必须走完。
+  it('宿主报未登录(启动期边界态瞬态)时仍走完淡出,不停在 awaiting-panel', () => {
     render(
       <LoginHandoffProvider authResolved authenticated={false}>
         <Probe />
       </LoginHandoffProvider>,
     );
     fireAnchors();
-    act(() => vi.advanceTimersByTime(T.settleMs + T.shiftMs));
-    expect(probe.current!.phase).toBe('awaiting-panel');
-    expect(probe.current!.panelRevealed).toBe(false);
+    // 永不上报面板挂载 —— 本 fork 里 LoginPage 不再被任何路由挂起来
+    for (let round = 0; round < 4; round += 1) act(() => vi.runAllTimers());
 
-    act(() => probe.current!.reportLoginPanelMounted());
-    expect(probe.current!.phase).toBe('panel');
+    expect(probe.current!.phase).toBe('done');
+    expect(probe.current!.isPlaying).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('完全不传 authenticated 也能走完(入参已不参与分支判定)', () => {
+    render(
+      <LoginHandoffProvider authResolved>
+        <Probe />
+      </LoginHandoffProvider>,
+    );
+    fireAnchors();
+    expect(probe.current!.branch).toBe('authenticated');
+    act(() => vi.advanceTimersByTime(T.brandExitMs));
+    expect(probe.current!.phase).toBe('done');
   });
 
   it('冷启动每次播放但不重播:done 后重发锚/信号 phase 恒 done、无残留 timer', () => {
@@ -235,7 +238,7 @@ describe('LoginHandoff 时序(fake-timer)', () => {
       </LoginHandoffProvider>,
     );
     fireAnchors();
-    expect(probe.current!.phase).toBe('settle');
+    expect(probe.current!.phase).toBe('brand-exit');
     view.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -286,7 +289,14 @@ function HandoffHost({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** GuestRoute 等价物:auth 未决/已登录不挂 LoginPage(路由层职责的测试内投影)。 */
+/**
+ * GuestRoute 等价物:auth 未决/已登录不挂 LoginPage(路由层职责的测试内投影)。
+ *
+ * 注意这是**历史形态**的投影:2026-09-03 移除登录后 GuestRoute 与 /login 路由都已
+ * 下架,产品里没有任何东西会挂 LoginPage 了。保留它只为继续覆盖 LoginPage 组件自身
+ * 的布局/复位行为(组件文件按 pi-only 口径保留);要按**当前产品树**验入场动画的用例
+ * 请用 renderColdStartWithoutLoginPanel()。
+ */
 function GuestGate() {
   const { isInitializing, isAuthenticated } = useAuth();
   if (isInitializing || isAuthenticated) return null;
@@ -300,6 +310,19 @@ function renderColdStart() {
         <LoginBrandStage />
         <SplashScreen />
         <GuestGate />
+        <Probe />
+      </HandoffHost>
+    </AuthProvider>,
+  );
+}
+
+/** 当前产品树:没有任何登录面板宿主,只有品牌层 + Splash。 */
+function renderColdStartWithoutLoginPanel() {
+  return render(
+    <AuthProvider>
+      <HandoffHost>
+        <LoginBrandStage />
+        <SplashScreen />
         <Probe />
       </HandoffHost>
     </AuthProvider>,
@@ -342,7 +365,10 @@ describe('冷启动集成(resolved snapshot,禁 mock-reject)', () => {
     );
   });
 
-  it('unauthenticated 冷启动:品牌屏→完整衔接播放;全程单一品牌 DOM/最多一个可见 panel/done 后可点击/overlay 不拦截', async () => {
+  // 2026-09-03 移除登录后,「未登录 → 登录面板入场」这条集成路径已不存在:GuestGate
+  // 的真身(GuestRoute + /login 路由)整块下架,LoginPage 不再被挂起来。这里改成守
+  // **入场动画本身**在未登录快照下依然完整播放并让开主界面 —— 这正是用户要保留的东西。
+  it('未登录快照下入场动画照样完整播放:品牌屏 → 3s 地板 → 淡出 → overlay 让开主界面', async () => {
     // 集成层异常路径口径 = resolved-unauthenticated snapshot(v6.8 消歧)
     svc.service.initialize.mockResolvedValue({
       isAuthenticated: false,
@@ -350,81 +376,41 @@ describe('冷启动集成(resolved snapshot,禁 mock-reject)', () => {
       deviceId: 'test-device',
       user: null,
     });
-    renderColdStart();
+    renderColdStartWithoutLoginPanel();
     await flush();
 
     // ── 冷启动品牌屏(demo desktop-splash 相):品牌可见、Slogan 未出现、
-    //    Splash 统一面板在场、登录面板隐藏 ──
+    //    Splash 统一面板在场 ──
     expect(screen.getAllByTestId('login-stage-root').length).toBe(1);
     const hero = screen.getByTestId('login-brand-hero');
     expect(hero.style.left).toBe('443px'); // wave4 品牌位 = 登录位(379:5xx 实测)
     expect(hero.style.top).toBe('275px');
     expect(screen.getByTestId('login-slogan').style.opacity).toBe('0');
     expect(screen.getByTestId('splash-panel')).toBeTruthy();
-    const group = screen.getByTestId('login-group');
-    expect(group.style.opacity).toBe('0'); // splash 期登录面板不可见 → 最多一个可见 panel
-    expect(group.style.pointerEvents).toBe('none');
-    // 单一品牌 DOM:LoginPage 面板宿主层内不含任何品牌图(所有权契约)
-    const panelHost = screen.getByTestId('login-panel-stage-root');
-    expect(panelHost.querySelectorAll('img[src*="hero"], img[src*="wordmark"], img[src*="slogan"]').length).toBe(0);
     // overlay 不拦截 hit-test
     expect(screen.getByTestId('login-stage-root').className).toContain('pointer-events-none');
 
-    // ── 品牌资产 onload(推进锚) + 3s 地板后 Splash 退场 → 起播 ──
+    // ── 品牌资产 onload(推进锚) + 3s 地板后 Splash 退场 → 起播淡出 ──
     loadBrandAssets();
     await act(async () => {
       vi.advanceTimersByTime(3_000);
     });
-    expect(probe.current!.phase).toBe('settle');
-    expect(probe.current!.branch).toBe('unauthenticated');
+    expect(probe.current!.branch).toBe('authenticated');
+    expect(probe.current!.phase).toBe('brand-exit');
+    // 淡出中:overlay 仍挂载(平滑),opacity → 0
+    const overlay = screen.getByTestId('login-stage-root');
+    expect(overlay.style.opacity).toBe('0');
+    expect(overlay.style.transition).toContain('--splash-fade-duration');
 
-    // splash fade 500ms 后卸载;handoff 尚在 shift 段(t=500 < 950)
+    // splash fade 500ms 后统一面板卸载
     await act(async () => {
       vi.advanceTimersByTime(500);
     });
     expect(screen.queryByTestId('splash-panel')).toBeNull();
-    expect(probe.current!.phase).toBe('shift');
-    expect(screen.getByTestId('login-group').style.opacity).toBe('0');
-
-    // t=950:面板入场(420ms 上滑 20px);Slogan 仍未出现
-    await act(async () => {
-      vi.advanceTimersByTime(450);
-    });
-    expect(probe.current!.phase).toBe('panel');
-    const groupIn = screen.getByTestId('login-group');
-    expect(groupIn.style.opacity).toBe('1');
-    expect(groupIn.style.transform).toContain('translateY(0px)');
-    expect(groupIn.style.transition).toContain('420ms cubic-bezier(.35,.1,.25,1)');
-    expect(screen.getByTestId('login-slogan').style.opacity).toBe('0');
-
-    // +100ms Slogan 最后出现(500ms 缓入)
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
-    expect(probe.current!.phase).toBe('slogan');
-    const slogan = screen.getByTestId('login-slogan');
-    expect(slogan.style.opacity).toBe('1');
-    expect(slogan.style.transition).toContain('500ms cubic-bezier(.55,.06,.38,.96)');
-
-    // 收尾:done 后品牌固定登录位、面板可点击、全程单面板
-    await act(async () => {
-      vi.advanceTimersByTime(560);
-    });
     expect(probe.current!.phase).toBe('done');
-    expect(screen.getByTestId('login-brand-hero').style.left).toBe('443px');
-    const doneGroup = screen.getByTestId('login-group');
-    expect(doneGroup.style.opacity).toBe('1');
-    expect(doneGroup.style.pointerEvents).not.toBe('none');
-    // 全程单面板:splash 面板已卸载,仅剩 login-panel-identifier 一块
-    expect(screen.queryByTestId('splash-panel')).toBeNull();
-    expect(
-      document.querySelectorAll(
-        '[data-testid^="login-panel-"]:not([data-testid="login-panel-stage-root"])',
-      ).length,
-    ).toBe(1);
-    expect(screen.getByTestId('login-panel-identifier')).toBeTruthy();
-    fireEvent.click(screen.getByTestId('login-continue-button'));
-    expect(screen.getByTestId('login-stage-root').className).toContain('pointer-events-none');
+    // 品牌 overlay 让开,主界面接管;全程没有停在中间相
+    expect(screen.queryByTestId('login-stage-root')).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('authenticated 冷启动:品牌 Splash 淡出直入主界面,不闪登录面板,overlay 平滑卸载', async () => {

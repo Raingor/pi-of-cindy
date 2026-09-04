@@ -6923,6 +6923,7 @@
       "settingsLink": "設定，當前使用者：{{name}}",
       "settingsLinkBeta": "設定，當前使用者：{{name}}，Beta 測試管道已開啟",
       "moreLabel": "更多，當前使用者：{{name}}",
+      "openSettings": "設定",
       "menuSettings": "設定",
       "menuAddAccount": "登入更多帳號",
       "menuLogout": "退出",

@@ -1,22 +1,27 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * LocalDbGate 的 fatal 恢复面。
+ *
+ * 这份文件原来守的是「返回登录」逃生口:localDb 起不来时 exitLocalMode() / logout()
+ * 再跳 /login,连 teardown 失败也要保证跳得走。2026-09-03 用户指令移除登录后那条路
+ * 不存在了 —— 再跳就是从一个有恢复按钮的错误页掉进彻底的空白页,比困在错误页更糟。
+ *
+ * 所以现在守反过来:LocalDbGate **不得**再传 onBackToLogin(于是 fatal 弹框不出
+ * cancel 按钮),也不得再引用 exitLocalMode / logout / '/login'。主恢复路径
+ * (重启装更新 / 检查更新)在 LocalDbFatalScreen 自己身上,不受影响。
+ */
+
 const mocks = vi.hoisted(() => ({
-  exitLocalMode: vi.fn(),
-  logout: vi.fn(),
   warn: vi.fn(),
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    dataOwnerId: 'local-v1',
-    mode: 'local',
-    exitLocalMode: mocks.exitLocalMode,
-    logout: mocks.logout,
-  }),
+  useAuth: () => ({ dataOwnerId: 'local-v1' }),
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -28,9 +33,7 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/components/error/LocalDbFatalScreen', () => ({
   LocalDbFatalScreen: ({ onBackToLogin }: { onBackToLogin?: () => void }) => (
-    <button type="button" onClick={onBackToLogin}>
-      back to login
-    </button>
+    <div data-testid="fatal-screen" data-has-back-to-login={String(onBackToLogin !== undefined)} />
   ),
 }));
 
@@ -39,8 +42,6 @@ import { LocalDbGate } from '../LocalDbGate';
 describe('LocalDbGate fatal recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.exitLocalMode.mockRejectedValue(new Error('owner teardown failed'));
-    mocks.logout.mockResolvedValue(undefined);
     (window as unknown as { electronAPI: unknown }).electronAPI = {
       localDb: {
         ensureReady: vi.fn().mockResolvedValue({
@@ -52,25 +53,20 @@ describe('LocalDbGate fatal recovery', () => {
     };
   });
 
-  it('navigates back to login even when leaving local mode rejects', async () => {
+  it('shows the fatal screen without a back-to-login escape hatch', async () => {
     render(
       <MemoryRouter initialEntries={['/app']}>
         <Routes>
           <Route path="/app" element={<LocalDbGate />}>
             <Route index element={<div>main</div>} />
           </Route>
-          <Route path="/login" element={<div>login page</div>} />
+          <Route path="*" element={<div data-testid="no-match" />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'back to login' }));
-
-    await waitFor(() => expect(screen.getByText('login page')).toBeTruthy());
-    expect(mocks.exitLocalMode).toHaveBeenCalledOnce();
-    expect(mocks.warn).toHaveBeenCalledWith(
-      'failed to leave the current session from local-db fatal screen',
-      expect.any(Error),
-    );
+    const screenEl = await screen.findByTestId('fatal-screen');
+    expect(screenEl.getAttribute('data-has-back-to-login')).toBe('false');
+    expect(screen.queryByTestId('no-match')).toBeNull();
   });
 });

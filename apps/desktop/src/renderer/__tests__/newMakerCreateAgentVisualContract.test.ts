@@ -366,8 +366,13 @@ describe('NewMakerDraftRoute CREATE AGENT visual contract', () => {
     expect(sidebarTopNavSource).toContain('text-[var(--sidebar-nav-text)]');
     expect(vendorIconSource).toContain('text-[hsl(var(--sidebar-muted))]');
 
+    // 2026-09-03 底部胶囊从账号卡换成「打开设置」按铮(移除登录),但尺寸与三个
+    // --sidebar-user-card-* 语义 token 原样沿用 —— Figma 帧的视觉契约不变。
     expect(userInfoSectionSource).toContain(
-      'rounded-full border border-[var(--sidebar-user-card-border)]',
+      'rounded-full px-[7px] text-left',
+    );
+    expect(userInfoSectionSource).toContain(
+      'border border-[var(--sidebar-user-card-border)]',
     );
     expect(userInfoSectionSource).toContain('bg-[var(--sidebar-user-card-bg)]');
     expect(userInfoSectionSource).toContain('text-[var(--sidebar-user-card-text)]');

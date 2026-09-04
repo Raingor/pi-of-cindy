@@ -41,14 +41,25 @@ describe('Settings tab order', () => {
     }
   });
 
-  it('keeps builtin tools between remote control and computer use', () => {
-    const toolsIndex = TAB_IDS.indexOf('builtin-tools');
-
-    expect(TAB_IDS.slice(toolsIndex - 1, toolsIndex + 2)).toEqual([
-      'remote-control',
-      'builtin-tools',
+  // 2026-09-03 用户指令(同批次):自动操作 / 工具 / 远程连接 / 键盘快捷键 四项
+  // 也从设置下架——都是 Cindy 自有能力,不属于本机 Pi 工作台。main 侧服务、
+  // Section 组件与 shared/appShortcuts.ts 注册表全部保留,只摘 UI 入口。
+  it('drops the Cindy-only tool / remote / shortcut tabs from the routable set', () => {
+    for (const retired of [
       'computer-use',
-    ]);
+      'builtin-tools',
+      'remote-control',
+      'shortcuts',
+    ] as const) {
+      expect(TAB_IDS as readonly string[]).not.toContain(retired);
+      expect(isSettingsTab(retired)).toBe(false);
+    }
+  });
+
+  // 下架后只剩「通用 + 个性化 + 供应商 + Pi 六项 + 导入」十项;尾巴是导入。
+  it('ends the routable set with import after the Pi block', () => {
+    expect(TAB_IDS.at(-1)).toBe('import');
+    expect(TAB_IDS).toHaveLength(10);
   });
 
   // 计费、用量历史、语音输入与 IM 机器人已从可路由 tab 下架:本分支只跑本机 Pi
