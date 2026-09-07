@@ -528,6 +528,11 @@ interface ChatInputProps {
   onWorkingDirChange?: (dir: string | null) => void;
   /** When true, the input is disabled (e.g. during streaming). */
   disabled?: boolean;
+  /**
+   * Existing-session metadata gate. While false, text editing remains available, but sending
+   * and model/provider/effort controls stay locked so a loading fallback cannot mutate the task.
+   */
+  sessionMetadataLoaded?: boolean;
   /** Freeze model/provider/effort/permission controls for audit-only tasks. */
   settingsLocked?: boolean;
   /** When true, shows Stop button instead of Send button. */
@@ -1052,6 +1057,7 @@ export function ChatInput({
   onFastModeChange,
   onWorkingDirChange,
   disabled,
+  sessionMetadataLoaded = true,
   settingsLocked = false,
   isStreaming = false,
   isAgentBusy,
@@ -4874,7 +4880,7 @@ export function ChatInput({
   const dispatchSend = useCallback(
     async (deliveryMode: MessageDeliveryMode = 'queue') => {
       if (!editor) return;
-      if (disabled) return;
+      if (disabled || !sessionMetadataLoaded) return;
       // React 的 disabled 状态可能尚未完成下一帧渲染；同步读协调器兜住点击、快捷键、
       // 语音发送等所有入口，确保 host 已登记切换意图后才允许 maker:send。
       if (sessionId && hasPendingAgentSendDispatch(sessionId)) return;
@@ -5634,6 +5640,7 @@ export function ChatInput({
     [
       editor,
       disabled,
+      sessionMetadataLoaded,
       sessionId,
       onSend,
       activeModel,
@@ -8371,7 +8378,11 @@ export function ChatInput({
                     onNavigateToProviders={handleNavigateToProviders}
                     switching={remoteSwitchInFlight}
                     disabled={
-                      disabled || settingsLocked || agentSendDispatchInFlight || agentSwitchInFlight
+                      disabled ||
+                      !sessionMetadataLoaded ||
+                      settingsLocked ||
+                      agentSendDispatchInFlight ||
+                      agentSwitchInFlight
                     }
                     visualVariant={isCreateAgentVariant ? 'create-agent' : 'default'}
                     compactToolbar={useNarrowToolbar}

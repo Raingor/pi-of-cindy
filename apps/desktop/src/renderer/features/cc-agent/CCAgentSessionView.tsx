@@ -4805,8 +4805,11 @@ export function CCAgentSessionView({
                   isAgentBusy={isAgentBusy}
                   onStop={handleStopSession}
                   pendingQueue={pendingQueue}
+                  // 未加载任务元数据时保留文字编辑，但锁住模型/深度并阻止发送，避免
+                  // Pi 默认回退值误写入旧的 CC/Codex 任务。
+                  sessionMetadataLoaded={!sessionId || session !== null}
                   disabled={remoteHandoffPreparing || session?.source === 'review'}
-                  settingsLocked={session?.source === 'review'}
+                  settingsLocked={session == null || session?.source === 'review'}
                   queuePaused={queuePaused}
                   queueExpanded={queueExpanded}
                   onQueueExpandedChange={setQueueExpanded}
@@ -4829,7 +4832,9 @@ export function CCAgentSessionView({
                   attachmentState={attachmentState}
                   externalDragOver={isDragOver}
                   onComposerDropHandled={resetFullAreaDragState}
-                  vendorKey={normalizeDbAgentKind(displayAgentKind)}
+                  // Pi-only:任务元数据尚未回流时，ChatInput 的模型/思考深度兜底必须读 Pi
+                  // 默认槽；session 加载后 initialModel / initialEffort 会覆盖这个兜底值。
+                  vendorKey={session ? normalizeDbAgentKind(displayAgentKind) : 'pi'}
                   extraDirs={session?.extraDirs ?? []}
                   onExtraDirsChange={handleExtraDirsChange}
                   compactToolbar={compactToolbar}

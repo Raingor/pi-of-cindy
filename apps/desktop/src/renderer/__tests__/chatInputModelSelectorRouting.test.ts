@@ -7,8 +7,26 @@ const chatInputSource = readFileSync(
   resolve(__dirname, '..', 'components', 'new-chat', 'ChatInput.tsx'),
   'utf8',
 );
+const sessionViewSource = readFileSync(
+  resolve(__dirname, '..', 'features', 'cc-agent', 'CCAgentSessionView.tsx'),
+  'utf8',
+);
 
 describe('ChatInput model source switching wiring', () => {
+  it('uses the selected task model and effort, with Pi defaults during metadata loading', () => {
+    // CCAgentSessionView 还没拿到 session 时不能沿用 dbToMakerAgentKind 的历史 cc 回退；
+    // ChatInput 需要先读 Pi 默认槽，等任务记录回来后由 initialModel / initialEffort 覆盖。
+    expect(sessionViewSource).toContain(
+      "vendorKey={session ? normalizeDbAgentKind(displayAgentKind) : 'pi'}",
+    );
+    expect(sessionViewSource).toContain('initialModel={session?.model}');
+    expect(sessionViewSource).toContain('initialEffort={session?.effort}');
+    expect(sessionViewSource).toContain('sessionMetadataLoaded={!sessionId || session !== null}');
+    expect(sessionViewSource).toContain('settingsLocked={session == null || session?.source === \'review\'}');
+    expect(chatInputSource).toContain('if (disabled || !sessionMetadataLoaded) return;');
+    expect(chatInputSource).toContain('!sessionMetadataLoaded ||');
+  });
+
   it('lets a disconnected source reselect the highlighted fallback provider row', () => {
     const selectorStart = chatInputSource.lastIndexOf('<ModelSelector');
     expect(selectorStart).toBeGreaterThanOrEqual(0);
