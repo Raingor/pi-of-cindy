@@ -6,10 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * AuthContext initialize 链 .catch 回归(implementation-plan Step 3b WHAT2 v6.3)。
  *
- * 现网该链仅 then/finally,真实 reject 会产生 unhandled rejection 且 auth 快照悬空;
- * PR2b 补显式 .catch:统一 logger 记录 + 清为 unauthenticated snapshot,再 .finally,
- * 不新增视觉分支。本单测**必须真实 mock service.initialize reject**(与集成层
- * resolved-unauthenticated 口径分层并存,互不取代)。
+ * pi-only 分支没有 /login；真实 reject 不能落 signed-out，否则 Splash 完成后
+ * ProtectedRoute 返回空树而整窗白屏。因此 .catch 必须统一 logger 记录 + 落 local
+ * snapshot,再 .finally。本单测**必须真实 mock service.initialize reject**。
  */
 
 const mocks = vi.hoisted(() => ({
@@ -52,10 +51,13 @@ vi.mock('@/lib/logger', () => ({
 import { AuthProvider, useAuth } from '../AuthContext';
 
 function AuthProbe() {
-  const { isInitializing, isAuthenticated, user, loginState } = useAuth();
+  const { isInitializing, isAuthenticated, user, loginState, mode, dataOwnerId, canEnterApp } =
+    useAuth();
   return (
     <div data-testid="auth-probe">
-      {`init=${isInitializing};authed=${isAuthenticated};user=${user ? user.id : 'null'};login=${
+      {`init=${isInitializing};authed=${isAuthenticated};mode=${mode};owner=${
+        dataOwnerId ?? 'null'
+      };canEnter=${canEnterApp};user=${user ? user.id : 'null'};login=${
         loginState ? 'set' : 'null'
       }`}
     </div>
@@ -82,8 +84,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('AuthContext initialize .catch 归一未登录', () => {
-  it('service.initialize 真实 reject → 无 unhandled rejection,统一 logger 记录,落 unauthenticated snapshot', async () => {
+describe('AuthContext initialize .catch 归一本地模式', () => {
+  it('service.initialize 真实 reject → 无 unhandled rejection,统一 logger 记录,落 local snapshot', async () => {
     const boom = new Error('main auth channel exploded');
     mocks.service.initialize.mockRejectedValue(boom);
 
@@ -99,9 +101,9 @@ describe('AuthContext initialize .catch 归一未登录', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    // 归一未登录:isInitializing=false(finally 仍执行)、未登录、无用户、loginState 清空
+    // pi-only 归一本地模式:isInitializing=false、可进工作台、local owner、无用户
     expect(screen.getByTestId('auth-probe').textContent).toBe(
-      'init=false;authed=false;user=null;login=null',
+      'init=false;authed=false;mode=local;owner=local-v1;canEnter=true;user=null;login=null',
     );
     // 统一 logger 记录(不新增视觉分支)
     expect(mocks.logError).toHaveBeenCalled();
@@ -113,8 +115,15 @@ describe('AuthContext initialize .catch 归一未登录', () => {
   it('initialize resolve 正常路径不受影响(catch 不吞正常快照)', async () => {
     mocks.service.initialize.mockResolvedValue({
       isAuthenticated: true,
+      mode: 'cloud',
+      dataOwnerId: 'owner-1',
+      ownerGeneration: 1,
+      canEnterApp: true,
       isCanary: false,
       deviceId: 'd1',
+      hasAccountDeletionReceipt: false,
+      accountDeletionRestored: false,
+      credentialStoreUnavailable: false,
       user: { id: 'u1', name: 'Tester' },
     });
     render(
@@ -127,7 +136,7 @@ describe('AuthContext initialize .catch 归一未登录', () => {
       await Promise.resolve();
     });
     expect(screen.getByTestId('auth-probe').textContent).toBe(
-      'init=false;authed=true;user=u1;login=null',
+      'init=false;authed=true;mode=cloud;owner=owner-1;canEnter=true;user=u1;login=null',
     );
     expect(mocks.logError).not.toHaveBeenCalled();
   });

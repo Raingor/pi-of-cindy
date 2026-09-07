@@ -110,6 +110,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const log = createLogger('AuthContext');
 
+// pi-only 分支没有登录页；即使 renderer 的 auth IPC 初始化异常，也必须能进入本地工作台，
+// 否则 Splash 完成后 ProtectedRoute 会因 canEnterApp=false 返回空树，用户看到整窗白屏。
+const LOCAL_AUTH_FALLBACK: AuthState = {
+  user: null,
+  mode: 'local',
+  dataOwnerId: 'local-v1',
+  ownerGeneration: 1,
+  canEnterApp: true,
+  isAuthenticated: false,
+  isCanary: false,
+  deviceId: '',
+  hasAccountDeletionReceipt: false,
+  accountDeletionRestored: false,
+  credentialStoreUnavailable: false,
+};
+
 function publishDataOwnerGeneration(dataOwnerId: string | null, ownerGeneration?: number): void {
   const previousOwnerId = getDataOwnerGeneration().dataOwnerId;
   if (previousOwnerId !== dataOwnerId) {
@@ -271,25 +287,13 @@ export function AuthProvider({
         setAccountDeletionRestored(state.accountDeletionRestored);
       })
       .catch((error: unknown) => {
-        // 初始化异常归一未登录(implementation-plan Step 3b v6.3):此前该链仅
-        // then/finally,真实 reject 会产生 unhandled rejection 且 auth 快照悬空。
-        // 统一 logger 记录 + 清为 unauthenticated snapshot,不新增视觉分支
-        // (handoff 走正常 unauthenticated 冷启动)。
-        log.error('auth initialize failed, fall back to unauthenticated', error);
+        // pi-only 分支没有 /login；若 auth IPC 初始化异常仍落 signed-out，Splash 完成后
+        // ProtectedRoute 会返回空树，表现为「唤醒 Cindy」后整窗白屏。统一记录后落本地
+        // owner，确保异常仍可进入本机 Pi 工作台；main 侧也有同一条 local 收口。
+        log.error('auth initialize failed, fall back to local mode', error);
         // 推送事件比本次 initialize 响应新时不覆盖(与 then 分支同守卫)。
         if (authStateVersionRef.current !== initializeVersion) return;
-        setIsAuthenticated(false);
-        setIsCanary(false);
-        setCanEnterApp(false);
-        setMode('signed-out');
-        setDataOwnerId(null);
-        publishDataOwnerGeneration(null);
-        activeDataOwnerIdRef.current = null;
-        activeUserIdRef.current = null;
-        setLoginState(null);
-        clearWorkersCache();
-        setUser(null);
-        setCredentialStoreUnavailable(false);
+        applyIncomingState(LOCAL_AUTH_FALLBACK);
       })
       .finally(() => setIsInitializing(false));
 
