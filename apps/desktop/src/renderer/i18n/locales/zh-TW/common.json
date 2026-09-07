@@ -8600,6 +8600,9 @@
         "unstable": "本機連線反覆斷開又重連，遠端操作可能一直超時；請檢查網路，或重啟 Cindy 後重試"
       }
     },
+    "piCredentialReload": {
+      "notice": "供應商金鑰已更新，下次傳送訊息時將自動重新載入 Pi，任務記錄保留"
+    },
     "common": {
       "openFolderFailed": "開啟資料夾失敗",
       "openFailed": "開啟失敗",

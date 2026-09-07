@@ -1051,8 +1051,9 @@ describe('ChatInput 的入口门控与调用路由', () => {
     expect(onSend).toBeGreaterThan(sendRecheck);
     expect(sendFinish).toBeGreaterThan(onSend);
     expect(switchGuard).toBeGreaterThan(sendFinish);
-    expect(source).toContain(
-      'disabled || settingsLocked || agentSendDispatchInFlight || agentSwitchInFlight',
+    // 会话元数据未加载时同样锁住选择器(任务恢复修复):归一化空白后断言锁表达式。
+    expect(source.replace(/\s+/g, ' ')).toContain(
+      'disabled || !sessionMetadataLoaded || settingsLocked || agentSendDispatchInFlight || agentSwitchInFlight',
     );
   });
 

@@ -4903,8 +4903,11 @@ interface ElectronAPI {
       ok: boolean;
       failure?: import('@cindy/model-providers').ProviderModelDiscoveryFailureView;
     }>;
-    /** 自定义供应商变更广播订阅（返回 off）。 */
-    onProvidersChanged: (cb: () => void) => () => void;
+    /** 自定义供应商变更广播订阅（返回 off）。payload 可选：Pi 供应商密钥变更时携带
+     * `{ affectedProviderIds: string[] }`（任务窗口显示「下次发送时自动重载」横幅）。 */
+    onProvidersChanged: (
+      cb: (payload?: { affectedProviderIds?: string[] }) => void,
+    ) => () => void;
 
     // 自定义 MCP 服务器配置 CRUD（可选 bearer token 另走通用 safeStorage IPC，不经这里）。
     listCustomMcpServers: () => Promise<{

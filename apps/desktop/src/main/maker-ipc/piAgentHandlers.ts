@@ -58,6 +58,7 @@ import {
   type PiCliProviderPatch,
 } from '../pi-agent/piCliPanel.js';
 import { fetchProviderModels } from '../pi-agent/piReader.js';
+import { notifyPiCredentialsChanged } from '../maker-host/piCredentialReload.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
   optionalString,
@@ -68,8 +69,19 @@ import {
   throwIpcError,
 } from '../utils/ipcValidate.js';
 import { MAKER_INVOKE } from './channels.js';
+import { PI_CLI_PROVIDER_ID_PREFIX } from '../../shared/piCliProviders.js';
 
 const log = createLogger('maker-ipc/pi-agent');
+
+/**
+ * key 类变更后通知 piCredentialReload 登记表：运行中的本地 pi 会话会被标记
+ * stale，下一次发送时关旧 handle 重建（新 env 带新 key）。providerId 需要
+ * 目录口径（`pi-cli-<id>`，与 sessions.provider_id 一致），不能用裸 id。
+ */
+function notifyPiCliCredentialsChanged(providerId: string, keyChanged: boolean): void {
+  if (!keyChanged) return;
+  notifyPiCredentialsChanged([`${PI_CLI_PROVIDER_ID_PREFIX}${providerId}`]);
+}
 
 /** mutate 通道的补丁字段白名单：未知键不进 models.json。 */
 function parseProviderPatch(raw: Record<string, unknown>): PiCliProviderPatch {
@@ -282,6 +294,8 @@ export function registerPiAgentIpc(): void {
     const keyId = requireString(payload.keyId, 'keyId');
     try {
       switchPiCliProviderKey(providerId, keyId);
+      // 切换生效 key：spawn 快照里的旧 key 不再生效 → 通知重载。
+      notifyPiCliCredentialsChanged(providerId, true);
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -375,7 +389,16 @@ export function registerPiAgentIpc(): void {
       switch (action) {
         case 'upsert-provider': {
           const id = requireString(payload.id, 'id');
-          upsertPiCliProvider(id, parseProviderPatch(requireObject(payload.patch, 'patch')));
+          const patch = parseProviderPatch(requireObject(payload.patch, 'patch'));
+          upsertPiCliProvider(id, patch);
+          // apiKey / apiKeys / activeKeyId 任一出现即视为生效凭证可能已变：改名、
+          // 改 baseUrl 等无关编辑不触发重载。
+          notifyPiCliCredentialsChanged(
+            id,
+            patch.apiKey !== undefined ||
+              patch.apiKeys !== undefined ||
+              patch.activeKeyId !== undefined,
+          );
           return { success: true };
         }
         case 'rename-provider': {
@@ -416,6 +439,8 @@ export function registerPiAgentIpc(): void {
             requireString(payload.id, 'id'),
             requireString(payload.keyId, 'keyId'),
           );
+          // 被移除的可能是生效 key（池回退到下一把）→ 视为凭证变更。
+          notifyPiCliCredentialsChanged(requireString(payload.id, 'id'), true);
           return { success: true };
         }
         case 'update-enabled': {

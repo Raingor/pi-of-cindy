@@ -756,6 +756,11 @@ import {
   normalizeSessionProviderId,
   setSessionProvider,
 } from '../maker-host/session-provider-store.js';
+import {
+  createPiCredentialReloadTracker,
+  notifyPiCredentialsChanged,
+  setPiCredentialReloadTracker,
+} from '../maker-host/piCredentialReload.js';
 import { getActiveCatalog, setDiscoveredProviderModels } from '../maker-host/active-catalog.js';
 import { readCompactionPct } from '../maker-host/compaction-settings-store.js';
 import { resolveVerifiedContextWindow } from '../maker-host/catalog-to-descriptors.js';
@@ -6591,6 +6596,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     refreshCatalog: () => refreshCustomProvidersIntoCatalog(),
     beginRouteMutation: (providerId) => beginProviderRouteMutation(providerId),
     broadcastChanged: () => broadcastToAllWindows(MAKER_PUSH.PROVIDER_CHANGED, {}),
+    // 自定义供应商 pi 凭证变更（新 key / 移除 / 删除）→ piCredentialReload 标记
+    // 受影响的运行中本地 pi 会话，下次发送重建用新凭证（方案 B）。
+    notifyPiCredentialStale: (providerId) => notifyPiCredentialsChanged([providerId]),
     listProviderIds: () => getDesktopSelectableCatalog().providers.map((provider) => provider.id),
     setProviderOrder: (providerIds) => setProviderOrder(providerIds),
     getProviderOrder: () => readProviderOrder(),
@@ -11541,6 +11549,38 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     }
   };
 
+  // Pi 供应商密钥变更的延迟重载（方案 B）：改 key 时标记受影响的运行中本地 pi
+  // 会话并广播 PROVIDER_CHANGED(带 affectedProviderIds)；该会话下一次发送时关旧
+  // handle → 上面 lazy-create 按 DB 行重建（resumeSessionId = sdk_session_id，对话
+  // 记录保留），新 spawn 现读新 key。模块级 holder 同时供 bootstrap-electron 直调的
+  // piAgentHandlers 触达（装配前调用 no-op）。
+  const piCredentialReloadTracker = createPiCredentialReloadTracker({
+    getSession: (sessionId) => maker.getSession(sessionId),
+    // 关旧 handle 待 lazy-create 重建时必须套 rehydrate close 抑制窗口（与
+    // agent-switch / codex-credential-switch / context rollover 同款）：不抑制会
+    // abort 驱动本次发送的 input boundary signal（#1930 cancelled-before-dispatch）
+    // 并把 ephemeral worktree 释放回池，重建后 DB workDir 指向被复用的旧路径。
+    closeSession: (sessionId) =>
+      withRehydrateCloseSuppressed(sessionId, () => maker.closeSession(sessionId, 'requested')),
+    queryLocalPiSessionsByProviderIds: async (providerIds) => {
+      const db = getDbClient().drizzle;
+      return await db
+        .select({ id: sessions.id, providerId: sessions.providerId })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.agentKind, 'pi'),
+            isNull(sessions.remoteHostId),
+            inArray(sessions.providerId, [...providerIds]),
+          ),
+        );
+    },
+    broadcastProviderChanged: (payload) => {
+      broadcastToAllWindows(MAKER_PUSH.PROVIDER_CHANGED, payload);
+    },
+  });
+  setPiCredentialReloadTracker(piCredentialReloadTracker);
+
   const { sendToAgentAccepted: sendToAgentAcceptedUnlocked } = createMakerSendTransaction({
     getSession: (sessionId) => maker.getSession(sessionId),
     closeSession: (sessionId) => maker.closeSession(sessionId),
@@ -11656,6 +11696,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     isMobileClientInvoke: () => isMobileControllerInvoke(),
     applyPendingAgentSwitch: (sessionId) =>
       applyPendingAgentSwitchIfIdle(agentSwitchDeps, sessionId),
+    applyPendingCredentialReload: (sessionId) =>
+      piCredentialReloadTracker.applyPendingReload(sessionId),
     prepareUnhealthySession: (sessionId) =>
       contextOverflowRolloverHolder?.prepareUnhealthySession(sessionId) ?? Promise.resolve(false),
     log,

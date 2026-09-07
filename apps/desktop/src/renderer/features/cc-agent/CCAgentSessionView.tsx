@@ -148,6 +148,7 @@ import {
 } from '@/features/cc-agent/hooks/useRemoteSessionConnection';
 import { useRemoteSessionLoading } from '@/features/cc-agent/hooks/useRemoteSessionLoading';
 import { RemoteSessionBanner } from './RemoteSessionBanner';
+import { PiCredentialReloadBanner } from './PiCredentialReloadBanner';
 import { decideRemoteSessionExit } from './remoteSessionExit';
 import { RemoteSessionLoading } from './RemoteSessionLoading';
 import {
@@ -1626,6 +1627,29 @@ export function CCAgentSessionView({
     updateQueueItem,
     chatDisplaySnapshot,
   } = useCCAgentChat(sessionId, handleTitleUpdate, { chatRealtime });
+
+  // Pi 供应商密钥变更横幅（piCredentialReload 方案 B）：main 在改 key 时把引用该供应商
+  // 的运行中本地 pi 会话标记 stale，并广播 PROVIDER_CHANGED（带 affectedProviderIds）。
+  // 本任务命中时顶部显示非模态提示；重载在下一次发送的分发路径自动完成（关旧 handle →
+  // 按 DB 行重建，对话记录保留），本轮 turn 开始即视为已重载，横幅消失。
+  const [piCredentialReloadAffected, setPiCredentialReloadAffected] = useState<string[] | null>(
+    null,
+  );
+  useEffect(() => {
+    const off = window.electronAPI?.maker?.onProvidersChanged((payload) => {
+      const affected = payload?.affectedProviderIds;
+      if (Array.isArray(affected) && affected.length > 0) {
+        setPiCredentialReloadAffected(affected);
+      }
+    });
+    return () => {
+      off?.();
+    };
+  }, []);
+  // turn 开始 = 本次重载已在发送事务里完成 → 撤掉提示（不需要等 turn 结束）。
+  useEffect(() => {
+    if (agentStatus.isRunning) setPiCredentialReloadAffected(null);
+  }, [agentStatus.isRunning]);
   useEffect(() => {
     if (!sessionId || !isOrcaLeadSessionView || !historyLoaded) return;
     const recoveredAssignment = getRecoverableDeferredUiAssignment({
@@ -1720,6 +1744,14 @@ export function CCAgentSessionView({
   // 真实会话 agentKind(pending switch intent 不影响)——压缩分流必须用它,
   // 否则 intent 乐观切到 pi 但真实会话仍在跑 claude-code 时会错调 compact-session(#1933 review)。
   const realAgentKind = dbToMakerAgentKind(session?.agentKind);
+  // Pi 供应商密钥变更横幅的可见性：仅本地 pi 任务且当前来源命中 main 标记的
+  // affectedProviderIds 时显示（远程 SSH 会话不会被 main 标记，天然不显示）。
+  const showPiCredentialReloadBanner =
+    piCredentialReloadAffected !== null &&
+    realAgentKind === 'pi' &&
+    !session?.remoteHostId &&
+    !!session?.providerId &&
+    piCredentialReloadAffected.includes(session.providerId);
   const isCodex = displayAgentKind === 'codex';
   // 手动压缩通道判定(#1927/#1933 review):真实 Claude Code → maker:input:compact;
   // 其余 agent 声明 manualCompact.supported(当前仅 pi)→ maker:compact-session;其余无入口。
@@ -4331,6 +4363,10 @@ export function CCAgentSessionView({
             onResync={remoteSync.resync}
           />
         ) : null}
+
+        {/* Pi 供应商密钥变更提示（piCredentialReload 方案 B）：非模态，无按钮 ——
+            重载全自动，发生在本任务下一次发送的分发路径上；turn 开始即消失。 */}
+        {showPiCredentialReloadBanner && <PiCredentialReloadBanner />}
 
         {/* 远程会话首屏:等被控端经隧道返回历史/元数据期间的 loading(仅远程、延迟防闪)。 */}
         {showRemoteLoading && remoteConn === 'connected' && <RemoteSessionLoading />}

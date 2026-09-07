@@ -223,6 +223,12 @@ export interface ProviderHandlerDeps {
   beginRouteMutation(providerId: string): () => void;
   /** CRUD 成功后广播变更（生产 = 向所有窗口 send PROVIDER_CHANGED）。 */
   broadcastChanged(): void;
+  /**
+   * pi runtime 凭证变更（新 key / 移除 / 供应商删除）成功后通知
+   * piCredentialReload 登记表：运行中的本地 pi 会话标记 stale，下次发送重建用新凭证。
+   * 缺省 no-op（非生产 harness / 单测）。
+   */
+  notifyPiCredentialStale?(providerId: string): void;
   /** Current selectable catalog ids, used to validate visible provider order entries. */
   listProviderIds(): string[];
   /** Merge the currently visible order into the persisted observed-provider order. */
@@ -1356,9 +1362,14 @@ export function registerProviderHandlers(
           // 用原值回滚，确保并发窗口不能把另一份配置和密钥拼在一起。
           // key/header 的 storage key 按当前 owner 动态解析，写入前必须仍是发起方。
           assertProviderMutationOwner(ownerAtIngress);
+          // pi runtime 的 key 有变更（新 key / 移除 / 端点变更触发的清理）→ 通知
+          // piCredentialReload：运行中的本地 pi 会话标记 stale，下次发送重建用新凭证。
+          // 改名 / 改模型等不产生 pi key mutation 的编辑不触发。
+          const keyMutations = planProviderKeyMutations(config, keys, 'update', previous);
+          const piKeyMutated = keyMutations.some((mutation) => mutation.agent === 'pi');
           const credentialSnapshots = stageProviderCredentials(
             config.id,
-            planProviderKeyMutations(config, keys, 'update', previous),
+            keyMutations,
             planProviderHeaderMutations(config, separated.headers, 'update', previous),
           );
           // 先阻止在途 flow 写回，再改描述符；否则旧 flow 可能在 clear 后迟到落一枚旧 token。
@@ -1406,6 +1417,7 @@ export function registerProviderHandlers(
           assertProviderMutationOwner(ownerAtIngress);
           await afterChange();
           assertProviderMutationOwner(ownerAtIngress);
+          if (piKeyMutated) deps.notifyPiCredentialStale?.(config.id);
           return { ok: true };
         } finally {
           if (generation !== null) finishOAuthMutation(config.id, generation);
@@ -1490,6 +1502,9 @@ export function registerProviderHandlers(
           await afterChange();
           assertProviderMutationOwner(ownerAtIngress);
           deps.broadcastPricingChanged();
+          // 供应商已删:引用它的 pi 会话下次发送重建时会拿到清晰的路由错误,
+          // 而不是带着旧 env 静默继续。只标记 provider_id 指向它的会话。
+          deps.notifyPiCredentialStale?.(providerId);
         });
         return { ok: true };
       } finally {

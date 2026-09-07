@@ -5384,8 +5384,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ok: boolean;
       failure?: import('@cindy/model-providers').ProviderModelDiscoveryFailureView;
     }> => ipcRenderer.invoke('maker:provider:models-rediscover', providerId),
-    /** 自定义供应商变更广播订阅（返回 off）。 */
-    onProvidersChanged: fanOutMakerProvidersChanged,
+    /** 自定义供应商变更广播订阅（返回 off）。payload 可选：Pi 供应商密钥变更时携带
+     * `{ affectedProviderIds: string[] }`（任务窗口显示「下次发送时自动重载」横幅）。 */
+    onProvidersChanged: fanOutMakerProvidersChanged as (
+      cb: (payload?: { affectedProviderIds?: string[] }) => void,
+    ) => () => void,
     localModelStatus: (): Promise<import('../shared/localModelRuntime').LocalRuntimeStatus> =>
       ipcRenderer.invoke('maker:local-model:status'),
     localModelStart: (): Promise<import('../shared/localModelRuntime').LocalRuntimeStatus> =>

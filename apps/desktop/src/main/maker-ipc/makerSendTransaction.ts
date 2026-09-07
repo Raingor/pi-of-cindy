@@ -216,6 +216,13 @@ export interface MakerSendTransactionDeps {
    */
   applyPendingAgentSwitch?(sessionId: string): Promise<void>;
   /**
+   * Pi 供应商密钥变更的延迟重载：发送时刻若该会话被标记 stale 且空闲，先关掉
+   * 旧 live handle（其 env 里是旧 key 快照），随后本事务按 DB 行 lazy-create
+   * 重建，新 spawn 现读新 key。运行中的回合不受影响（保留标记，下次空闲发送
+   * 再重载）。undefined = 不启用（测试最小 harness）。
+   */
+  applyPendingCredentialReload?(sessionId: string): Promise<void>;
+  /**
    * 发送前换窗:必须在 getSession 之前。prepare 会关掉不健康的 live handle,
    * 随后本事务按空 session 走 lazy-create,避免 peek 之后对已关闭对象 send。
    */
@@ -606,6 +613,7 @@ export function createMakerSendTransaction(deps: MakerSendTransactionDeps): Make
       // 去时才切」)。必须在 getSession 之前——apply 会 close 旧引擎的 live session,
       // 让下方走 lazy-create 按 DB 新值 spawn 新引擎。
       await deps.applyPendingAgentSwitch?.(sessionId);
+      await deps.applyPendingCredentialReload?.(sessionId);
       await deps.prepareUnhealthySession?.(sessionId);
       let sess = deps.getSession(sessionId);
       // Maker keeps a failed Session registered until its real handle cleanup

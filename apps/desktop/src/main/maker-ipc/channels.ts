@@ -879,7 +879,9 @@ export const MAKER_PUSH = {
   AUTH_STATE_CHANGED: 'maker:auth:state-changed',
   /**
    * 自定义供应商增删改后广播（renderer 各 useProviders 实例 refetch → 设置页列表 + 对话
-   * 模型选择器 live 刷新）。无 payload；收到即重拉 listProviders。
+   * 模型选择器 live 刷新）。payload 可选：多数调用点无 payload；Pi 供应商密钥变更时携带
+   * `{ affectedProviderIds: string[] }`，任务窗口据此显示「下次发送时自动重载」横幅
+   * （piCredentialReload，方案 B）——旧消费者忽略 payload，行为不变。
    */
   PROVIDER_CHANGED: 'maker:provider:changed',
   /** 当前 owner 的对话语义索引设置由另一窗口 / 进程改动。payload 为 owner stamp。 */

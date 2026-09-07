@@ -8594,6 +8594,9 @@
         "unstable": "This computer keeps losing and re-establishing its connection, so remote actions may keep timing out — check the network, or restart Cindy and retry"
       }
     },
+    "piCredentialReload": {
+      "notice": "Provider key updated — Pi will reload automatically on your next message; task history is preserved"
+    },
     "common": {
       "openFolderFailed": "Failed to open folder",
       "openFailed": "Failed to open",
