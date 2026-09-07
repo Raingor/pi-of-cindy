@@ -58,6 +58,7 @@ import type {
 
 import { getCachedLocalPiPath } from '../pi-agent/localPi.js';
 import { readPiCliRuntimeProviders } from '../pi-agent/piCliPanel.js';
+import { isPiCliProviderId } from '../../shared/piCliProviders.js';
 import { t } from '../i18n.js';
 import { spawnPiSubagentRunner } from '../cindy-brain/piSubagentRunnerHost.js';
 import { getPiExtraSpawnConfig } from '../mcp-integrations/piEnvironment.js';
@@ -774,6 +775,20 @@ class DesktopPiAuthAdapter implements AuthAdapter {
       return hasGrokOAuthLogin()
         ? { authenticated: true, identity: 'SuperGrok', authSource: 'oauth' }
         : { authenticated: false, errorReason: 'xai_oauth_unavailable' };
+    }
+    // 本机 pi-cli 供应商(~/.pi/agent/models.json):readPiCliRuntimeProviders 只投影
+    // baseUrl + 生效 key + 模型齐备的可路由条目,找到即代表 key 可用。真值经
+    // CINDY_PI_KEY_* env 注入子进程(见 resolvePiNativeProviders 的 piCliRuntime 分支),
+    // 与 Cindy 网关凭证无关 —— 本地模式(无网关 key)也必须放行,否则 pi-only 下
+    // pi-cli 会话的 auth gate 会落到网关检查恒报
+    // `cindy_gateway_key_unavailable`(LAZY_CREATE_FAILED,2026-09-07 实报)。
+    if (providerId && isPiCliProviderId(providerId)) {
+      const runtime = readPiCliRuntimeProviders().find(
+        (entry) => entry.runtimeId === providerId,
+      );
+      return runtime
+        ? { authenticated: true, identity: runtime.name, authSource: 'api-key' }
+        : { authenticated: false, errorReason: 'pi_native_api_key_unavailable' };
     }
     if (providerId) {
       const storageProviderId = storedCustomProviderId(providerId);

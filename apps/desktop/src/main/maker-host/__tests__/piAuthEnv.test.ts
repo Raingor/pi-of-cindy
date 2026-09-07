@@ -41,6 +41,21 @@ vi.mock('../../secrets/providerSecretStore.js', () => ({
   readCustomProviderKey: (id: string) => (id === 'my-vllm' ? 'BYOM-KEY' : null),
 }));
 
+const piCliProviders = vi.hoisted(() => ({
+  entries: [] as Array<{
+    catalogId: string;
+    runtimeId: string;
+    name: string;
+    baseUrl: string;
+    api: string;
+    models: Array<{ id: string; name: string; reasoning: boolean; supportsImageInput: boolean }>;
+    key: string;
+  }>,
+}));
+vi.mock('../../pi-agent/piCliPanel.js', () => ({
+  readPiCliRuntimeProviders: () => piCliProviders.entries,
+}));
+
 import { desktopPiAuthAdapter } from '../pi-host.js';
 
 const PI_API_KEY_ENV = 'CINDY_PI_API_KEY';
@@ -86,6 +101,42 @@ describe('DesktopPiAuthAdapter.getAuthEnv', () => {
     expect(await desktopPiAuthAdapter.getState({ providerId: 'my-vllm' })).toMatchObject({
       authenticated: true,
       identity: 'My vLLM',
+    });
+  });
+});
+
+describe('DesktopPiAuthAdapter.getState (pi-cli providers)', () => {
+  beforeEach(() => {
+    h.gatewayKey = null; // 本地模式:无网关 key。
+    piCliProviders.entries = [
+      {
+        catalogId: 'pi-cli-agentrouter-a1',
+        runtimeId: 'pi-cli-agentrouter-a1',
+        name: 'AgentRouter',
+        baseUrl: 'https://agentrouter.example/v1',
+        api: 'openai-completions',
+        models: [
+          { id: 'glm-5.3', name: 'glm-5.3', reasoning: false, supportsImageInput: false },
+        ],
+        key: 'PI-CLI-KEY',
+      },
+    ];
+  });
+
+  it('authenticates pi-cli providers without a Cindy gateway key (local mode)', async () => {
+    // 回归:pi-only 本地模式下 pi-cli 会话曾落到网关检查,
+    // 恒报 cindy_gateway_key_unavailable → LAZY_CREATE_FAILED。
+    await expect(
+      desktopPiAuthAdapter.getState({ providerId: 'pi-cli-agentrouter-a1' }),
+    ).resolves.toMatchObject({ authenticated: true, identity: 'AgentRouter', authSource: 'api-key' });
+  });
+
+  it('rejects pi-cli provider ids with no routable runtime entry', async () => {
+    await expect(
+      desktopPiAuthAdapter.getState({ providerId: 'pi-cli-gone' }),
+    ).resolves.toMatchObject({
+      authenticated: false,
+      errorReason: 'pi_native_api_key_unavailable',
     });
   });
 });
