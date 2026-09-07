@@ -84,7 +84,7 @@ export function PiSubagentsSection() {
   if (error && !data) {
     return (
       <div className="flex h-60 flex-col items-center justify-center gap-3">
-        <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p>
+        <p className="text-sm" style={{ color: 'var(--error-flat)' }}>{error}</p>
         <button
           onClick={refresh}
           className="rounded-md px-4 py-2 text-sm text-white"
@@ -361,7 +361,7 @@ function ChainList({
             style={{
               borderColor:
                 selectedChain?.fileName === chain.fileName
-                  ? 'var(--success)'
+                  ? 'var(--card-status-done)'
                   : 'var(--settings-border)',
               backgroundColor:
                 selectedChain?.fileName === chain.fileName
@@ -371,7 +371,7 @@ function ChainList({
             }}
           >
             <div className="flex items-center gap-2">
-              <GitBranch className="h-4 w-4 shrink-0" style={{ color: 'var(--success)' }} />
+              <GitBranch className="h-4 w-4 shrink-0" style={{ color: 'var(--card-status-done)' }} />
               <span className="truncate text-sm font-medium">{chain.name}</span>
             </div>
             <p
@@ -475,12 +475,12 @@ function RunHistoryList({ records }: { records: PiRunRecord[] }) {
               </td>
               <td className="px-4 py-3">
                 {r.status === 'ok' ? (
-                  <span className="flex items-center gap-1" style={{ color: 'var(--success)' }}>
+                  <span className="flex items-center gap-1" style={{ color: 'var(--card-status-done)' }}>
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {t('settings.piSubagents.statusOk')}
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1" style={{ color: 'var(--danger)' }}>
+                  <span className="flex items-center gap-1" style={{ color: 'var(--error-flat)' }}>
                     <XCircle className="h-3.5 w-3.5" />
                     {t('settings.piSubagents.statusError')}
                     {r.exit != null && (

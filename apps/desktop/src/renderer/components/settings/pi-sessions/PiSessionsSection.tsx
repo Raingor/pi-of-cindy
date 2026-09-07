@@ -484,7 +484,7 @@ export function PiSessionsSection() {
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex h-8 items-center gap-1.5 rounded-lg px-4 text-12 font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: 'var(--danger)' }}
+                style={{ backgroundColor: 'var(--error-flat)' }}
               >
                 {deleting ? t('settings.piSessions.deleting') : t('settings.piSessions.delete')}
               </button>
@@ -535,7 +535,7 @@ export function PiSessionsSection() {
                 onClick={handlePurge}
                 disabled={purging}
                 className="flex h-8 items-center gap-1.5 rounded-lg px-4 text-12 font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: 'var(--danger)' }}
+                style={{ backgroundColor: 'var(--error-flat)' }}
               >
                 {purging ? t('settings.piSessions.deleting') : t('settings.piSessions.deleteForever')}
               </button>

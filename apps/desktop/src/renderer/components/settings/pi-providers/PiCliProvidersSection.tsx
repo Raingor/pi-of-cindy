@@ -1429,7 +1429,7 @@ function ProviderDetail({
       {confirmDelete && (
         <div
           className="flex items-start gap-3 rounded-lg border p-3"
-          style={{ borderColor: 'var(--danger)' }}
+          style={{ borderColor: 'var(--error-flat)' }}
         >
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-500" />
           <div className="min-w-0 flex-1">
@@ -1444,7 +1444,7 @@ function ProviderDetail({
                 type="button"
                 onClick={() => void handleDelete()}
                 className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-12 font-medium text-white"
-                style={{ backgroundColor: 'var(--danger)' }}
+                style={{ backgroundColor: 'var(--error-flat)' }}
               >
                 <Trash2 size={13} />
                 {t('settings.piCliProviders.deleteProvider')}

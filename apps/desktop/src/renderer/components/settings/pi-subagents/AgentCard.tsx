@@ -233,7 +233,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
             {msg && (
               <span
                 className="text-xs"
-                style={{ color: msg.ok ? 'var(--success)' : 'var(--danger)' }}
+                style={{ color: msg.ok ? 'var(--card-status-done)' : 'var(--error-flat)' }}
               >
                 {msg.text}
               </span>
@@ -244,7 +244,7 @@ export function AgentCard({ agent, onSave, onSaved }: AgentCardProps) {
           <div className="col-span-2">
             <span
               className="text-xs"
-              style={{ color: msg.ok ? 'var(--success)' : 'var(--danger)' }}
+              style={{ color: msg.ok ? 'var(--card-status-done)' : 'var(--error-flat)' }}
             >
               {msg.text}
             </span>
