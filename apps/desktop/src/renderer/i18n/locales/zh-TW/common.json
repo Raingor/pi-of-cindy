@@ -5792,6 +5792,12 @@
       "extraCreditsLine": "額外點數 {{amount}}",
       "accountWeeklyHint": "帳號週用量，不是本任務配額"
     },
+    "pi": {
+      "inputTokens": "輸入 token {{tokens}}",
+      "outputTokens": "輸出 token {{tokens}}",
+      "cacheHitRate": "快取命中率 {{rate}}",
+      "noUsageDetail": "本任務尚未產生 token 用量。"
+    },
     "dailyLimitLabel": "今日 {{spend}}/{{limit}}",
     "monthlyLimitLabel": "本週期 {{spend}}/{{limit}}",
     "creditLabel": "{{used}}/{{total}}",

@@ -147,6 +147,7 @@ const QUOTA_POPOVER_OPEN_DELAY_MS = 300;
 const QUOTA_POPOVER_CLOSE_GRACE_MS = 200;
 const DEFAULT_MONEY_SYMBOL = DEFAULT_USAGE_CURRENCY === 'CNY' ? '¥' : '$';
 const DEFAULT_MONEY_PLACEHOLDER = `${DEFAULT_MONEY_SYMBOL}—`;
+const PI_USAGE_PLACEHOLDER = '—';
 
 const PLAN_TYPE_LABELS: Record<string, string> = {
   free: 'Free',
@@ -707,6 +708,28 @@ function formatTurnUsagePercent(value: number | null): string | null {
   const percent = Math.min(100, Math.max(0, value * 100));
   if (Math.abs(percent - Math.round(percent)) < 0.05) return `${Math.round(percent)}%`;
   return `${percent.toFixed(1).replace(/\.0$/, '')}%`;
+}
+
+function getPiUsageSegments(
+  summary: LatestTurnUsageSummary | null,
+  t: TFunction,
+): string[] {
+  const details = summary?.details;
+  const inputTokens = details
+    ? formatCompactTokens(Math.max(0, Math.floor(details.inputTokens)))
+    : PI_USAGE_PLACEHOLDER;
+  const outputTokens = details
+    ? formatCompactTokens(Math.max(0, Math.floor(details.outputTokens)))
+    : PI_USAGE_PLACEHOLDER;
+  const cacheHitRate = details
+    ? (formatTurnUsagePercent(details.cacheHitRate) ?? PI_USAGE_PLACEHOLDER)
+    : PI_USAGE_PLACEHOLDER;
+
+  return [
+    t('todaySpend.pi.inputTokens', { tokens: inputTokens }),
+    t('todaySpend.pi.outputTokens', { tokens: outputTokens }),
+    t('todaySpend.pi.cacheHitRate', { rate: cacheHitRate }),
+  ];
 }
 
 function formatQuotaCacheLine(details: TurnUsageDetails, t: TFunction): string {
@@ -1559,7 +1582,15 @@ export function TodaySpendChip({
 
   let labelNode: React.ReactNode;
   let tooltipNode: React.ReactNode = usageDashboardLabel;
-  if (isDeviceLinkRemote) {
+  if (vendorKey === 'pi') {
+    // Pi 的输入框下方展示最近一轮明细；没有完成过任务时保留三项结构，不回退成 $。
+    labelNode = renderSegmentedLabel(getPiUsageSegments(latestTurnUsage, t));
+    const tooltipLines: string[] = [];
+    appendLatestTurnUsageLines(tooltipLines, latestTurnUsage, t);
+    tooltipNode = buildTooltipNode(
+      tooltipLines.length > 0 ? tooltipLines : [t('todaySpend.pi.noUsageDetail')],
+    );
+  } else if (isDeviceLinkRemote) {
     // device-link 远程会话不读取本机账号形态；金额仍使用同一个会话合计投影。
     const chipSegments = sessionSegment ? [sessionSegment] : [];
     labelNode = chipSegments.length > 0

@@ -5784,6 +5784,12 @@
       "extraCreditsLine": "Extra credits {{amount}}",
       "accountWeeklyHint": "Account weekly usage, not this session's quota"
     },
+    "pi": {
+      "inputTokens": "Input tokens {{tokens}}",
+      "outputTokens": "Output tokens {{tokens}}",
+      "cacheHitRate": "Cache hit rate {{rate}}",
+      "noUsageDetail": "No token usage has been recorded for this session yet."
+    },
     "dailyLimitLabel": "Today {{spend}}/{{limit}}",
     "monthlyLimitLabel": "Cycle {{spend}}/{{limit}}",
     "creditLabel": "{{used}}/{{total}}",

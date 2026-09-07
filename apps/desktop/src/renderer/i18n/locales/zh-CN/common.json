@@ -5792,6 +5792,12 @@
       "extraCreditsLine": "额外点数 {{amount}}",
       "accountWeeklyHint": "账号周用量，不是本任务配额"
     },
+    "pi": {
+      "inputTokens": "输入 token {{tokens}}",
+      "outputTokens": "输出 token {{tokens}}",
+      "cacheHitRate": "命中缓存率 {{rate}}",
+      "noUsageDetail": "本任务尚未产生 token 用量。"
+    },
     "dailyLimitLabel": "今日 {{spend}}/{{limit}}",
     "monthlyLimitLabel": "本周期 {{spend}}/{{limit}}",
     "creditLabel": "{{used}}/{{total}}",

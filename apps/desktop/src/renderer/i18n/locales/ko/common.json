@@ -5792,6 +5792,12 @@
       "extraCreditsLine": "추가 크레딧 {{amount}}",
       "accountWeeklyHint": "계정 주간 사용량이며 이 작업의 할당량이 아닙니다"
     },
+    "pi": {
+      "inputTokens": "입력 token {{tokens}}",
+      "outputTokens": "출력 token {{tokens}}",
+      "cacheHitRate": "캐시 적중률 {{rate}}",
+      "noUsageDetail": "이 작업에는 아직 token 사용량이 없습니다."
+    },
     "dailyLimitLabel": "오늘 {{spend}}/{{limit}}",
     "monthlyLimitLabel": "주기 {{spend}}/{{limit}}",
     "creditLabel": "{{used}}/{{total}}",

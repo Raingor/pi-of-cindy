@@ -26,6 +26,21 @@ const localeSources = ['en', 'zh-CN', 'zh-TW', 'ja', 'ko'].map((locale) =>
 );
 
 describe('TodaySpendChip dashboard routing', () => {
+  it('renders Pi latest-turn token metrics instead of the money fallback', () => {
+    expect(source).toContain("if (vendorKey === 'pi') {");
+    expect(source).toContain('getPiUsageSegments(latestTurnUsage, t)');
+    expect(source).toContain("todaySpend.pi.inputTokens");
+    expect(source).toContain("todaySpend.pi.outputTokens");
+    expect(source).toContain("todaySpend.pi.cacheHitRate");
+    expect(source).toContain("todaySpend.pi.noUsageDetail");
+    for (const localeSource of localeSources) {
+      expect(localeSource).toContain('"inputTokens"');
+      expect(localeSource).toContain('"outputTokens"');
+      expect(localeSource).toContain('"cacheHitRate"');
+      expect(localeSource).toContain('"noUsageDetail"');
+    }
+  });
+
   it('keeps the latest user-round total separate while aggregating token/model details', () => {
     expect(source).toContain('message.userTurnMoney?.amount');
     expect(source).toContain('const userTurnCostUsd = typeof message.userTurnCostUsd');

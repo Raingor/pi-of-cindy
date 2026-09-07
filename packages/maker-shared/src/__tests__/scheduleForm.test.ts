@@ -61,7 +61,9 @@ describe('mobile schedule form model', () => {
       recurring: true,
       manual: false,
       intervalMs: 900_000,
-      agentKind: 'claude-code',
+      // pi-only:新建路径默认 pi(createMobileScheduleDraft),既存任务的 agentKind
+      // 仍按原值保留 —— 见下面的编辑用例。
+      agentKind: 'pi',
       workspaceKind: 'project',
       workingDir: '/repo/xdt-maker',
       useWorktree: false,

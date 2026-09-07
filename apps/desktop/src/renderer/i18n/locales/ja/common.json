@@ -5792,6 +5792,12 @@
       "extraCreditsLine": "追加クレジット {{amount}}",
       "accountWeeklyHint": "アカウントの週間使用量であり、このセッションのクォータではありません"
     },
+    "pi": {
+      "inputTokens": "入力 token {{tokens}}",
+      "outputTokens": "出力 token {{tokens}}",
+      "cacheHitRate": "キャッシュヒット率 {{rate}}",
+      "noUsageDetail": "このタスクにはまだ token 使用量がありません。"
+    },
     "dailyLimitLabel": "本日 {{spend}}/{{limit}}",
     "monthlyLimitLabel": "周期 {{spend}}/{{limit}}",
     "creditLabel": "{{used}}/{{total}}",
