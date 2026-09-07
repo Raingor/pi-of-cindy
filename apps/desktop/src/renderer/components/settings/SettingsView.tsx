@@ -238,7 +238,7 @@ export function SettingsView() {
           <div
             key={`${activeTab}:${piExtensionsPanelOpen ? 'pi-extensions' : 'root'}`}
             className={cn(
-              'mx-auto w-full min-w-0 max-w-[920px] px-1 animate-fade-in',
+              'mx-auto w-full min-w-0 max-w-[1100px] px-1 animate-fade-in',
               activeTab === 'import' ? 'h-full min-h-0' : 'pb-32',
             )}
           >
