@@ -1356,7 +1356,14 @@ const config: ForgeConfig = {
     // Windows 上也带 winpty-agent.exe / DLL 等非 .node 二进制；这些都必须 unpack
     // 到 asar 外才能被 spawn / 动态加载。AutoUnpackNativesPlugin 只 unpack .node,
     // 所以这里显式覆盖 loudness / node-pty 整个目录。
-    asar: { unpack: '**/{@img/{sharp-libvips-*,sharp-win32-*},loudness,native/sqlite-vec,node-pty}/**' },
+    asar: {
+      // Keep whole native dependency directories outside app.asar. Use
+      // unpackDir rather than unpack: AutoUnpackNativesPlugin merges the
+      // latter with its .node glob, while libvips must remain beside sharp.node
+      // together with its complete dylib dependency tree.
+      unpackDir:
+        '**/{node_modules/@img/sharp-libvips-*,node_modules/@img/sharp-win32-*,node_modules/loudness,native/sqlite-vec,node_modules/node-pty}',
+    },
     // 打包名(out 目录 / mac .app 包名 / Helper 目录名 / 主 plist CFBundleName)
     // 按区域派生:cn/global 'Cindy'(2026-07-26 显示名统一,.app 撞名双装
     // 互覆已被 owner 接受)/ dev 'CindyDev'(显式设值防 packager 回落
