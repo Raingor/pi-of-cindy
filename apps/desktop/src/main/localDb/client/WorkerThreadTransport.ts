@@ -1596,7 +1596,7 @@ function forkSession(readyDb, args) {
   const resetHandoffBoundaryClientId = nullableString(payload.resetHandoffBoundaryClientId);
   const newMessageIds = normalizeNewMessageIds(payload.newMessageIds);
   const sourceMessages = readyDb.prepare(
-    'SELECT client_id, role, content, tool_use_id, agent_meta, agent_kind, created_at FROM messages WHERE session_id = ? AND (? IS NULL OR created_at > ?) AND (created_at < ? OR (? IS NOT NULL AND created_at = ? AND rowid < ?)) AND rewind_at IS NULL ORDER BY created_at ASC, rowid ASC',
+    'SELECT client_id, role, content, tool_use_id, agent_meta, agent_kind, created_at FROM messages WHERE session_id = ? AND (? IS NULL OR created_at > ?) AND (created_at < ? OR (? IS NOT NULL AND created_at = ? AND rowid < ?)) AND rewind_at IS NULL AND (role != \'assistant\' OR agent_meta IS NULL OR CASE WHEN json_valid(agent_meta) THEN json_type(agent_meta, \'$.taskNotification\') END IS NULL) ORDER BY created_at ASC, rowid ASC',
   ).all(sourceSessionId, sourceClearedAt, sourceClearedAt, targetCreatedAt, targetRowid, targetCreatedAt, targetRowid);
   if (newMessageIds.length !== sourceMessages.length) {
     throw invalidArgs('newMessageIds length mismatch: expected ' + sourceMessages.length + ', got ' + newMessageIds.length);

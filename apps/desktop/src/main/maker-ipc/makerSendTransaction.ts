@@ -177,6 +177,11 @@ export interface MakerSendTransactionDeps {
       expectedClearBoundaryMs?: number | null;
     },
   ): Promise<unknown>;
+  /**
+   * Durable user-row side effect. Runs only after the clear-race rewind check;
+   * failures are non-fatal because vendor acceptance is already irreversible.
+   */
+  onUserMessagePersisted?(sessionId: string, clientId: string): void | Promise<void>;
   /** Hide a user row that lost a clear race after accepted persistence. */
   rewindPersistedUserMessageAfterClear?: (sessionId: string, clientId: string) => Promise<void>;
   /** Check the clear token captured at the start of this send. */
@@ -1058,6 +1063,20 @@ export function createMakerSendTransaction(deps: MakerSendTransactionDeps): Make
                 }
                 userMessagePersisted = true;
                 await rewindPersistedUserMessageAfterClearIfStale();
+                try {
+                  await deps.onUserMessagePersisted?.(
+                    sessionId,
+                    persistUserMessage.clientId,
+                  );
+                } catch (err) {
+                  // Provider acceptance and the source user row are already durable. A
+                  // host-only notification failure must never make the composer resend.
+                  deps.log.warn('send: durable user side effect failed (non-fatal)', {
+                    sessionId,
+                    clientId: persistUserMessage.clientId,
+                    err: err instanceof Error ? err.message : String(err),
+                  });
+                }
                 // onPersisted 里可能挂着排队 orca 消息的 accepted 副作用(置 running /
                 // autoBridgePending), 必须 await 完再放行 turn(同直发路径语义)。
                 await persistUserMessage.onPersisted?.();

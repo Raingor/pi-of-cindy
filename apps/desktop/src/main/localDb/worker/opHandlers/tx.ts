@@ -1393,6 +1393,11 @@ function forkSession(db: Database.Database, args: unknown): { messageCount: numb
           OR (? IS NOT NULL AND created_at = ? AND rowid < ?)
         )
         AND rewind_at IS NULL
+        AND (
+          role != 'assistant'
+          OR agent_meta IS NULL
+          OR CASE WHEN json_valid(agent_meta) THEN json_type(agent_meta, '$.taskNotification') END IS NULL
+        )
       ORDER BY created_at ASC, rowid ASC`,
   ).all(
     sourceSessionId,

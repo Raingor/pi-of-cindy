@@ -201,7 +201,12 @@
     "learnFailed": "Skill learning couldn't start",
     "learnBusyBody": "A learning task is already running. Try again after it finishes.",
     "learnFailedBody": "Failed to start: {{detail}}",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "taskNotification": {
+      "title": "Task notification from “{{source}}”",
+      "unnamedTask": "Untitled task",
+      "noBody": "This task was mentioned."
+    }
   },
   "queuePresentation": {
     "panel": {

@@ -4908,6 +4908,13 @@ interface ElectronAPI {
     onProvidersChanged: (
       cb: (payload?: { affectedProviderIds?: string[] }) => void,
     ) => () => void;
+    taskNotifications: {
+      unread: () => Promise<{ sessionIds: string[] }>;
+      markRead: (sessionId: string) => Promise<{ updated: number }>;
+      onChanged: (
+        cb: (payload: { sessionId: string; unread: boolean }, ownerStamp?: unknown) => void,
+      ) => () => void;
+    };
 
     // 自定义 MCP 服务器配置 CRUD（可选 bearer token 另走通用 safeStorage IPC，不经这里）。
     listCustomMcpServers: () => Promise<{

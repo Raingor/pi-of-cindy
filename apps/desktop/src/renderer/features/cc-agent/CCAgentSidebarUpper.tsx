@@ -107,6 +107,11 @@ import {
   useSessionAttentionKinds,
   useSessionAttentionSnapshot,
 } from '@/lib/sessionAttentionStore';
+import {
+  hydrateRemoteTaskNotificationUnread,
+  markTaskNotificationsReadForSession,
+  useTaskNotificationUnreadSessionIds,
+} from '@/lib/taskNotificationStore';
 import { patchDraft as patchNewMakerDraft } from '@/state/newMakerDraft';
 import { consumePendingProjectFocus, usePendingProjectFocus } from '@/state/pendingProjectFocus';
 import { requestConversationSearch, useConversationSearchRequest } from '@/state/conversationSearchRequest';
@@ -470,6 +475,19 @@ export function CCAgentSidebarUpper() {
     [searchProjectSessions, hiddenProjectKeys, localPlatform],
   );
   const attentionNotifications = useSessionAttentionSnapshot();
+  const taskNotificationUnreadSessionIds = useTaskNotificationUnreadSessionIds();
+  useEffect(() => {
+    const deviceIds = [
+      ...new Set(
+        remoteProjectSessions
+          .map((session) => session.deviceLinkDeviceId)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0),
+      ),
+    ];
+    if (deviceIds.length > 0) {
+      void hydrateRemoteTaskNotificationUnread(deviceIds);
+    }
+  }, [remoteProjectSessions]);
   const scheduleSessionIndex = useAutomationScheduleSessionIndex();
   // 侧栏右侧 urgent 红点的"额外"来源:定时任务未读且失败(status != 'success')。
   // sessionAttentionStore 只跟踪 chat 内 attention;schedule 未读通过 sidebarNotifications
@@ -642,13 +660,13 @@ export function CCAgentSidebarUpper() {
   // 会话并入 attention 未读集。否则 rail 模式下,靠 scheduleSessionIndex 恢复的定时任务
   // 完成未读(如重启后 attention store 还没填充)会丢绿点(codex review)。
   const railNotifications = useMemo(() => {
-    const unread = new Set<string>();
+    const unread = new Set(taskNotificationUnreadSessionIds);
     for (const [sessionId, info] of scheduleSessionIndex) {
       if (info.hasUnreadRun) unread.add(sessionId);
     }
     if (unread.size === 0) return attentionNotifications;
     return new Set([...attentionNotifications, ...unread]);
-  }, [attentionNotifications, scheduleSessionIndex]);
+  }, [attentionNotifications, scheduleSessionIndex, taskNotificationUnreadSessionIds]);
 
   useOrcaWorkerAttentionWatcher(sessionsHook.sessions, activeSessionId);
 
@@ -736,6 +754,7 @@ export function CCAgentSidebarUpper() {
                 hiddenProjects={hiddenProjects}
                 projectAliases={projectAliases}
                 scheduleSessionIndex={scheduleSessionIndex}
+                taskNotificationUnreadSessionIds={taskNotificationUnreadSessionIds}
               />
             </div>
           </div>
@@ -785,6 +804,7 @@ interface ExpandedProps {
   hiddenProjects: UseHiddenProjectsReturn;
   projectAliases: ReturnType<typeof useProjectAliases>;
   scheduleSessionIndex: ReturnType<typeof useAutomationScheduleSessionIndex>;
+  taskNotificationUnreadSessionIds: ReadonlySet<string>;
 }
 
 /** rail 未分类隐藏态的空列表(引用稳定,免得 lampScope 发布 effect 空转)。 */
@@ -815,6 +835,7 @@ function ExpandedView({
   hiddenProjects,
   projectAliases,
   scheduleSessionIndex,
+  taskNotificationUnreadSessionIds,
 }: ExpandedProps) {
   const { t, i18n } = useTranslation();
   const localPlatform = window.electronAPI.platform;
@@ -1115,9 +1136,15 @@ function ExpandedView({
     return next;
   }, [scheduleSessionIndex]);
   const sidebarNotifications = useMemo(() => {
-    if (unreadScheduleSessionIds.size === 0) return notifications;
-    return new Set([...notifications, ...unreadScheduleSessionIds]);
-  }, [notifications, unreadScheduleSessionIds]);
+    if (unreadScheduleSessionIds.size === 0 && taskNotificationUnreadSessionIds.size === 0) {
+      return notifications;
+    }
+    return new Set([
+      ...notifications,
+      ...unreadScheduleSessionIds,
+      ...taskNotificationUnreadSessionIds,
+    ]);
+  }, [notifications, taskNotificationUnreadSessionIds, unreadScheduleSessionIds]);
   const remoteActivityRevision = useRemoteSessionActivityRevision();
 
   const markAutomationSessionRunsRead = useCallback(
@@ -2070,6 +2097,7 @@ function ExpandedView({
   useEffect(() => {
     if (!viewedSessionId) return;
     markAutomationSessionRunsRead(viewedSessionId);
+    void markTaskNotificationsReadForSession(viewedSessionId).catch(() => undefined);
     clearSystemSessionAttention(viewedSessionId);
   }, [
     viewedSessionId,
@@ -2150,6 +2178,7 @@ function ExpandedView({
       // F-SB-7: Clear done notification on click
       clearNotification(id);
       markAutomationSessionRunsRead(id);
+      void markTaskNotificationsReadForSession(id).catch(() => undefined);
       clearSystemSessionAttention(id);
       if (id === activeSessionIdRef.current) return; // No duplicate navigate.
       if (import.meta.env.DEV) perfLog.debug(`sidebar:click sid=${id}`); // 纯诊断,生产剔除

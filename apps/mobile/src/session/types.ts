@@ -114,7 +114,7 @@ export interface RemoteMessage {
   agentMeta: Record<string, unknown> | null;
   createdAt: string;
   systemCardData?: Record<string, unknown>;
-  systemCardType?: 'help' | 'context' | 'cost' | 'pwd' | 'status' | 'compact' | 'cmd' | 'goal-complete' | 'goal-resumed' | 'auto-resume' | 'learn' | 'agent-switch';
+  systemCardType?: 'help' | 'context' | 'cost' | 'pwd' | 'status' | 'compact' | 'cmd' | 'goal-complete' | 'goal-resumed' | 'auto-resume' | 'learn' | 'agent-switch' | 'task-notification';
 }
 
 export type RemoteAttachmentCategory = 'image' | 'pdf' | 'text' | 'office';

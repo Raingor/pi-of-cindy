@@ -9,6 +9,7 @@ import { useState, type ReactNode } from 'react';
 import {
   ArrowLeftRight,
   ArrowRight,
+  Bell,
   Check,
   ChevronDown,
   ChevronRight,
@@ -21,6 +22,15 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
+import { saveDraft, getDraft } from '@/lib/composerDraftStore';
+import { normalizeComposerDocumentJSON } from '@/lib/composerListDocument';
+import { buildSessionDeepLink } from '@/lib/deepLink';
+import { getSessionRouteOwnerId, resolveSessionRoute } from '@/lib/orcaSessionIdentity';
+import { remoteProjectsStore } from '@/features/device-link/remoteProjectsStore';
+import {
+  useSessionNavigationIntent,
+  useSessionNavigationMode,
+} from '@/features/cc-agent/embeddedSessionNavigation';
 import { Collapse } from '@/components/ui/collapse';
 import { Spinner } from '@/components/ui/spinner';
 import { LearnStatusCard } from '@/features/learn/LearnStatusCard';
@@ -54,7 +64,8 @@ interface SystemCardProps {
     | 'auto-resume'
     | 'auto-resume-pending'
     | 'agent-switch'
-    | 'context-rebuild';
+    | 'context-rebuild'
+    | 'task-notification';
   data?: Record<string, unknown>;
   /**
    * 这条自愈记录此刻是否真的在飞（会话有在跑的 turn，且它就是那个 turn 的发起者）。
@@ -1288,6 +1299,136 @@ function ReviewCard({ data, workingDir }: { data?: Record<string, unknown>; work
   );
 }
 
+function TaskNotificationCard({
+  data,
+  currentSessionId,
+}: {
+  data?: Record<string, unknown>;
+  currentSessionId?: string;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const navigationMode = useSessionNavigationMode();
+  const reportSessionNavigation = useSessionNavigationIntent();
+  const sourceSessionId = typeof data?.sourceSessionId === 'string' ? data.sourceSessionId : '';
+  const sourceMessageClientId =
+    typeof data?.sourceMessageClientId === 'string' ? data.sourceMessageClientId : '';
+  const sourceDeviceId = typeof data?.sourceDeviceId === 'string' ? data.sourceDeviceId : null;
+  const sourceTitle =
+    typeof data?.sourceSessionTitle === 'string' && data.sourceSessionTitle.trim()
+      ? data.sourceSessionTitle.trim()
+      : t('chat.systemCard.taskNotification.unnamedTask');
+  const targetTitle =
+    typeof data?.targetSessionTitle === 'string' && data.targetSessionTitle.trim()
+      ? data.targetSessionTitle.trim()
+      : t('chat.systemCard.taskNotification.unnamedTask');
+  const body = typeof data?.body === 'string' ? data.body.trim() : '';
+  const interactive = navigationMode !== 'sidebar-embedded' && Boolean(sourceSessionId);
+
+  const openSource = (reply: boolean) => {
+    if (!interactive) return;
+    const remoteSession = remoteProjectsStore
+      .getMergedRemoteSessions()
+      .find((session) => session.id === sourceSessionId);
+    const currentRemoteSession = currentSessionId
+      ? remoteProjectsStore
+          .getMergedRemoteSessions()
+          .find((session) => session.id === currentSessionId)
+      : undefined;
+    const sourceRemoteDeviceId = sourceDeviceId ?? remoteSession?.deviceLinkDeviceId ?? null;
+    if (reply) {
+      const current = getDraft(sourceSessionId);
+      const path = buildSessionDeepLink(currentSessionId || sourceSessionId, {
+        deviceId: currentRemoteSession?.deviceLinkDeviceId,
+      });
+      const currentDoc = normalizeComposerDocumentJSON(current?.text ?? { type: 'doc', content: [] });
+      const replyParagraph = {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'mentionChip',
+            attrs: { kind: 'session', label: targetTitle, path, titled: true },
+          },
+          { type: 'text', text: ' ' },
+        ],
+      };
+      saveDraft(sourceSessionId, {
+        ...current,
+        text: {
+          type: 'doc',
+          content: [...(currentDoc.content ?? []), replyParagraph],
+        },
+        attachments: current?.attachments ?? [],
+        focusAtEnd: true,
+      });
+    }
+    const navigateToSource = sourceRemoteDeviceId
+      ? Promise.resolve(
+          `/cc-agent/${encodeURIComponent(sourceSessionId)}?device=${encodeURIComponent(sourceRemoteDeviceId)}`,
+        )
+      : resolveSessionRoute(sourceSessionId);
+    void navigateToSource.then((target) => {
+      reportSessionNavigation?.(sourceSessionId, getSessionRouteOwnerId(target) ?? sourceSessionId);
+      navigate(target, {
+        state:
+          !reply && sourceMessageClientId
+            ? {
+                searchJump: {
+                  kind: 'conversation-search',
+                  sessionId: sourceSessionId,
+                  messageId: sourceMessageClientId,
+                  messageIdKind: 'clientId',
+                  messageClientId: sourceMessageClientId,
+                },
+              }
+            : undefined,
+      });
+    });
+  };
+
+  return (
+    <div className={cardClass} data-task-notification="">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--msg-tool-card-bg)] text-[var(--msg-tool-text)]">
+          <Bell size={15} aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-13 font-medium text-[var(--msg-user-text)]">
+            {t('chat.systemCard.taskNotification.title', { source: sourceTitle })}
+          </div>
+          {body ? (
+            <p className="mt-1 whitespace-pre-wrap break-words text-13 text-[var(--msg-tool-text)]">
+              {body}
+            </p>
+          ) : (
+            <p className="mt-1 text-13 text-[var(--msg-tool-text)]">
+              {t('chat.systemCard.taskNotification.noBody')}
+            </p>
+          )}
+          {interactive && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => openSource(false)}
+                className="rounded-full border border-[var(--msg-tool-card-border)] px-3 py-1 text-12 text-[var(--msg-user-text)] transition-colors hover:bg-[var(--surface-hover)]"
+              >
+                {t('chat.systemCard.taskNotification.openSource')}
+              </button>
+              <button
+                type="button"
+                onClick={() => openSource(true)}
+                className="rounded-full border border-[var(--msg-tool-card-border)] px-3 py-1 text-12 text-[var(--msg-user-text)] transition-colors hover:bg-[var(--surface-hover)]"
+              >
+                {t('chat.systemCard.taskNotification.reply')}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SystemCard({
   cardType,
   data,
@@ -1330,6 +1471,8 @@ export function SystemCard({
       return <AgentSwitchCard data={data} />;
     case 'context-rebuild':
       return <ContextRebuildCard data={data} />;
+    case 'task-notification':
+      return <TaskNotificationCard data={data} currentSessionId={sessionId} />;
     case 'learn':
       return <LearnStatusCard data={data} contextSessionId={sessionId} />;
     case 'review':

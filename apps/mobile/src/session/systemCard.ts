@@ -28,7 +28,9 @@ export type MobileSystemCardType =
   | 'auto-resume'
   | 'learn'
   // session-agent-switch 边界卡(desktop 落库 role='agent_switch',读侧派生)。
-  | 'agent-switch';
+  | 'agent-switch'
+  // host-only 跨任务通知卡(desktop role='assistant' + agentMeta.taskNotification)。
+  | 'task-notification';
 export type MobileSystemCardPresentation = SystemCardPresentation;
 
 /** goal 达成记录文案(对齐桌面 GoalCompleteCard 的 goal.complete.record)。 */
@@ -100,7 +102,7 @@ export function buildMobileSystemCardData(
 ): Record<string, unknown> {
   // goal / auto-resume / agent-switch 卡的数据由桌面落库行派生,learn 卡的数据由
   // 发送侧 buildLearnCardData 直接组装,都不走本地 slash 命令的数据组装。
-  if (type === 'goal-complete' || type === 'goal-resumed' || type === 'auto-resume' || type === 'learn' || type === 'agent-switch') return {};
+  if (type === 'goal-complete' || type === 'goal-resumed' || type === 'auto-resume' || type === 'learn' || type === 'agent-switch' || type === 'task-notification') return {};
   return buildSystemCardData(type, {
     ...options,
     localCommands: MOBILE_LOCAL_SYSTEM_COMMANDS,
@@ -126,6 +128,7 @@ export function formatMobileSystemCard(
     };
   }
   if (type === 'auto-resume') return formatAutoResumeCard(data);
+  if (type === 'task-notification') return formatTaskNotificationCard(data);
   if (type === 'agent-switch') return formatAgentSwitchCard(data);
   if (type === 'learn') return formatLearnCard(data);
   return formatSystemCard(type, data);
@@ -156,6 +159,20 @@ function formatAutoResumeCard(data: Record<string, unknown> | undefined): System
  * 走「分隔线 + 药丸 + 可展开交接」1:1 对齐桌面 AgentSwitchCard,不再经过本函数;
  * 这里仅保留为 formatMobileSystemCard 在该 union 分支上的类型完备兜底。
  */
+function formatTaskNotificationCard(data: Record<string, unknown> | undefined): SystemCardPresentation {
+  const source = typeof data?.sourceSessionTitle === 'string' && data.sourceSessionTitle.trim()
+    ? data.sourceSessionTitle.trim()
+    : i18n.t('message.systemCard.taskNotification.unnamedTask');
+  const body = typeof data?.body === 'string' && data.body.trim()
+    ? data.body
+    : i18n.t('message.systemCard.taskNotification.noBody');
+  return {
+    title: i18n.t('message.systemCard.taskNotification.title', { source }),
+    body,
+    rows: [],
+  };
+}
+
 function formatAgentSwitchCard(data: Record<string, unknown> | undefined): SystemCardPresentation {
   const from = mobileAgentLabelFromUnknown(data?.fromAgentKind);
   const to = mobileAgentLabelFromUnknown(data?.toAgentKind);

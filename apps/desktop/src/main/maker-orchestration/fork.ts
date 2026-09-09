@@ -668,6 +668,21 @@ export async function forkSessionAtMessage(
     )
     .orderBy(asc(messages.createdAt), asc(messageRowid));
 
+  const copiedSourceMessages = sourceMessages.filter((message) => {
+    if (message.role !== 'assistant' || !message.agentMeta) return true;
+    try {
+      const parsed: unknown = JSON.parse(message.agentMeta);
+      return !(
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        Object.prototype.hasOwnProperty.call(parsed, 'taskNotification')
+      );
+    } catch {
+      return true;
+    }
+  });
+
   // 3. 计算 agent 侧截断信息。
   //
   // Claude: 反向找最近一条 assistant 且 agentMeta.uuid 存在 + **不是 subagent**
@@ -757,7 +772,7 @@ export async function forkSessionAtMessage(
   const now = Date.now();
   const newSessionId = createBusinessSessionId();
 
-  const newMessageIds = sourceMessages.map(() => ({ id: createId(), clientId: createId() }));
+  const newMessageIds = copiedSourceMessages.map(() => ({ id: createId(), clientId: createId() }));
   // pi 与 codex 一样:uuidMap 空、无 Claude transcript 锚点,跳过 Claude 专用的
   // synthetic uuid 补全 / parentUuid 采集(只有 Claude cc 需要)。
   const txUuidMap = usesTailTurnFork
@@ -834,14 +849,14 @@ export async function forkSessionAtMessage(
   if (!forkSource.reuseVendorSession && forkSource.rebuildReason) {
     await seedForkHandoffAfterSameEngineRebuild({
       sessionId: newSessionId,
-      rows: sourceMessages,
+      rows: copiedSourceMessages,
       agentKind: forkSource.agentKind,
       model: forkSource.model,
       providerId: forkSource.providerId,
       reason: forkSource.rebuildReason,
     });
   }
-  return sessionToCamel({ ...row, messageCount: sourceMessages.length });
+  return sessionToCamel({ ...row, messageCount: copiedSourceMessages.length });
 }
 
 export async function forkSessionStripEncrypted(sourceSessionId: string): Promise<Session> {

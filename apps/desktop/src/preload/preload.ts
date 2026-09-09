@@ -666,6 +666,9 @@ const fanOutMakerAuthStateChanged = createIpcFanOut('maker:auth:state-changed');
 const fanOutMakerAuthLoginProgress = createIpcFanOut('maker:auth:login-progress');
 // 自定义供应商增删改广播 → 各 useProviders 实例 refetch（设置页列表 + 对话模型选择器 live 刷新）。
 const fanOutMakerProvidersChanged = createIpcFanOut('maker:provider:changed');
+const fanOutMakerTaskNotificationChanged = createIpcFanOut(
+  'maker:task-notification:changed',
+);
 const fanOutMakerChatEmbeddingChanged = createIpcFanOut('maker:chat-embedding:changed');
 const fanOutMakerLocalModelStatus = createIpcFanOut('maker:local-model:status');
 const fanOutMakerLocalModelPullProgress = createIpcFanOut('maker:local-model:pull-progress');
@@ -5389,6 +5392,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onProvidersChanged: fanOutMakerProvidersChanged as (
       cb: (payload?: { affectedProviderIds?: string[] }) => void,
     ) => () => void,
+    taskNotifications: {
+      unread: (): Promise<{ sessionIds: string[] }> =>
+        ipcRenderer.invoke('maker:task-notifications:unread'),
+      markRead: (sessionId: string): Promise<{ updated: number }> =>
+        ipcRenderer.invoke('maker:task-notifications:mark-read', sessionId),
+      onChanged: fanOutMakerTaskNotificationChanged as (
+        cb: (payload: { sessionId: string; unread: boolean }, ownerStamp?: unknown) => void,
+      ) => () => void,
+    },
     localModelStatus: (): Promise<import('../shared/localModelRuntime').LocalRuntimeStatus> =>
       ipcRenderer.invoke('maker:local-model:status'),
     localModelStart: (): Promise<import('../shared/localModelRuntime').LocalRuntimeStatus> =>

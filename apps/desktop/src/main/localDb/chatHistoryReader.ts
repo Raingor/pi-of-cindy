@@ -380,6 +380,11 @@ export async function getMessagesForHistory(
   }
 
   const conds = [];
+  // Host-only cross-task notification cards are UI inbox records, not dialogue
+  // history. Exclude them from MCP/Orca/agent history consumers regardless of role filters.
+  conds.push(
+    sql`(${messages.agentMeta} IS NULL OR CASE WHEN json_valid(${messages.agentMeta}) THEN json_type(${messages.agentMeta}, '$.taskNotification') END IS NULL)`,
+  );
   if (!params.includeRewound) conds.push(isNull(messages.rewindAt));
   if (sessionIdsToFilter !== null && sessionIdsToFilter.length > 0) {
     conds.push(inArray(messages.sessionId, sessionIdsToFilter));

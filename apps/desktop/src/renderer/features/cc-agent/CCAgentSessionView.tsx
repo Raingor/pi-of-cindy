@@ -115,7 +115,7 @@ import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
 import { useSilentEncryptedRetry } from '@/hooks/useSilentEncryptedRetry';
-import { TodaySpendChip } from '@/components/status/TodaySpendChip';
+import { SessionUsageStats } from './composer/ComposerUsageStats';
 import { TopRightChipStack, TopRightChipStackProvider } from '@/components/chat/TopRightChipStack';
 import { ChatDisplaySnapshotProvider } from '@/components/chat/ChatDisplaySnapshotContext';
 import { useCCAgentChat } from '@/hooks/useCCAgentChat';
@@ -5036,20 +5036,16 @@ export function CCAgentSessionView({
                       />
                     </Tip>
                   )}
-                  <TodaySpendChip
-                    vendorKey={normalizeDbAgentKind(displayAgentKind)}
-                    modelId={agentSwitchIntent?.model ?? session?.model ?? null}
-                    providerId={
-                      agentSwitchIntent
-                        ? agentSwitchIntent.providerId
-                        : (session?.providerId ?? null)
-                    }
-                    sessionId={sessionId}
-                    sessionInitialMoney={session?.totalMoney ?? null}
-                    sessionInitialCostUsd={session?.totalCostUsd ?? null}
-                    sessionInitialTokens={session?.totalTokenUsage ?? null}
-                    remoteHostId={session?.remoteHostId ?? null}
-                    deviceLinkDeviceId={remoteDeviceId ?? null}
+                  <SessionUsageStats
+                    messages={messages}
+                    contextWindow={resolveDisplayContextWindow({
+                      sdkContextWindow: agentStatus.contextWindow,
+                      modelContextWindow: getModelContextWindow(
+                        agentSwitchIntent?.model ?? session?.model ?? '',
+                        normalizeDbAgentKind(displayAgentKind),
+                        remoteDeviceId,
+                      ),
+                    })}
                   />
                   <ContextCapacityRing
                     contextTokens={agentStatus.contextTokens}

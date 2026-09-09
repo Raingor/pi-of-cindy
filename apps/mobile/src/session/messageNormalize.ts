@@ -267,9 +267,16 @@ export function normalizeRemoteMessages(messages: readonly RemoteMessage[]): Nor
       continue;
     }
 
-    // /goal 持久记录(桌面 goal-host 落库:role 'assistant' + 空 content + agentMeta 标记)
-    // → goal 系统卡。不加分支会 fall through 到通用 assistant 处理,渲染成空白气泡。
+    // host-only 跨任务通知(桌面落库:role 'assistant' + 空 content + agentMeta 标记)
+    // → 通知系统卡；不进入普通 assistant 气泡。
     if (message.role === 'assistant') {
+      const taskNotificationCard = normalizeTaskNotificationCard(message);
+      if (taskNotificationCard) {
+        result.push(taskNotificationCard);
+        continue;
+      }
+      // /goal 持久记录(桌面 goal-host 落库:role 'assistant' + 空 content + agentMeta 标记)
+      // → goal 系统卡。不加分支会 fall through 到通用 assistant 处理,渲染成空白气泡。
       const goalCard = normalizeGoalCard(message);
       if (goalCard) {
         result.push(goalCard);
@@ -523,6 +530,26 @@ function readFileAttachments(value: unknown): NormalizedAttachment[] {
  * goalNotice 派生 'goal-complete' / 'goal-resumed' system card 的逻辑)。非 goal 记录
  * 返回 null,走通用 assistant 处理。
  */
+function normalizeTaskNotificationCard(message: RemoteMessage): NormalizedRemoteMessage | null {
+  const notification = readRecord(message.agentMeta?.taskNotification);
+  if (!notification) return null;
+  const body = readString(notification.body) ?? '';
+  const source = readString(notification.sourceSessionTitle) ?? '';
+  if (!body && !source) return null;
+  return {
+    key: messageNormalizeKey(message),
+    source: message,
+    kind: 'system',
+    role: message.role,
+    label: 'system:task-notification',
+    body: '',
+    systemCardType: 'task-notification',
+    systemCardData: notification,
+    align: 'agent',
+    createdAt: message.createdAt,
+  };
+}
+
 function normalizeGoalCard(message: RemoteMessage): NormalizedRemoteMessage | null {
   const meta = message.agentMeta;
   if (!meta) return null;
@@ -713,6 +740,7 @@ function normalizeSystemCardType(value: unknown): MobileSystemCardType | null {
     || value === 'compact'
     || value === 'cmd'
     || value === 'learn'
+    || value === 'task-notification'
     ? value
     : null;
 }

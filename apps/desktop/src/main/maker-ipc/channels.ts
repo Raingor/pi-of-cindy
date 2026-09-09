@@ -34,6 +34,12 @@ export const MAKER_INVOKE = {
   ABORT_SESSION: 'maker:abort-session',
   SEND: 'maker:send',
   STEER: 'maker:steer',
+  /** 持久跨任务通知未读会话集合（本机/被控端 DB 为真相）。 */
+  TASK_NOTIFICATIONS_UNREAD: 'maker:task-notifications:unread',
+  /** 用户实际打开目标任务后确认全部可见跨任务通知已读。 */
+  TASK_NOTIFICATIONS_MARK_READ: 'maker:task-notifications:mark-read',
+  /** device-link 被控端接收 host-only 跨任务通知；不暴露给 renderer preload。 */
+  TASK_NOTIFICATIONS_RECEIVE: 'maker:task-notifications:receive',
   GET_CONTEXT_USAGE: 'maker:get-context-usage',
   INPUT_GET_PROJECTION: 'maker:input:get-projection',
   INPUT_ENQUEUE: 'maker:input:enqueue',
@@ -884,6 +890,8 @@ export const MAKER_PUSH = {
    * （piCredentialReload，方案 B）——旧消费者忽略 payload，行为不变。
    */
   PROVIDER_CHANGED: 'maker:provider:changed',
+  /** 跨任务通知未读集合增量(payload:{ sessionId, unread })。 */
+  TASK_NOTIFICATION_CHANGED: 'maker:task-notification:changed',
   /** 当前 owner 的对话语义索引设置由另一窗口 / 进程改动。payload 为 owner stamp。 */
   CHAT_EMBEDDING_CHANGED: 'maker:chat-embedding:changed',
   /** 本机 Ollama 运行态变化（设置页右栏 + 发消息前就绪）。 */

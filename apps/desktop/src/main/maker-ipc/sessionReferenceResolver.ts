@@ -221,6 +221,15 @@ function fitSerializedPayloadBudget(
 
 function toReferenceMessage(row: Record<string, unknown>): AgentInputSessionReferenceMessage | null {
   if (!ALLOWED_ROLES.includes(String(row.role) as typeof ALLOWED_ROLES[number])) return null;
+  if (
+    row.role === 'assistant' &&
+    row.agentMeta &&
+    typeof row.agentMeta === 'object' &&
+    !Array.isArray(row.agentMeta) &&
+    (row.agentMeta as Record<string, unknown>).taskNotification !== undefined
+  ) {
+    return null;
+  }
   const content = contentToText(row.content);
   if (!content.trim()) return null;
   if (

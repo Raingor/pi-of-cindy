@@ -91,6 +91,7 @@ export async function latestVisiblePreviewRow(
         // SQLite may still evaluate json_extract when OR json_valid is false.
         // CASE keeps malformed historical agent_meta from failing the whole query.
         sql`(${messages.agentMeta} IS NULL OR CASE WHEN json_valid(${messages.agentMeta}) THEN json_extract(${messages.agentMeta}, '$.autoResume') END IS NOT 1)`,
+        sql`(${messages.agentMeta} IS NULL OR CASE WHEN json_valid(${messages.agentMeta}) THEN json_type(${messages.agentMeta}, '$.taskNotification') END IS NULL)`,
         or(isNull(sessions.clearedAt), gt(messages.createdAt, sessions.clearedAt)),
       ),
     )

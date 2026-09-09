@@ -728,6 +728,13 @@ import { type MakerSessionCreateOpts, withCreateSessionStderr } from './sessionR
 import { persistAndHydrateSessionProvider } from './sessionProviderBootstrap.js';
 import { registerMakerSessionSendHandler } from './sessionSendHandler.js';
 import {
+  deliverTaskNotificationsFromUserMessage,
+  listUnreadTaskNotificationSessionIds,
+  markTaskNotificationsRead,
+  receiveTaskNotification,
+  withTaskNotificationSessionLock,
+} from './taskNotifications.js';
+import {
   registerReviewStartHandler,
   ReviewPreconditionError,
   type ReviewFailureReason,
@@ -11602,6 +11609,12 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       prepareUserMessageForAgent(sessionId, message, 'send'),
     materializeDirectSendOssAttachments,
     createDbMessage: createUserMessageDurably,
+    onUserMessagePersisted: (sessionId, clientId) =>
+      deliverTaskNotificationsFromUserMessage(
+        sessionId,
+        clientId,
+        (payload) => broadcastToAllWindows(MAKER_PUSH.TASK_NOTIFICATION_CHANGED, payload),
+      ).then(() => undefined),
     rewindPersistedUserMessageAfterClear: (sessionId, clientId) =>
       enqueueDurableWrite(`user-rewind:${sessionId}:${clientId}`, () =>
         rewindPersistedUserMessageAfterClear(sessionId, clientId),
@@ -12055,6 +12068,29 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     assertRemoteInputControlBoundary: (sessionId, opts) =>
       assertRemoteInputControlBoundary(sessionId, isDeviceLinkInvoke(), opts),
   });
+
+  ipcMain.handle(MAKER_INVOKE.TASK_NOTIFICATIONS_UNREAD, async () => ({
+    sessionIds: await listUnreadTaskNotificationSessionIds(),
+  }));
+  ipcMain.handle(
+    MAKER_INVOKE.TASK_NOTIFICATIONS_MARK_READ,
+    async (_event, sessionId: unknown) => {
+      if (typeof sessionId !== 'string' || !sessionId) {
+        throwIpcError('INVALID_PARAMS', 'sessionId required');
+      }
+      return await markTaskNotificationsRead(sessionId, (payload) =>
+        broadcastToAllWindows(MAKER_PUSH.TASK_NOTIFICATION_CHANGED, payload),
+      );
+    },
+  );
+
+  ipcMain.handle(
+    MAKER_INVOKE.TASK_NOTIFICATIONS_RECEIVE,
+    async (_event, payload: unknown) =>
+      await receiveTaskNotification(payload, (changed) =>
+        broadcastToAllWindows(MAKER_PUSH.TASK_NOTIFICATION_CHANGED, changed),
+      ),
+  );
 
   ipcMain.handle(
     MAKER_INVOKE.STEER,
@@ -14396,19 +14432,31 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         // 也是同值幂等。
         const clearBoundaryMs =
           typeof clearBoundary === 'number' ? clearBoundary : new Date(clearBoundary).getTime();
-        try {
-          await clearSessionContextInDb(sid, clearBoundaryMs);
-        } catch (err) {
-          // The in-memory fence is still authoritative for this process. Keep
-          // /clear remains a local cleanup action even when persistence fails;
-          // surface the failure in logs, and
-          // let the next input/projection boundary retry the durable token.
-          log.error('clear session context persist failed', {
-            sessionId: sid,
-            remoteInvoke,
-            err: err instanceof Error ? err.message : String(err),
-          });
-        }
+        const notificationOwnerScope = captureDataOwnerBroadcastScope();
+        await withTaskNotificationSessionLock(sid, async () => {
+          try {
+            await clearSessionContextInDb(sid, clearBoundaryMs);
+          } catch (err) {
+            // The in-memory fence is still authoritative for this process. Keep
+            // /clear remains a local cleanup action even when persistence fails;
+            // surface the failure in logs, and
+            // let the next input/projection boundary retry the durable token.
+            log.error('clear session context persist failed', {
+              sessionId: sid,
+              remoteInvoke,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+          // /clear hides all notifications created before the new boundary.
+          // Broadcast after the lock so a concurrent delivery cannot leave a
+          // stale unread projection behind.
+          if (isDataOwnerBroadcastScopeCurrent(notificationOwnerScope)) {
+            broadcastToAllWindows(MAKER_PUSH.TASK_NOTIFICATION_CHANGED, {
+              sessionId: sid,
+              unread: false,
+            });
+          }
+        });
         return projection;
       } finally {
         // 落库尝试结束后封边界:重立墓碑(清掉这段 await 里用 clear 前纪元挤进来的那份)

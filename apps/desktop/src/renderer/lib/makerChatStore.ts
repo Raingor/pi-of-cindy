@@ -491,7 +491,8 @@ export interface ChatMessage {
      */
     | 'auto-resume-pending'
     | 'agent-switch'
-    | 'context-rebuild';
+    | 'context-rebuild'
+    | 'task-notification';
   systemCardData?: Record<string, unknown>;
   /** FP-3: plan_review message fields */
   planReviewStatus?: 'pending' | 'approved' | 'revised' | 'expired' | 'cancelled';
@@ -16147,6 +16148,19 @@ function mapServerMessages(serverMsgs: Message[]): ChatMessage[] {
         isSubagentParentToolUseId(m.agentMeta.parentUuid)
           ? { parentToolUseId: m.agentMeta.parentUuid }
           : {}),
+      };
+    }
+    // Cindy host-only 跨任务通知：由持久 agentMeta 派生成系统卡，空 content 不进
+    // Agent 历史；放在普通 assistant 费用 / usage 投影之前，避免被当成模型回复。
+    if (m.role === 'assistant' && m.agentMeta?.taskNotification) {
+      return {
+        clientId: m.clientId,
+        role: m.role,
+        content: '',
+        isStreaming: false,
+        createdAt: m.createdAt,
+        systemCardType: 'task-notification' as const,
+        systemCardData: { ...m.agentMeta.taskNotification },
       };
     }
     // /goal 达成记录:持久消息(role:'assistant' + 空 content + agentMeta.goalCompletion)

@@ -201,7 +201,12 @@
     "learnFailed": "スキル学習を開始できませんでした",
     "learnBusyBody": "学習タスクが既に進行中です。完了してから再度お試しください。",
     "learnFailedBody": "開始に失敗:{{detail}}",
-    "unknownError": "不明なエラー"
+    "unknownError": "不明なエラー",
+    "taskNotification": {
+      "title": "「{{source}}」からのタスク通知",
+      "unnamedTask": "無題のタスク",
+      "noBody": "このタスクがメンションされました。"
+    }
   },
   "queuePresentation": {
     "panel": {

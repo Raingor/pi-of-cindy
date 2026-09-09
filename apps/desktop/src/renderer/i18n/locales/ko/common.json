@@ -8273,6 +8273,13 @@
         "handoffTitle": "인계 내용——정리 후 이 대화의 이어서 넘긴 컨텍스트 요약(대화 기록에 포함되지 않으며 여기에서만 표시)",
         "handoffTitleEnglishSource": "인계 내용——정리 후 이 대화의 이어서 넘긴 컨텍스트 요약. 원문은 영어(대화 기록에 포함되지 않으며 여기에서만 표시)"
       },
+      "taskNotification": {
+        "title": "‘{{source}}’의 작업 알림",
+        "unnamedTask": "제목 없는 작업",
+        "noBody": "이 작업이 멘션되었습니다.",
+        "openSource": "출처 보기",
+        "reply": "출처 작업에서 답장"
+      },
       "review": {
         "running": "현재 결과물을 검토하는 중",
         "completed": "검토 완료",
@@ -8671,6 +8678,14 @@
         "confirmDescription": "현재 사용량: {{used}} / {{total}}({{pct}}%). 컨텍스트를 조용히 압축하여 Agent가 대화 기록을 요약하고 컨텍스트 공간을 확보합니다.",
         "confirmAction": "압축",
         "confirmCancel": "취소"
+      },
+      "usageStats": {
+        "input": "입력",
+        "output": "출력",
+        "cacheHitRate": "캐시",
+        "contextWindow": "창",
+        "tooltip": "가장 최근에 완료된 턴의 입력, 출력 및 캐시 적중률입니다. 창은 현재 모델의 컨텍스트 윈도우입니다.",
+        "ariaLabel": "최근 턴: 입력 {{input}}, 출력 {{output}}, 캐시 적중률 {{cacheHitRate}}, 컨텍스트 윈도우 {{contextWindow}}"
       },
       "dialogueLabel": "대화",
       "backToAutomations": "Automations로 돌아가기",

@@ -190,6 +190,21 @@ export interface CcMeta {
     exitCode: number | null;
     durationMs: number;
   };
+
+  /**
+   * Cindy host-only 跨任务通知。正文与来源只用于系统卡，不进入 Agent prompt、
+   * 搜索、预览或嵌入；readAt 是持久未读真相。
+   */
+  taskNotification?: {
+    sourceSessionId: string;
+    sourceMessageClientId: string;
+    sourceDeviceId: string | null;
+    sourceSessionTitle: string | null;
+    targetSessionTitle: string | null;
+    body: string;
+    createdAt: string;
+    readAt: string | null;
+  };
 }
 
 /**

@@ -142,10 +142,26 @@ function broadcastOwnedPayload(
   }
 }
 
+function isTaskNotificationAssistantRow(agentMetaJson: string | null): boolean {
+  if (!agentMetaJson) return false;
+  try {
+    const parsed: unknown = JSON.parse(agentMetaJson);
+    return Boolean(
+      parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        (parsed as { taskNotification?: unknown }).taskNotification !== undefined,
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isVisibleSessionListPreviewRow(row: MessageRow): boolean {
   if (row.role !== 'user' && row.role !== 'assistant') return false;
   if (row.rewindAt != null) return false;
   if (row.role === 'user' && isAutoResumeUserRow(row.agentMeta)) return false;
+  if (row.role === 'assistant' && isTaskNotificationAssistantRow(row.agentMeta)) return false;
   return true;
 }
 
@@ -565,6 +581,14 @@ export function registerMessageIpc(): void {
       (typeof b.agentMeta !== 'object' || Array.isArray(b.agentMeta))
     ) {
       throwIpcError('INVALID_PARAMS', 'agentMeta 必须是对象或 null');
+    }
+    if (
+      b.agentMeta &&
+      typeof b.agentMeta === 'object' &&
+      !Array.isArray(b.agentMeta) &&
+      Object.prototype.hasOwnProperty.call(b.agentMeta, 'taskNotification')
+    ) {
+      throwIpcError('INVALID_PARAMS', 'taskNotification 仅允许由 host 创建');
     }
     let createdAt: number | undefined;
     if (b.createdAt !== undefined) {

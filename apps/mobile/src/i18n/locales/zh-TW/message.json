@@ -201,7 +201,12 @@
     "learnFailed": "技能學習未能啟動",
     "learnBusyBody": "已有一個學習任務在執行中，等它完成後再試。",
     "learnFailedBody": "啟動失敗：{{detail}}",
-    "unknownError": "未知錯誤"
+    "unknownError": "未知錯誤",
+    "taskNotification": {
+      "title": "來自「{{source}}」的任務通知",
+      "unnamedTask": "未命名任務",
+      "noBody": "對方提到了這個任務。"
+    }
   },
   "queuePresentation": {
     "panel": {

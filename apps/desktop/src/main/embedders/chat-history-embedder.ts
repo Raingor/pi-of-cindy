@@ -182,6 +182,9 @@ export function isChatEmbeddingEnabled(): boolean {
  * 全程不抛出: 任何错都吞 + log warn, 避免影响 createMessage IPC 返回。
  */
 export async function onMessageCreated(msg: Message): Promise<void> {
+  // Host-only task notification rows must never enter semantic search. Their user-visible
+  // body lives in agentMeta while content is deliberately empty; keep this invariant explicit.
+  if (msg.agentMeta?.taskNotification !== undefined) return;
   if (!_enabled || !_deps) return;
   try {
     const cutoff = await readCutoff();

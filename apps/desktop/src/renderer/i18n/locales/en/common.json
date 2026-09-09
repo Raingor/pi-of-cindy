@@ -8269,6 +8269,13 @@
         "handoffTitle": "Handoff — the context summary sent to the next stretch of this conversation (not part of the chat transcript; shown only here)",
         "handoffTitleEnglishSource": "Handoff — the context summary sent to the next stretch of this conversation (not part of the chat transcript; shown only here)"
       },
+      "taskNotification": {
+        "title": "Task notification from “{{source}}”",
+        "unnamedTask": "Untitled task",
+        "noBody": "This task was mentioned.",
+        "openSource": "View source",
+        "reply": "Reply in source task"
+      },
       "review": {
         "running": "Reviewing current work",
         "completed": "Review complete",
@@ -8665,6 +8672,14 @@
         "confirmDescription": "Current usage: {{used}} / {{total}} ({{pct}}%). This silently compacts context — the agent summarizes chat history to free up context space.",
         "confirmAction": "Compact",
         "confirmCancel": "Cancel"
+      },
+      "usageStats": {
+        "input": "Input",
+        "output": "Output",
+        "cacheHitRate": "Cache",
+        "contextWindow": "Window",
+        "tooltip": "Input, output, and cache hit rate for the latest completed turn; window is the current model context window.",
+        "ariaLabel": "Latest turn: input {{input}}, output {{output}}, cache hit rate {{cacheHitRate}}, context window {{contextWindow}}"
       },
       "dialogueLabel": "Chat",
       "backToAutomations": "Back to Automations",

@@ -201,7 +201,12 @@
     "learnFailed": "技能学习未能启动",
     "learnBusyBody": "已有一个学习任务在运行中，等它完成后再试。",
     "learnFailedBody": "启动失败：{{detail}}",
-    "unknownError": "未知错误"
+    "unknownError": "未知错误",
+    "taskNotification": {
+      "title": "来自“{{source}}”的任务通知",
+      "unnamedTask": "未命名任务",
+      "noBody": "对方提到了这个任务。"
+    }
   },
   "queuePresentation": {
     "panel": {

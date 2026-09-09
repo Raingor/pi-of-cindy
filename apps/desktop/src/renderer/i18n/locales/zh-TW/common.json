@@ -8272,6 +8272,13 @@
         "handoffTitle": "交接內容——整理後傳送給後續對話的上下文摘要(不計入對話記錄，僅在此展示)",
         "handoffTitleEnglishSource": "交接內容——整理後傳送給後續對話的上下文摘要，原文為英文(不計入對話記錄，僅在此展示)"
       },
+      "taskNotification": {
+        "title": "來自「{{source}}」的任務通知",
+        "unnamedTask": "未命名任務",
+        "noBody": "對方提到了這個任務。",
+        "openSource": "查看來源",
+        "reply": "回覆來源任務"
+      },
       "review": {
         "running": "正在審查當前成果",
         "completed": "審查完成",
@@ -8671,6 +8678,14 @@
         "confirmDescription": "當前已使用 {{used}} / {{total}}({{pct}}%)。將靜默壓縮上下文，由 Agent 總結歷史對話並釋放上下文空間。",
         "confirmAction": "壓縮",
         "confirmCancel": "取消"
+      },
+      "usageStats": {
+        "input": "輸入",
+        "output": "輸出",
+        "cacheHitRate": "快取",
+        "contextWindow": "視窗",
+        "tooltip": "最近完成一輪的輸入、輸出與快取命中率；視窗為目前模型的上下文視窗大小。",
+        "ariaLabel": "最近一輪：輸入 {{input}}，輸出 {{output}}，快取命中率 {{cacheHitRate}}，上下文視窗 {{contextWindow}}"
       },
       "dialogueLabel": "對話",
       "backToAutomations": "返回 Automations",

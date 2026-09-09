@@ -20,7 +20,8 @@ END`;
 /** autoResume 只出现在注入的 user「继续」行；assistant 不读 agent_meta，避免跨越多 MB content overflow。 */
 export const LATEST_VISIBLE_PREVIEW_FILTER_SQL = `m.role IN ('user', 'assistant')
     AND m.rewind_at IS NULL
-    AND (m.role != 'user' OR m.agent_meta IS NULL OR CASE WHEN json_valid(m.agent_meta) THEN json_extract(m.agent_meta, '$.autoResume') END IS NOT 1)`;
+    AND (m.role != 'user' OR m.agent_meta IS NULL OR CASE WHEN json_valid(m.agent_meta) THEN json_extract(m.agent_meta, '$.autoResume') END IS NOT 1)
+    AND (m.role != 'assistant' OR m.agent_meta IS NULL OR CASE WHEN json_valid(m.agent_meta) THEN json_type(m.agent_meta, '$.taskNotification') END IS NULL)`;
 
 const LATEST_VISIBLE_PREVIEW_FROM_SQL = `FROM messages m
       WHERE m.session_id = sessions.id

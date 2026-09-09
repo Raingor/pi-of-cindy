@@ -146,6 +146,12 @@ const CORE_INVOKE_CHANNELS: readonly string[] = [
   'maker:abort-session',
   'maker:send',
   'maker:steer',
+  // 持久跨任务通知的未读查询 / 已读确认 / 远端收件。都在被控端 DB 执行，
+  // 控制端只镜像结果；mark-read 只更新 taskNotification.readAt；receive 只写
+  // host-only 系统卡，不启动 Agent。
+  'maker:task-notifications:unread',
+  'maker:task-notifications:mark-read',
+  'maker:task-notifications:receive',
   'maker:list-active',
   'maker:any-session-in-turn',
   'maker:session-in-turn',
@@ -560,6 +566,9 @@ export const PUSH_FORWARD_ALLOWLIST: ReadonlySet<string> = new Set([
   'maker:auto-permission:fallback',
   // 被控端 active-catalog revision 变化：控制端按 deviceId 驱逐并重拉 provider 目录。
   'maker:provider:changed',
+  // 目标任务未打开时也要更新控制端侧栏未读点；payload 仅含 sessionId + unread，
+  // 归会话列表级 sessions topic，不泄露通知正文。
+  'maker:task-notification:changed',
   // 注:maker:auth:state-changed 曾在此 —— 但发射点不 tap、控制端也不消费(被控端 agent 鉴权
   // 状态推给控制端语义存疑),是死条目,已移除避免误导。真要转发需先想清控制端如何路由。
   'maker:schedule:event',

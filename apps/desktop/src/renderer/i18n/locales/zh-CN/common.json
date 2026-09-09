@@ -8273,6 +8273,13 @@
         "handoffTitle": "交接内容——整理后发送给后续对话的上下文摘要(不计入对话记录，仅在此展示)",
         "handoffTitleEnglishSource": "交接内容——整理后发送给后续对话的上下文摘要，原文为英文(不计入对话记录，仅在此展示)"
       },
+      "taskNotification": {
+        "title": "来自“{{source}}”的任务通知",
+        "unnamedTask": "未命名任务",
+        "noBody": "对方提到了这个任务。",
+        "openSource": "查看来源",
+        "reply": "回复来源任务"
+      },
       "review": {
         "running": "正在审查当前成果",
         "completed": "审查完成",
@@ -8671,6 +8678,14 @@
         "confirmDescription": "当前已使用 {{used}} / {{total}}({{pct}}%)。将静默压缩上下文，由 Agent 总结历史对话并释放上下文空间。",
         "confirmAction": "压缩",
         "confirmCancel": "取消"
+      },
+      "usageStats": {
+        "input": "输入",
+        "output": "输出",
+        "cacheHitRate": "缓存",
+        "contextWindow": "窗口",
+        "tooltip": "最近完成一轮的输入、输出与缓存命中率；窗口为当前模型的上下文窗口大小。",
+        "ariaLabel": "最近一轮：输入 {{input}}，输出 {{output}}，缓存命中率 {{cacheHitRate}}，上下文窗口 {{contextWindow}}"
       },
       "dialogueLabel": "对话",
       "backToAutomations": "返回 Automations",

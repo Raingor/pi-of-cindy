@@ -384,7 +384,10 @@ function buildFilterClause(
   args: SearchChatHistoryEngineArgs,
   workdirCandidates: string[] | null,
 ): { clause: string; params: unknown[] } {
-  const conds: string[] = ['m.rewind_at IS NULL'];
+  const conds: string[] = [
+    'm.rewind_at IS NULL',
+    `(m.agent_meta IS NULL OR CASE WHEN json_valid(m.agent_meta) THEN json_type(m.agent_meta, '$.taskNotification') END IS NULL)`,
+  ];
   const params: unknown[] = [];
   if (args.sessionIds && args.sessionIds.length > 0) {
     conds.push(`m.session_id IN (${args.sessionIds.map(() => '?').join(',')})`);
