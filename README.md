@@ -55,6 +55,14 @@ Open source means more than visible — it means changeable:
 Ready out of the box, never boxed in — start with
 [`CONTRIBUTING.en.md`](CONTRIBUTING.en.md) and build Cindy with us.
 
+## Related project: pi-web-switch
+
+For a browser-based Pi workspace, see [pi-web-switch](https://github.com/Raingor/pi-web-switch).
+It is a browser-based Pi configuration management dashboard for usage statistics,
+provider and model settings, and session and memory management. It shares the
+`~/.pi/agent/` configuration with the local Pi CLI, so the same providers, models,
+sessions, and memory stay available across the browser and Cindy's Pi-only client.
+
 ## What's in this repo
 
 | Path | Description |

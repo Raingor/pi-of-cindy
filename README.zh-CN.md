@@ -54,6 +54,14 @@ monorepo 组织。
 开箱即用，不是开箱即定型——欢迎从 [`CONTRIBUTING.md`](CONTRIBUTING.md) 开始，
 一起打造 Cindy。
 
+## 相关项目：pi-web-switch
+
+如果你更偏好在浏览器中使用 Pi，可以查看
+[pi-web-switch](https://github.com/Raingor/pi-web-switch)。这是一个浏览器版的 Pi
+配置管理面板，提供使用统计、供应商与模型配置，以及会话和记忆管理功能。它与本机
+Pi CLI 共用 `~/.pi/agent/` 配置，因此浏览器端与 Cindy 的 Pi-only 客户端可以使用
+同一套供应商、模型、会话和记忆。
+
 ## 本仓包含什么
 
 | 路径 | 说明 |
