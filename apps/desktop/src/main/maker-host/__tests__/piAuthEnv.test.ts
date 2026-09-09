@@ -56,7 +56,7 @@ vi.mock('../../pi-agent/piCliPanel.js', () => ({
   readPiCliRuntimeProviders: () => piCliProviders.entries,
 }));
 
-import { desktopPiAuthAdapter } from '../pi-host.js';
+import { desktopPiAuthAdapter, hasPiNativeAuthEntry } from '../pi-host.js';
 
 const PI_API_KEY_ENV = 'CINDY_PI_API_KEY';
 const PLACEHOLDER = 'cindy-pi-provider-auth-placeholder';
@@ -102,6 +102,14 @@ describe('DesktopPiAuthAdapter.getAuthEnv', () => {
       authenticated: true,
       identity: 'My vLLM',
     });
+  });
+});
+
+describe('Pi native auth.json entries', () => {
+  it('recognizes Pi OAuth credentials without exposing their values', () => {
+    expect(hasPiNativeAuthEntry({ 'openai-codex': { access: 'access', refresh: 'refresh' } }, 'openai-codex')).toBe(true);
+    expect(hasPiNativeAuthEntry({ 'openai-codex': { access: '', refresh: '' } }, 'openai-codex')).toBe(false);
+    expect(hasPiNativeAuthEntry({ 'openai-codex': { access: 'access' } }, 'missing')).toBe(false);
   });
 });
 

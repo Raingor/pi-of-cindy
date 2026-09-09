@@ -760,6 +760,25 @@ export function resolvePiBinaryPath(): string | null {
 
 // ── AuthAdapter(XD 网关 key)─────────────────────────────────────────────────
 
+/** Pi 内置供应商的 auth.json 凭证存在时，Pi 会通过 configHome/auth.json 原生鉴权。 */
+export function hasPiNativeAuthEntry(raw: unknown, providerId: string): boolean {
+  if (!isRecord(raw) || !providerId) return false;
+  const entry = raw[providerId];
+  if (!isRecord(entry)) return false;
+  return ['key', 'access', 'refresh', 'token'].some(
+    (field) => typeof entry[field] === 'string' && entry[field].trim().length > 0,
+  );
+}
+
+function hasPiNativeAuth(providerId: string): boolean {
+  try {
+    const authPath = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+    return hasPiNativeAuthEntry(JSON.parse(readFileSync(authPath, 'utf8')) as unknown, providerId);
+  } catch {
+    return false;
+  }
+}
+
 class DesktopPiAuthAdapter implements AuthAdapter {
   async getState(options?: AuthAdapterOptions): Promise<AuthState> {
     const providerId = options?.providerId?.trim() || null;
@@ -816,6 +835,11 @@ class DesktopPiAuthAdapter implements AuthAdapter {
           providerId,
           message: err instanceof Error ? err.message : String(err),
         });
+      }
+      // Pi 内置 OAuth/API-key provider（例如 openai-codex）由 ~/.pi/agent/auth.json
+      // 原生消费；不能因为它不是 Cindy custom provider 就回落到 Cindy gateway key。
+      if (hasPiNativeAuth(providerId)) {
+        return { authenticated: true, identity: `Pi (${providerId})`, authSource: 'oauth' };
       }
     }
     const key = readClaudeApiKey();
@@ -1434,7 +1458,7 @@ export function buildPiAuthPassthroughProviders(
   try {
     const authPath = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
     const raw = JSON.parse(readFileSync(authPath, 'utf-8')) as Record<string, unknown>;
-    authKeys = Object.keys(raw).filter((id) => id && raw[id] && typeof raw[id] === 'object');
+    authKeys = Object.keys(raw).filter((id) => hasPiNativeAuthEntry(raw, id));
   } catch {
     return [];
   }
