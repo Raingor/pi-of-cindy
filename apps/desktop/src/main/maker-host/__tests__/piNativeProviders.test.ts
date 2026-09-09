@@ -753,6 +753,55 @@ describe('buildPiNativeProvidersFromConfigs', () => {
     });
   });
 
+  it('keeps Pi auth passthrough ids and namespaces colliding subscription overlays', () => {
+    const collisions: Array<[string, string]> = [];
+    const merged = mergePiNativeProviderResults(
+      {
+        providers: [
+          {
+            id: 'openai-codex',
+            sourceProviderId: 'openai',
+            name: 'OpenAI (ChatGPT)',
+            baseUrl: 'http://127.0.0.1:4567',
+            inheritModels: true,
+            models: [{ id: 'chatgpt/gpt-5.6-luna', wireId: 'gpt-5.6-luna', api: 'openai-responses' }],
+          },
+        ],
+        env: { CINDY_PI_OPENAI_PROXY_KEY: 'subscription-key' },
+      },
+      {
+        providers: [
+          {
+            id: 'openai-codex',
+            name: 'openai-codex',
+            baseUrl: 'https://chatgpt.example.invalid',
+            inheritModels: true,
+            piAuthPassthrough: true,
+            models: [{ id: 'gpt-5.6-luna', wireId: 'gpt-5.6-luna' }],
+          },
+        ],
+        env: {},
+      },
+      (sourceProviderId, runtimeProviderId) =>
+        collisions.push([sourceProviderId, runtimeProviderId]),
+    );
+
+    expect(merged.providers.map((provider) => provider.id)).toEqual([
+      'cindy-byom-openai-codex',
+      'openai-codex',
+    ]);
+    expect(merged.providers[0]).toMatchObject({
+      id: 'cindy-byom-openai-codex',
+      sourceProviderId: 'openai',
+    });
+    expect(merged.providers[0]?.piAuthPassthrough).toBeUndefined();
+    expect(merged.providers[1]).toMatchObject({
+      id: 'openai-codex',
+      piAuthPassthrough: true,
+    });
+    expect(collisions).toEqual([['openai', 'cindy-byom-openai-codex']]);
+  });
+
   it('namespaces only colliding BYOM runtime ids and preserves their persisted source ids', () => {
     const collisions: Array<[string, string]> = [];
     const merged = mergePiNativeProviderResults(

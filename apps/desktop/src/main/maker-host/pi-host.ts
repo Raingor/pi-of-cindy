@@ -1491,15 +1491,47 @@ export function mergePiNativeProviderResults(
   custom: PiNativeProvidersResult,
   onNamespace?: (sourceProviderId: string, runtimeProviderId: string) => void,
 ): PiNativeProvidersResult {
+  // Pi's built-in provider id (notably openai-codex) must remain available for
+  // auth.json passthrough. If the Cindy subscription overlay uses the same id,
+  // namespace the overlay instead; otherwise writeModelsJson skips the native
+  // passthrough block and Pi receives an unknown provider at startup.
+  const passthroughIds = new Set(
+    custom.providers
+      .filter((provider) => provider.piAuthPassthrough === true)
+      .map((provider) => provider.id),
+  );
   const occupiedIds = new Set([
     ...subscriptions.providers.map((provider) => provider.id),
     ...custom.providers.map((provider) => provider.id),
   ]);
+  const namespaceSubscription = (provider: PiNativeProviderSpec): PiNativeProviderSpec => {
+    if (!passthroughIds.has(provider.id)) return provider;
+    const sourceProviderId = provider.sourceProviderId ?? provider.id;
+    const baseRuntimeId = `cindy-byom-${provider.id}`;
+    let runtimeProviderId = baseRuntimeId;
+    for (let suffix = 2; occupiedIds.has(runtimeProviderId); suffix += 1) {
+      runtimeProviderId = `${baseRuntimeId}-${suffix}`;
+    }
+    occupiedIds.add(runtimeProviderId);
+    onNamespace?.(sourceProviderId, runtimeProviderId);
+    return {
+      ...provider,
+      id: runtimeProviderId,
+      sourceProviderId,
+    };
+  };
+  const subscriptionProviders = subscriptions.providers.map(namespaceSubscription);
   const runtimeIds = new Set<string>([
     ...PI_BUNDLED_RESERVED_PROVIDER_IDS,
-    ...subscriptions.providers.map((provider) => provider.id),
+    ...subscriptionProviders.map((provider) => provider.id),
   ]);
   const customProviders = custom.providers.map((provider) => {
+    // A native auth passthrough owns its real Pi provider id. The colliding
+    // subscription, if any, was namespaced above.
+    if (provider.piAuthPassthrough === true) {
+      runtimeIds.add(provider.id);
+      return provider;
+    }
     if (!runtimeIds.has(provider.id)) {
       runtimeIds.add(provider.id);
       return provider;
@@ -1522,7 +1554,7 @@ export function mergePiNativeProviderResults(
   });
 
   return {
-    providers: [...subscriptions.providers, ...customProviders],
+    providers: [...subscriptionProviders, ...customProviders],
     env: { ...subscriptions.env, ...custom.env },
   };
 }
